@@ -563,31 +563,62 @@ const fs = require('fs');
 const os = require('os');
 const FormData = require('form-data');
 
-// Find yt-dlp binary path
+// Find yt-dlp binary — checks all known locations
 async function findYtDlp() {
-  return new Promise((resolve) => {
-    exec('which yt-dlp || which yt-dlp3 || echo ""', (err, stdout) => {
-      const p = stdout.trim();
-      resolve(p || 'yt-dlp');
+  const candidates = [
+    'yt-dlp',
+    '/usr/local/bin/yt-dlp',
+    '/usr/bin/yt-dlp',
+    '/root/.local/bin/yt-dlp',
+    '/home/user/.local/bin/yt-dlp'
+  ];
+
+  for (const candidate of candidates) {
+    const found = await new Promise((resolve) => {
+      exec('test -f ' + candidate + ' && echo yes || echo no', (err, stdout) => {
+        resolve(stdout.trim() === 'yes');
+      });
     });
-  });
+    if (found) {
+      console.log('Found yt-dlp at:', candidate);
+      return candidate;
+    }
+  }
+
+  // Last resort: try python3 -m yt_dlp
+  return null;
 }
 
-// Download audio from URL using system yt-dlp
+// Download audio from URL
 async function downloadAudio(url, outputPath) {
-  const ytdlpPath = await findYtDlp();
+  const ytdlpBin = await findYtDlp();
+
+  const args = [
+    url,
+    '--no-playlist',
+    '--extract-audio',
+    '--audio-format', 'mp3',
+    '--audio-quality', '5',
+    '--max-filesize', '25m',
+    '-o', outputPath,
+    '--no-warnings'
+  ];
+
   return new Promise((resolve, reject) => {
-    const args = [
-      url,
-      '--no-playlist',
-      '--extract-audio',
-      '--audio-format', 'mp3',
-      '--audio-quality', '5',
-      '--max-filesize', '25m',
-      '-o', outputPath,
-      '--no-warnings'
-    ];
-    execFile(ytdlpPath, args, { timeout: 180000 }, (err, stdout, stderr) => {
+    let cmd, cmdArgs;
+
+    if (ytdlpBin) {
+      cmd = ytdlpBin;
+      cmdArgs = args;
+    } else {
+      // Fallback: run as python module
+      cmd = 'python3';
+      cmdArgs = ['-m', 'yt_dlp', ...args];
+    }
+
+    console.log('Running:', cmd, cmdArgs.slice(0, 3).join(' '), '...');
+
+    execFile(cmd, cmdArgs, { timeout: 180000 }, (err, stdout, stderr) => {
       if (err) reject(new Error(stderr || err.message));
       else resolve(outputPath);
     });
@@ -738,8 +769,6 @@ app.post('/api/learn', requireAuth, async (req, res) => {
 
   try {
     send('start', 'Checking tools...');
-    const ytdlpPath = await findYtDlp();
-    console.log('Using yt-dlp at:', ytdlpPath);
 
     send('download', 'Downloading audio from video...');
     await downloadAudio(url, audioPath);
