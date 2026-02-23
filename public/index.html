@@ -718,35 +718,30 @@ async function loadSessionBrief(folderId, name) {
   showStatus('Loading brief...');
   document.getElementById('sessionSearchResults').innerHTML = '';
   document.getElementById('sessionSearch').value = name;
-  
+  document.getElementById('sessionBriefing').style.display = 'none';
+
   try {
     const res = await fetch(`/api/client/${folderId}`);
     const data = await res.json();
-    
-    if (!data.doc) { showStatus('No client file found', 'error'); return; }
-    
-    // Parse the text content for key fields
-    const content = data.doc.content;
-    document.getElementById('sessionClientName').textContent = name;
-    document.getElementById('sessionType').textContent = extractField(content, 'Session Type') || 'Portrait Session';
-    document.getElementById('sb-open').textContent = extractField(content, 'How to Open') || '—';
-    document.getElementById('sb-question').textContent = extractField(content, 'Key Question') || '—';
-    document.getElementById('sb-talk').textContent = extractField(content, 'Things to Talk About') || '—';
-    document.getElementById('sb-need').textContent = extractField(content, "What They Need") || '—';
-    document.getElementById('sb-moment').textContent = extractField(content, 'Moment to Watch For') || '—';
-    document.getElementById('sb-shoot').textContent = extractField(content, 'Poses') || '—';
-    
+
+    if (!data.briefing) { showStatus('No client file found', 'error'); return; }
+
+    const b = data.briefing;
+    document.getElementById('sessionClientName').textContent = b.clientName || name;
+    document.getElementById('sessionType').textContent = b.sessionType || 'Portrait Session';
+    document.getElementById('sb-open').textContent = b.howToOpen || '—';
+    document.getElementById('sb-question').textContent = b.keyQuestion || '—';
+    document.getElementById('sb-talk').textContent = b.thingsToTalkAbout || '—';
+    document.getElementById('sb-need').textContent = b.whatTheyNeed || '—';
+    document.getElementById('sb-moment').textContent = b.momentToWatchFor || '—';
+    document.getElementById('sb-shoot').textContent = b.posesSuggestions || b.conversationStarters || '—';
+
     document.getElementById('sessionBriefing').style.display = 'block';
     document.getElementById('sessionBriefing').scrollIntoView({ behavior: 'smooth' });
+    showStatus('Brief loaded', 'success');
   } catch (err) {
     showStatus('Could not load brief', 'error');
   }
-}
-
-function extractField(content, fieldName) {
-  const regex = new RegExp(fieldName + ':\\s*(.+)', 'i');
-  const match = content.match(regex);
-  return match ? match[1].trim() : null;
 }
 
 // Load clients for session search
