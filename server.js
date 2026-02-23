@@ -563,35 +563,29 @@ const fs = require('fs');
 const os = require('os');
 const FormData = require('form-data');
 
-// Find yt-dlp binary — checks all known locations
-async function findYtDlp() {
-  const candidates = [
-    'yt-dlp',
-    '/usr/local/bin/yt-dlp',
-    '/usr/bin/yt-dlp',
-    '/root/.local/bin/yt-dlp',
-    '/home/user/.local/bin/yt-dlp'
-  ];
+// Download standalone yt-dlp binary (no Python needed)
+const YTDLP_BIN = path.join(os.tmpdir(), 'yt-dlp-standalone');
 
-  for (const candidate of candidates) {
-    const found = await new Promise((resolve) => {
-      exec('test -f ' + candidate + ' && echo yes || echo no', (err, stdout) => {
-        resolve(stdout.trim() === 'yes');
-      });
-    });
-    if (found) {
-      console.log('Found yt-dlp at:', candidate);
-      return candidate;
-    }
-  }
+async function ensureYtDlpBinary() {
+  if (fs.existsSync(YTDLP_BIN)) return YTDLP_BIN;
 
-  // Last resort: try python3 -m yt_dlp
-  return null;
+  console.log('Downloading standalone yt-dlp binary...');
+  // Use the Linux standalone binary from yt-dlp releases
+  const url = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux';
+  
+  const response = await fetch(url);
+  if (!response.ok) throw new Error('Failed to download yt-dlp: ' + response.status);
+  
+  const buffer = await response.arrayBuffer();
+  fs.writeFileSync(YTDLP_BIN, Buffer.from(buffer));
+  fs.chmodSync(YTDLP_BIN, '755');
+  console.log('yt-dlp standalone binary ready');
+  return YTDLP_BIN;
 }
 
 // Download audio from URL
 async function downloadAudio(url, outputPath) {
-  const ytdlpBin = await findYtDlp();
+  const binPath = await ensureYtDlpBinary();
 
   const args = [
     url,
@@ -604,21 +598,10 @@ async function downloadAudio(url, outputPath) {
     '--no-warnings'
   ];
 
+  console.log('Running yt-dlp standalone...');
+
   return new Promise((resolve, reject) => {
-    let cmd, cmdArgs;
-
-    if (ytdlpBin) {
-      cmd = ytdlpBin;
-      cmdArgs = args;
-    } else {
-      // Fallback: run as python module
-      cmd = 'python3';
-      cmdArgs = ['-m', 'yt_dlp', ...args];
-    }
-
-    console.log('Running:', cmd, cmdArgs.slice(0, 3).join(' '), '...');
-
-    execFile(cmd, cmdArgs, { timeout: 180000 }, (err, stdout, stderr) => {
+    execFile(binPath, args, { timeout: 180000 }, (err, stdout, stderr) => {
       if (err) reject(new Error(stderr || err.message));
       else resolve(outputPath);
     });
@@ -768,7 +751,7 @@ app.post('/api/learn', requireAuth, async (req, res) => {
   };
 
   try {
-    send('start', 'Checking tools...');
+    send('start', 'Preparing yt-dlp (first run downloads binary)...');
 
     send('download', 'Downloading audio from video...');
     await downloadAudio(url, audioPath);
