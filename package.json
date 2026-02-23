@@ -15,7 +15,8 @@
     "googleapis": "^140.0.0",
     "multer": "^1.4.5-lts.1",
     "openai": "^4.0.0",
-    "form-data": "^4.0.0"
+    "form-data": "^4.0.0",
+    "yt-dlp-wrap": "^2.3.12"
   },
   "engines": {
     "node": ">=18.0.0"
