@@ -487,7 +487,46 @@ app.post('/api/knowledge', requireAuth, async (req, res) => {
       }
     }
 
-    if (!allContent.trim()) {
+    // Build Claude message content — text docs go inline, PDFs go as base64
+    const messageContent = [];
+    const pdfSources = [];
+
+    // Re-process files: text content already in allContent, now handle PDFs for Claude vision
+    for (const file of fileList.data.files) {
+      if (file.mimeType === 'application/pdf') {
+        try {
+          const pdfRes = await drive.files.get(
+            { fileId: file.id, alt: 'media' },
+            { responseType: 'arraybuffer' }
+          );
+          const base64 = Buffer.from(pdfRes.data).toString('base64');
+          messageContent.push({
+            type: 'document',
+            source: { type: 'base64', media_type: 'application/pdf', data: base64 }
+          });
+          pdfSources.push(file.name);
+          if (!sources.includes(file.name)) sources.push(file.name);
+        } catch (pdfErr) {
+          console.error('Error downloading PDF ' + file.name + ':', pdfErr.message);
+        }
+      }
+    }
+
+    // Add the question with any text content
+    const questionText = [
+      'You are a knowledge assistant for Ian Green, a portrait photographer at Phixo studio in Montreal.',
+      '',
+      'CRITICAL RULE: Answer ONLY using the documents provided. Do not use any outside knowledge.',
+      'If the answer is not found in these documents, say: "I could not find an answer to that in your knowledge base. You may want to add a source that covers this topic."',
+      'When you answer, note which source the information came from.',
+      '',
+      'QUESTION: ' + question,
+      allContent.trim() ? ('\n\nADDITIONAL TEXT SOURCES:\n' + allContent.slice(0, 8000)) : ''
+    ].join('\n');
+
+    messageContent.push({ type: 'text', text: questionText });
+
+    if (messageContent.length === 1 && !allContent.trim()) {
       return res.json({
         answer: null,
         sources: [],
@@ -496,25 +535,11 @@ app.post('/api/knowledge', requireAuth, async (req, res) => {
       });
     }
 
-    // Query Claude using ONLY the provided documents
-    const promptLines = [
-      'You are a knowledge assistant for Ian Green, a portrait photographer at Phixo studio in Montreal.',
-      '',
-      'CRITICAL RULE: Answer ONLY using the documents provided below. Do not use any outside knowledge.',
-      'If the answer is not found in these documents, say exactly: "I could not find an answer to that in your knowledge base. You may want to add a source that covers this topic."',
-      'When you do answer, briefly note which source the information came from.',
-      '',
-      'QUESTION: ' + question,
-      '',
-      'DOCUMENTS FROM YOUR PHIXO KNOWLEDGE FOLDER:',
-      allContent.slice(0, 12000)
-    ];
-
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1500,
       system: 'You answer questions strictly from provided source documents only. Never use outside knowledge. Always cite which document your answer comes from.',
-      messages: [{ role: 'user', content: promptLines.join('\n') }]
+      messages: [{ role: 'user', content: messageContent }]
     });
 
     const answer = response.content[0].text;
