@@ -426,25 +426,94 @@ app.get('/api/clients', requireAuth, async (req, res) => {
   }
 });
 
-// API: Get client doc
+// API: Get client doc with Claude-powered briefing
 app.get('/api/client/:folderId', requireAuth, async (req, res) => {
   try {
     const drive = getDrive(req);
-    const doc = await getClientDoc(drive, req.params.folderId);
-    if (!doc) return res.json({ doc: null });
-    
-    const docs = google.docs({ version: 'v1', auth: oauth2Client });
-    const docData = await docs.documents.get({ documentId: doc.id });
-    
-    let text = '';
-    docData.data.body.content.forEach(el => {
-      if (el.paragraph) {
-        el.paragraph.elements.forEach(e => { if (e.textRun) text += e.textRun.content; });
-      }
+
+    // Search for any doc or PDF in the folder
+    const fileList = await drive.files.list({
+      q: `'${req.params.folderId}' in parents and trashed=false and (mimeType='application/vnd.google-apps.document' or mimeType='application/pdf')`,
+      fields: 'files(id, name, mimeType)',
+      orderBy: 'modifiedTime desc'
     });
-    
-    res.json({ doc: { id: doc.id, name: doc.name, content: text } });
+
+    if (!fileList.data.files.length) return res.json({ doc: null, briefing: null });
+
+    let fullText = '';
+
+    for (const file of fileList.data.files) {
+      if (file.mimeType === 'application/vnd.google-apps.document') {
+        const docs = google.docs({ version: 'v1', auth: oauth2Client });
+        const docData = await docs.documents.get({ documentId: file.id });
+        docData.data.body.content.forEach(el => {
+          if (el.paragraph) {
+            el.paragraph.elements.forEach(e => { if (e.textRun) fullText += e.textRun.content; });
+          }
+        });
+        fullText += '\n\n';
+      } else if (file.mimeType === 'application/pdf') {
+        // Export PDF content as plain text
+        try {
+          const exported = await drive.files.export(
+            { fileId: file.id, mimeType: 'text/plain' },
+            { responseType: 'text' }
+          );
+          fullText += exported.data + '\n\n';
+        } catch (e) {
+          // PDF export failed, skip
+        }
+      }
+    }
+
+    if (!fullText.trim()) return res.json({ doc: null, briefing: null });
+
+    // Use Claude to extract a structured briefing from all available content
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2000,
+      messages: [{
+        role: 'user',
+        content: `You are reading a client file for Ian Green, a portrait photographer at Phixo studio in Montreal.
+
+Extract the key session briefing information from this document and return ONLY a JSON object with these fields. If a field isn't found, use null.
+
+{
+  "clientName": "client full name",
+  "sessionType": "type of session",
+  "sessionDate": "date if mentioned",
+  "emotionalRead": "how to read this person emotionally",
+  "howToOpen": "how to greet and open the session",
+  "keyQuestion": "the one question that unlocks everything",
+  "thingsToTalkAbout": "natural conversation topics",
+  "whatTheyNeed": "what this person needs emotionally",
+  "thingsToAvoid": "what not to say or do",
+  "momentToWatchFor": "the turning point to watch for",
+  "howToClose": "how to end the session well",
+  "lightingSetup": "lighting recommendation",
+  "posesSuggestions": "pose directions",
+  "conversationStarters": "conversation starters ranked for this person",
+  "draftReply": "most recent draft reply if any",
+  "leadTemperature": "cold/warm/hot"
+}
+
+DOCUMENT CONTENT:
+${fullText.slice(0, 8000)}`
+      }]
+    });
+
+    const text = response.content[0].text;
+    const clean = text.replace(/```json|```/g, '').trim();
+    let briefing = {};
+    try { briefing = JSON.parse(clean); } catch (e) { briefing = {}; }
+
+    res.json({
+      doc: { id: fileList.data.files[0].id, name: fileList.data.files[0].name },
+      briefing,
+      rawContent: fullText.slice(0, 500)
+    });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: err.message });
   }
 });
