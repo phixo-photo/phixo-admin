@@ -379,6 +379,7 @@
     <button class="nav-tab active" onclick="showView('intake')">Intake</button>
     <button class="nav-tab" onclick="showView('clients')">Clients</button>
     <button class="nav-tab" onclick="showView('session')">Session</button>
+    <button class="nav-tab" onclick="showView('knowledge')">Knowledge</button>
   </div>
   <div class="nav-right">
     <span class="auth-badge" id="authStatus">●&nbsp;Connected</span>
@@ -535,6 +536,35 @@
       <div class="session-briefing-item" style="background:#fff8f0; border:1px solid #f0dcc0;">
         <div class="item-label">Shooting plan</div>
         <div class="item-text" id="sb-shoot">—</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- KNOWLEDGE VIEW -->
+  <div id="view-knowledge" class="view">
+    <div class="page-header">
+      <h1>Your <em>knowledge</em></h1>
+      <p>Ask anything. Answers come only from your Phixo Knowledge folder in Drive.</p>
+    </div>
+
+    <div class="card">
+      <span class="card-label">Ask a question</span>
+      <textarea id="knowledgeQuestion" placeholder="How should I pose someone who is nervous? What hook should I use for a comeback story post? What lighting works for professional headshots?" style="min-height:100px;"></textarea>
+      <button class="submit-btn" id="knowledgeBtn" onclick="queryKnowledge()">Ask →</button>
+    </div>
+
+    <div id="knowledgeResult" style="display:none">
+      <div class="card">
+        <span class="card-label">Answer</span>
+        <div id="knowledgeAnswer" style="font-size:15px; line-height:1.7; color:var(--text); white-space:pre-wrap;"></div>
+      </div>
+      <div id="knowledgeSources" style="margin-top:8px; padding:12px 16px; background:#f8f8f8; border-radius:8px; font-size:12px; color:#888;"></div>
+    </div>
+
+    <div id="knowledgeEmpty" style="display:none">
+      <div class="card" style="text-align:center; padding:40px 24px;">
+        <div style="font-size:32px; margin-bottom:16px;">📂</div>
+        <p style="color:#888; margin:0;" id="knowledgeEmptyMsg">Add documents to your Phixo Knowledge folder in Google Drive to get started.</p>
       </div>
     </div>
   </div>
@@ -741,6 +771,46 @@ async function loadSessionBrief(folderId, name) {
     showStatus('Brief loaded', 'success');
   } catch (err) {
     showStatus('Could not load brief', 'error');
+  }
+}
+
+async function queryKnowledge() {
+  const btn = document.getElementById('knowledgeBtn');
+  const question = document.getElementById('knowledgeQuestion').value.trim();
+  if (!question) { showStatus('Type a question first', 'error'); return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Reading your docs...';
+  document.getElementById('knowledgeResult').style.display = 'none';
+  document.getElementById('knowledgeEmpty').style.display = 'none';
+  showStatus('Searching your knowledge base...');
+
+  try {
+    const res = await fetch('/api/knowledge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error);
+
+    if (data.empty) {
+      document.getElementById('knowledgeEmptyMsg').textContent = data.message;
+      document.getElementById('knowledgeEmpty').style.display = 'block';
+      showStatus('No documents found', 'error');
+    } else {
+      document.getElementById('knowledgeAnswer').textContent = data.answer;
+      if (data.sources && data.sources.length) {
+        document.getElementById('knowledgeSources').textContent = 'Sources: ' + data.sources.join(', ');
+      }
+      document.getElementById('knowledgeResult').style.display = 'block';
+      showStatus('Answer ready', 'success');
+    }
+  } catch (err) {
+    showStatus('Something went wrong: ' + err.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Ask →';
   }
 }
 
