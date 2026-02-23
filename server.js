@@ -476,29 +476,37 @@ app.get('/api/client/:folderId', requireAuth, async (req, res) => {
         role: 'user',
         content: `You are reading a client file for Ian Green, a portrait photographer at Phixo studio in Montreal.
 
-Extract the key session briefing information from this document and return ONLY a JSON object with these fields. If a field isn't found, use null.
+This document may be formatted as tables, plain text, or a mix. Extract the key information and return ONLY a valid JSON object with these fields. If a field is not found, use null. Do not include any text outside the JSON.
 
 {
-  "clientName": "client full name",
-  "sessionType": "type of session",
-  "sessionDate": "date if mentioned",
-  "emotionalRead": "how to read this person emotionally",
-  "howToOpen": "how to greet and open the session",
-  "keyQuestion": "the one question that unlocks everything",
-  "thingsToTalkAbout": "natural conversation topics",
-  "whatTheyNeed": "what this person needs emotionally",
-  "thingsToAvoid": "what not to say or do",
-  "momentToWatchFor": "the turning point to watch for",
-  "howToClose": "how to end the session well",
-  "lightingSetup": "lighting recommendation",
-  "posesSuggestions": "pose directions",
-  "conversationStarters": "conversation starters ranked for this person",
-  "draftReply": "most recent draft reply if any",
-  "leadTemperature": "cold/warm/hot"
+  "clientName": "client full name — look for Name field or the subtitle line",
+  "sessionType": "type of session — e.g. Professional Headshots, Family Portrait",
+  "sessionDate": "session date if mentioned",
+  "emotionalRead": "how to read this person emotionally — look for Emotional Read field",
+  "howToOpen": "how to greet and open — look for How to open field",
+  "keyQuestion": "the one key question — look for question that unlocks everything",
+  "thingsToTalkAbout": "conversation topics — look for Things to talk about",
+  "whatTheyNeed": "what they need emotionally — look for What she/he probably needs or What they need",
+  "thingsToAvoid": "what to avoid — look for What to avoid field",
+  "momentToWatchFor": "turning point — look for Moment to watch for",
+  "howToClose": "how to close session — look for How to close",
+  "lightingSetup": "lighting notes if any",
+  "posesSuggestions": "pose suggestions if any",
+  "conversationStarters": "conversation starters if any",
+  "draftReply": "the draft reply text if present",
+  "leadTemperature": "warm/hot/cold based on Lead Temperature field",
+  "questionnaire": {
+    "imageUsage": "where images will live",
+    "impression": "impression words selected",
+    "cameraComfort": "comfort level 1-5",
+    "glasses": "yes or no",
+    "brandColors": "any brand color requirements",
+    "additionalNotes": "anything else they shared"
+  }
 }
 
 DOCUMENT CONTENT:
-${fullText.slice(0, 8000)}`
+\${fullText.slice(0, 8000)}\`
       }]
     });
 
