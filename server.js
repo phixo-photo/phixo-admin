@@ -558,52 +558,40 @@ app.listen(PORT, () => console.log('Phixo Admin running on port ' + PORT));
 // LEARN ENDPOINT — yt-dlp-wrap + Whisper + Claude + Google Docs
 // ============================================================
 
-const { exec } = require('child_process');
+const { exec, execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const FormData = require('form-data');
-const YTDlpWrap = require('yt-dlp-wrap').default;
 
-// Initialize yt-dlp-wrap and download binary on first use
-let ytDlpReady = false;
-let ytDlpWrap = null;
-
-async function getYtDlp() {
-  if (ytDlpReady && ytDlpWrap) return ytDlpWrap;
-  
-  const binPath = path.join(os.tmpdir(), 'yt-dlp-bin');
-  
-  try {
-    // Download the yt-dlp binary if not already present
-    if (!fs.existsSync(binPath)) {
-      console.log('Downloading yt-dlp binary...');
-      await YTDlpWrap.downloadFromGithub(binPath);
-      fs.chmodSync(binPath, '755');
-      console.log('yt-dlp binary ready at', binPath);
-    }
-    ytDlpWrap = new YTDlpWrap(binPath);
-    ytDlpReady = true;
-    return ytDlpWrap;
-  } catch (err) {
-    console.error('Failed to get yt-dlp:', err.message);
-    throw new Error('Could not initialize yt-dlp: ' + err.message);
-  }
+// Find yt-dlp binary path
+async function findYtDlp() {
+  return new Promise((resolve) => {
+    exec('which yt-dlp || which yt-dlp3 || echo ""', (err, stdout) => {
+      const p = stdout.trim();
+      resolve(p || 'yt-dlp');
+    });
+  });
 }
 
-// Download audio from URL
+// Download audio from URL using system yt-dlp
 async function downloadAudio(url, outputPath) {
-  const ytdlp = await getYtDlp();
-  
-  await ytdlp.execPromise([
-    url,
-    '--no-playlist',
-    '--extract-audio',
-    '--audio-format', 'mp3',
-    '--audio-quality', '5',
-    '--max-filesize', '25m',
-    '-o', outputPath,
-    '--no-warnings'
-  ]);
+  const ytdlpPath = await findYtDlp();
+  return new Promise((resolve, reject) => {
+    const args = [
+      url,
+      '--no-playlist',
+      '--extract-audio',
+      '--audio-format', 'mp3',
+      '--audio-quality', '5',
+      '--max-filesize', '25m',
+      '-o', outputPath,
+      '--no-warnings'
+    ];
+    execFile(ytdlpPath, args, { timeout: 180000 }, (err, stdout, stderr) => {
+      if (err) reject(new Error(stderr || err.message));
+      else resolve(outputPath);
+    });
+  });
 }
 
 // Transcribe audio using OpenAI Whisper API
@@ -749,8 +737,9 @@ app.post('/api/learn', requireAuth, async (req, res) => {
   };
 
   try {
-    send('start', 'Getting yt-dlp ready...');
-    await getYtDlp();
+    send('start', 'Checking tools...');
+    const ytdlpPath = await findYtDlp();
+    console.log('Using yt-dlp at:', ytdlpPath);
 
     send('download', 'Downloading audio from video...');
     await downloadAudio(url, audioPath);
