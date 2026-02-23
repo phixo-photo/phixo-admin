@@ -555,60 +555,61 @@ const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log('Phixo Admin running on port ' + PORT));
 
 // ============================================================
-// LEARN ENDPOINT — yt-dlp + Whisper + Claude + Google Docs
+// LEARN ENDPOINT — yt-dlp-wrap + Whisper + Claude + Google Docs
 // ============================================================
 
-const { execFile, exec } = require('child_process');
+const { exec } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const FormData = require('form-data');
+const YTDlpWrap = require('yt-dlp-wrap').default;
 
-// Install yt-dlp if not present (runs once on boot)
-async function ensureYtDlp() {
-  return new Promise((resolve) => {
-    exec('which yt-dlp', (err) => {
-      if (!err) return resolve(true);
-      // Try installing via pip
-      exec('pip install yt-dlp --break-system-packages -q', (err2) => {
-        if (!err2) return resolve(true);
-        // Try pip3
-        exec('pip3 install yt-dlp -q', (err3) => {
-          resolve(!err3);
-        });
-      });
-    });
-  });
+// Initialize yt-dlp-wrap and download binary on first use
+let ytDlpReady = false;
+let ytDlpWrap = null;
+
+async function getYtDlp() {
+  if (ytDlpReady && ytDlpWrap) return ytDlpWrap;
+  
+  const binPath = path.join(os.tmpdir(), 'yt-dlp-bin');
+  
+  try {
+    // Download the yt-dlp binary if not already present
+    if (!fs.existsSync(binPath)) {
+      console.log('Downloading yt-dlp binary...');
+      await YTDlpWrap.downloadFromGithub(binPath);
+      fs.chmodSync(binPath, '755');
+      console.log('yt-dlp binary ready at', binPath);
+    }
+    ytDlpWrap = new YTDlpWrap(binPath);
+    ytDlpReady = true;
+    return ytDlpWrap;
+  } catch (err) {
+    console.error('Failed to get yt-dlp:', err.message);
+    throw new Error('Could not initialize yt-dlp: ' + err.message);
+  }
 }
 
-// Download audio from URL using yt-dlp
+// Download audio from URL
 async function downloadAudio(url, outputPath) {
-  return new Promise((resolve, reject) => {
-    const args = [
-      '--no-playlist',
-      '--extract-audio',
-      '--audio-format', 'mp3',
-      '--audio-quality', '5',
-      '--max-filesize', '25m',
-      '-o', outputPath,
-      '--no-warnings',
-      '--quiet',
-      url
-    ];
-
-    execFile('yt-dlp', args, { timeout: 120000 }, (err, stdout, stderr) => {
-      if (err) {
-        reject(new Error('Could not download audio: ' + (stderr || err.message)));
-      } else {
-        resolve(outputPath);
-      }
-    });
-  });
+  const ytdlp = await getYtDlp();
+  
+  await ytdlp.execPromise([
+    url,
+    '--no-playlist',
+    '--extract-audio',
+    '--audio-format', 'mp3',
+    '--audio-quality', '5',
+    '--max-filesize', '25m',
+    '-o', outputPath,
+    '--no-warnings'
+  ]);
 }
 
 // Transcribe audio using OpenAI Whisper API
 async function transcribeAudio(audioPath) {
   const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY not set in Railway environment variables');
+  if (!apiKey) throw new Error('OPENAI_API_KEY not set — add it to Railway environment variables');
 
   const formData = new FormData();
   formData.append('file', fs.createReadStream(audioPath), {
@@ -629,7 +630,7 @@ async function transcribeAudio(audioPath) {
 
   if (!response.ok) {
     const err = await response.text();
-    throw new Error('Whisper API error: ' + err);
+    throw new Error('Whisper transcription failed: ' + err);
   }
 
   const data = await response.json();
@@ -639,35 +640,34 @@ async function transcribeAudio(audioPath) {
 // Extract structured knowledge using Claude
 async function extractKnowledge(transcript, sourceUrl) {
   const prompt = [
-    'You are extracting knowledge from a social media video transcript for Ian Green, a portrait photographer in Montreal.',
-    '',
-    'Source URL: ' + sourceUrl,
+    'You are extracting knowledge from a social media video for Ian Green, a portrait photographer in Montreal.',
+    'Source: ' + sourceUrl,
     '',
     'TRANSCRIPT:',
     transcript,
     '',
-    'Extract and structure the most useful knowledge from this transcript. Format your response EXACTLY like this:',
+    'Extract and structure the most useful knowledge. Format EXACTLY like this:',
     '',
     '## SUMMARY',
     'One or two sentences on what this video is about.',
     '',
     '## KEY TIPS & TECHNIQUES',
-    '- [tip 1]',
-    '- [tip 2]',
-    '(etc — only include tips that are genuinely useful for photography, content creation, posing, client work, or marketing)',
+    '- tip 1',
+    '- tip 2',
+    '(only tips useful for photography, posing, client work, content creation, or marketing)',
     '',
     '## HOOKS & CONTENT IDEAS',
-    '- [hook or content angle]',
-    '(only if the video contains hooks or content creation advice)',
+    '- hook or content angle',
+    '(only if the video contains hooks or content creation advice — skip this section otherwise)',
     '',
     '## QUOTES WORTH REMEMBERING',
-    '- "[direct quote]"',
-    '(only the most memorable or actionable lines)',
+    '- "direct quote"',
+    '(only the most memorable or actionable lines — skip if none)',
     '',
     '## TOPICS COVERED',
-    'Comma-separated list of topics (e.g. posing, lighting, client psychology, hooks, marketing)',
+    'Comma-separated list (e.g. posing, lighting, client psychology, hooks, marketing)',
     '',
-    'Skip any section that has nothing worth including. Be ruthless — only include things Ian can actually use.'
+    'Be ruthless — only include things Ian can actually use in his photography business.'
   ].join('\n');
 
   const response = await anthropic.messages.create({
@@ -679,26 +679,20 @@ async function extractKnowledge(transcript, sourceUrl) {
   return response.content[0].text;
 }
 
-// Get or create the Video Notes doc in Phixo Knowledge folder
-async function getOrCreateVideoNotesDoc(drive, docs, knowledgeFolderId) {
-  // Look for existing doc
+// Get or create Video Notes doc in Phixo Knowledge folder
+async function getOrCreateVideoNotes(docs, drive, knowledgeFolderId) {
   const existing = await drive.files.list({
     q: "name='Video Notes' and mimeType='application/vnd.google-apps.document' and '" + knowledgeFolderId + "' in parents and trashed=false",
     fields: 'files(id, name)'
   });
 
-  if (existing.data.files.length > 0) {
-    return existing.data.files[0].id;
-  }
+  if (existing.data.files.length > 0) return existing.data.files[0].id;
 
-  // Create new doc
   const newDoc = await docs.documents.create({
     requestBody: { title: 'Video Notes' }
   });
-
   const docId = newDoc.data.documentId;
 
-  // Move to Phixo Knowledge folder
   await drive.files.update({
     fileId: docId,
     addParents: knowledgeFolderId,
@@ -706,55 +700,33 @@ async function getOrCreateVideoNotesDoc(drive, docs, knowledgeFolderId) {
     fields: 'id, parents'
   });
 
-  // Add header to new doc
   await docs.documents.batchUpdate({
     documentId: docId,
     requestBody: {
-      requests: [{
-        insertText: {
-          location: { index: 1 },
-          text: 'PHIXO VIDEO NOTES\nKnowledge extracted from videos. Each entry is dated and sourced.\n\n'
-        }
-      }]
+      requests: [{ insertText: { location: { index: 1 }, text: 'PHIXO VIDEO NOTES\nKnowledge extracted from videos — dated and sourced.\n\n' } }]
     }
   });
 
   return docId;
 }
 
-// Append a new entry to the Video Notes doc
+// Append new entry to Video Notes doc
 async function appendToVideoNotes(docs, docId, sourceUrl, extractedKnowledge) {
   const date = new Date().toLocaleDateString('en-CA', {
-    year: 'numeric', month: 'long', day: 'numeric',
-    hour: '2-digit', minute: '2-digit'
+    year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
   });
 
-  const entryText = [
-    '─────────────────────────────────────',
-    'DATE: ' + date,
-    'SOURCE: ' + sourceUrl,
-    '',
-    extractedKnowledge,
-    '',
-    ''
-  ].join('\n');
+  const entryText = '\n─────────────────────────────────────\nDATE: ' + date + '\nSOURCE: ' + sourceUrl + '\n\n' + extractedKnowledge + '\n\n';
 
-  // Get current doc to find end index
   const docContent = await docs.documents.get({ documentId: docId });
   const endIndex = docContent.data.body.content.reduce((max, el) => {
-    if (el.endIndex) return Math.max(max, el.endIndex);
-    return max;
+    return el.endIndex ? Math.max(max, el.endIndex) : max;
   }, 1);
 
   await docs.documents.batchUpdate({
     documentId: docId,
     requestBody: {
-      requests: [{
-        insertText: {
-          location: { index: endIndex - 1 },
-          text: entryText
-        }
-      }]
+      requests: [{ insertText: { location: { index: endIndex - 1 }, text: entryText } }]
     }
   });
 }
@@ -764,30 +736,23 @@ app.post('/api/learn', requireAuth, async (req, res) => {
   const { url } = req.body;
   if (!url) return res.status(400).json({ error: 'No URL provided' });
 
-  const tmpDir = os.tmpdir();
-  const audioPath = path.join(tmpDir, 'phixo-learn-' + Date.now() + '.mp3');
+  const audioPath = path.join(os.tmpdir(), 'phixo-learn-' + Date.now() + '.mp3');
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive'
+  });
+
+  const send = (step, message) => {
+    try { res.write('data: ' + JSON.stringify({ step, message }) + '\n\n'); } catch(e) {}
+  };
 
   try {
-    // Step 1: Ensure yt-dlp is available
-    res.writeHead(200, {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache',
-      'Connection': 'keep-alive'
-    });
+    send('start', 'Getting yt-dlp ready...');
+    await getYtDlp();
 
-    const send = (step, message) => {
-      res.write('data: ' + JSON.stringify({ step, message }) + '\n\n');
-    };
-
-    send('start', 'Checking tools...');
-    const hasYtDlp = await ensureYtDlp();
-    if (!hasYtDlp) {
-      send('error', 'yt-dlp could not be installed. Contact support.');
-      return res.end();
-    }
-
-    // Step 2: Download audio
-    send('download', 'Downloading audio from ' + url.substring(0, 50) + '...');
+    send('download', 'Downloading audio from video...');
     await downloadAudio(url, audioPath);
 
     if (!fs.existsSync(audioPath)) {
@@ -796,45 +761,32 @@ app.post('/api/learn', requireAuth, async (req, res) => {
     }
 
     const fileSizeMB = (fs.statSync(audioPath).size / 1024 / 1024).toFixed(1);
-    send('transcribe', 'Transcribing audio (' + fileSizeMB + 'MB)...');
-
-    // Step 3: Transcribe
+    send('transcribe', 'Transcribing audio (' + fileSizeMB + ' MB)...');
     const transcript = await transcribeAudio(audioPath);
+
     if (!transcript || transcript.trim().length < 20) {
-      send('error', 'Transcript came back empty. Video may have no speech.');
+      send('error', 'Transcript came back empty — video may have no speech or is private.');
       return res.end();
     }
 
     send('extract', 'Extracting knowledge with Claude...');
-
-    // Step 4: Extract knowledge
     const knowledge = await extractKnowledge(transcript, url);
 
-    send('save', 'Saving to your Phixo Knowledge folder...');
-
-    // Step 5: Save to Google Drive
+    send('save', 'Saving to Phixo Knowledge folder...');
     const drive = getDrive(req);
     const docs = google.docs({ version: 'v1', auth: oauth2Client });
     const knowledgeFolderId = await getKnowledgeFolder(drive);
     const docId = await getOrCreateVideoNotes(docs, drive, knowledgeFolderId);
     await appendToVideoNotes(docs, docId, url, knowledge);
 
-    send('done', JSON.stringify({ knowledge, transcript: transcript.substring(0, 500) + '...' }));
+    send('done', JSON.stringify({ knowledge, transcript: transcript.substring(0, 300) + '...' }));
     res.end();
 
   } catch (err) {
     console.error('Learn error:', err);
-    try {
-      res.write('data: ' + JSON.stringify({ step: 'error', message: err.message }) + '\n\n');
-      res.end();
-    } catch (e) {}
+    send('error', err.message);
+    res.end();
   } finally {
-    // Cleanup temp file
-    try { if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath); } catch (e) {}
+    try { if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath); } catch(e) {}
   }
 });
-
-// Fix: also export getOrCreateVideoNotes with correct name
-async function getOrCreateVideoNotes(docs, drive, knowledgeFolderId) {
-  return getOrCreateVideoNotesDoc(drive, docs, knowledgeFolderId);
-}
