@@ -416,5 +416,115 @@ app.get('/api/client/:folderId', requireAuth, async (req, res) => {
   }
 });
 
+// API: Get or create Phixo Knowledge folder
+async function getKnowledgeFolder(drive) {
+  const res = await drive.files.list({
+    q: "name='Phixo Knowledge' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+    fields: 'files(id, name)'
+  });
+  if (res.data.files.length > 0) return res.data.files[0].id;
+  const folder = await drive.files.create({
+    requestBody: { name: 'Phixo Knowledge', mimeType: 'application/vnd.google-apps.folder' },
+    fields: 'id'
+  });
+  return folder.data.id;
+}
+
+// API: Query knowledge base
+app.post('/api/knowledge', requireAuth, async (req, res) => {
+  try {
+    const { question } = req.body;
+    if (!question) return res.status(400).json({ error: 'No question provided' });
+
+    const drive = getDrive(req);
+    const knowledgeFolderId = await getKnowledgeFolder(drive);
+
+    // List all files in Phixo Knowledge folder
+    const fileList = await drive.files.list({
+      q: "'" + knowledgeFolderId + "' in parents and trashed=false",
+      fields: 'files(id, name, mimeType)',
+      orderBy: 'name'
+    });
+
+    if (!fileList.data.files.length) {
+      return res.json({
+        answer: null,
+        sources: [],
+        empty: true,
+        message: "Your Phixo Knowledge folder is empty. Add documents to Google Drive in a folder called 'Phixo Knowledge' and they will be used to answer questions."
+      });
+    }
+
+    // Read all documents
+    let allContent = '';
+    const sources = [];
+
+    for (const file of fileList.data.files) {
+      try {
+        let text = '';
+        if (file.mimeType === 'application/vnd.google-apps.document') {
+          text = await readDocText(file.id);
+        } else if (file.mimeType === 'application/pdf') {
+          const exported = await drive.files.export(
+            { fileId: file.id, mimeType: 'text/plain' },
+            { responseType: 'text' }
+          );
+          text = exported.data;
+        } else if (file.mimeType === 'text/plain') {
+          const exported = await drive.files.export(
+            { fileId: file.id, mimeType: 'text/plain' },
+            { responseType: 'text' }
+          );
+          text = exported.data;
+        }
+
+        if (text && text.trim()) {
+          allContent += '\n\n--- SOURCE: ' + file.name + ' ---\n' + text.trim();
+          sources.push(file.name);
+        }
+      } catch (fileErr) {
+        console.error('Error reading knowledge file ' + file.name + ':', fileErr.message);
+      }
+    }
+
+    if (!allContent.trim()) {
+      return res.json({
+        answer: null,
+        sources: [],
+        empty: true,
+        message: 'Could not read any files from your Phixo Knowledge folder. Make sure files are Google Docs or PDFs.'
+      });
+    }
+
+    // Query Claude using ONLY the provided documents
+    const promptLines = [
+      'You are a knowledge assistant for Ian Green, a portrait photographer at Phixo studio in Montreal.',
+      '',
+      'CRITICAL RULE: Answer ONLY using the documents provided below. Do not use any outside knowledge.',
+      'If the answer is not found in these documents, say exactly: "I could not find an answer to that in your knowledge base. You may want to add a source that covers this topic."',
+      'When you do answer, briefly note which source the information came from.',
+      '',
+      'QUESTION: ' + question,
+      '',
+      'DOCUMENTS FROM YOUR PHIXO KNOWLEDGE FOLDER:',
+      allContent.slice(0, 12000)
+    ];
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1500,
+      system: 'You answer questions strictly from provided source documents only. Never use outside knowledge. Always cite which document your answer comes from.',
+      messages: [{ role: 'user', content: promptLines.join('\n') }]
+    });
+
+    const answer = response.content[0].text;
+
+    res.json({ answer, sources, empty: false });
+  } catch (err) {
+    console.error('Knowledge error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log('Phixo Admin running on port ' + PORT));
