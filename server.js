@@ -3,20 +3,23 @@ const multer = require('multer');
 const { google } = require('googleapis');
 const Anthropic = require('@anthropic-ai/sdk');
 const session = require('express-session');
+const cookieSession = require('cookie-session');
 const path = require('path');
 const fs = require('fs');
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage() });
 
+app.set('trust proxy', 1);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(session({
+app.use(cookieSession({
+  name: 'phixo-session',
   secret: process.env.SESSION_SECRET || 'phixo-secret-key',
-  resave: false,
-  saveUninitialized: false,
-  cookie: { secure: process.env.NODE_ENV === 'production' }
+  maxAge: 30 * 24 * 60 * 60 * 1000, // 30 days
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax'
 }));
 
 // Google OAuth setup
