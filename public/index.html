@@ -202,6 +202,24 @@ label{font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bot
 .attached-item{display:flex;align-items:center;gap:6px;background:var(--bg);border-radius:7px;padding:6px 10px;font-size:12px}
 .attached-item .rm-a{background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px;padding:0;line-height:1}
 .attached-item .rm-a:hover{color:var(--danger)}
+/* ── ASSIST CHAT ── */
+.assist-msg{font-size:13px;line-height:1.5;padding:9px 12px;border-radius:8px;max-width:90%}
+.assist-ai{background:#252515;color:#ccc;align-self:flex-start;border-radius:4px 8px 8px 8px}
+.assist-user{background:var(--accent);color:#fff;align-self:flex-end;border-radius:8px 4px 8px 8px}
+.assist-quick{background:#1e1e10;border:1px solid #333;color:#888;border-radius:5px;padding:4px 9px;font-size:11px;cursor:pointer;font-family:inherit}
+.assist-quick:hover{background:#2a2a18;color:#bbb;border-color:#555}
+/* ── MEDIA BROWSER ── */
+.media-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px}
+.media-tab{padding:8px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.media-tab.on{color:var(--text);border-bottom-color:var(--accent)}
+.media-tab:hover{color:var(--text)}
+.media-grid-wrap{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;max-height:420px;overflow-y:auto}
+.media-card{border:1px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer;transition:all .13s;background:var(--surface)}
+.media-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.media-thumb{height:90px;background:var(--bg);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.media-thumb img{width:100%;height:100%;object-fit:cover}
+.media-icon{font-size:32px}
+.media-name{font-size:10px;padding:5px 6px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-top:1px solid var(--border)}
 </style>
 </head>
 <body>
@@ -216,6 +234,7 @@ label{font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bot
   <div class="nav-group">Library</div>
   <button class="nav-btn" onclick="showView('research',this)"><span class="i">📚</span> Research</button>
   <button class="nav-btn" onclick="openNewResearch()"><span class="i">＋</span> Add Item</button>
+  <button class="nav-btn" onclick="showView('media',this)"><span class="i">🎬</span> Drive Media</button>
 
   <div class="nav-group">Content</div>
   <button class="nav-btn" onclick="showView('posts',this)"><span class="i">📅</span> Schedule</button>
@@ -273,6 +292,21 @@ label{font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bot
 </div>
 
 <!-- POSTS -->
+<!-- DRIVE MEDIA -->
+<div id="v-media" class="view">
+  <div class="ph"><h1>Drive <em>media</em></h1><p>Browse your Meme, SFX, and Music folders from Google Drive.</p></div>
+  <div class="media-tabs">
+    <button class="media-tab on" data-folder="Meme" onclick="loadMediaFolder('Meme')">😂 Memes</button>
+    <button class="media-tab" data-folder="SFX" onclick="loadMediaFolder('SFX')">🔊 SFX</button>
+    <button class="media-tab" data-folder="Music" onclick="loadMediaFolder('Music')">🎵 Music</button>
+    <button class="media-tab" data-folder="Tik Tok Scripts" onclick="loadMediaFolder('Tik Tok Scripts')">📝 TikTok Scripts</button>
+  </div>
+  <div id="media-info" style="font-size:13px;color:var(--muted);margin-bottom:12px"></div>
+  <div id="media-grid" class="media-grid-wrap">
+    <div style="font-size:13px;color:var(--muted);padding:8px">Select a folder above to browse.</div>
+  </div>
+</div>
+
 <div id="v-posts" class="view">
   <div class="ph"><h1>Content <em>schedule</em></h1><p>Idea to posted — plan every piece of content.</p></div>
   <div class="tb">
@@ -471,44 +505,68 @@ label{font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bot
 
 <!-- New / Edit Post -->
 <div class="modal-bg off" id="m-post">
-<div class="modal wide">
+<div class="modal" style="max-width:980px">
   <div class="mh"><h2 id="pm-title">New Post Brief</h2><button class="mx" onclick="closeModal('m-post')">✕</button></div>
-  <div class="mb">
-    <div class="row3">
-      <div><label>Platform</label>
-        <select id="np-plat"><option>Instagram</option><option>TikTok</option><option>LinkedIn</option></select>
-      </div>
-      <div><label>Status</label>
-        <select id="np-status">
-          <option value="idea">Idea</option><option value="draft">Draft</option>
-          <option value="ready">Ready</option><option value="posted">Posted</option>
-        </select>
-      </div>
-      <div><label>Post Date</label><input type="text" id="np-date" placeholder="e.g. March 3"></div>
-    </div>
-    <label>Hook *</label>
-    <input type="text" id="np-hook" placeholder="The first line — what stops the scroll">
-    <label>Caption draft</label>
-    <textarea id="np-caption" placeholder="Full caption or rough notes..."></textarea>
-    <label>Shot list / B-roll notes</label>
-    <textarea id="np-shots" style="min-height:60px" placeholder="What needs to be filmed or set up"></textarea>
-    <label>CTA</label>
-    <input type="text" id="np-cta" placeholder="e.g. Book a session — link in bio">
-    <label>Notes</label>
-    <textarea id="np-notes" style="min-height:60px" placeholder="Audio ideas, vibe, references, anything else"></textarea>
+  <div class="mb" style="display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start">
 
-    <!-- Research attachment -->
-    <label>Attach from Research Library</label>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Click items to attach them to this post brief.</p>
-    <div id="np-res-grid" class="res-pick-grid">
-      <div style="font-size:12px;color:var(--muted);padding:8px">Loading library...</div>
+    <!-- LEFT: Brief fields -->
+    <div>
+      <div class="row3">
+        <div><label>Platform</label>
+          <select id="np-plat"><option>Instagram</option><option>TikTok</option><option>LinkedIn</option></select>
+        </div>
+        <div><label>Status</label>
+          <select id="np-status">
+            <option value="idea">Idea</option><option value="draft">Draft</option>
+            <option value="ready">Ready</option><option value="posted">Posted</option>
+          </select>
+        </div>
+        <div><label>Post Date</label><input type="text" id="np-date" placeholder="e.g. March 3"></div>
+      </div>
+      <label>Hook *</label>
+      <input type="text" id="np-hook" placeholder="The first line — what stops the scroll">
+      <label>Caption draft</label>
+      <textarea id="np-caption" placeholder="Full caption or rough notes..."></textarea>
+      <label>Shot list / B-roll notes</label>
+      <textarea id="np-shots" style="min-height:60px" placeholder="What needs to be filmed or set up"></textarea>
+      <label>CTA</label>
+      <input type="text" id="np-cta" placeholder="e.g. Book a session — link in bio">
+      <label>Notes</label>
+      <textarea id="np-notes" style="min-height:60px" placeholder="Audio ideas, vibe, references, anything else"></textarea>
+      <label style="margin-top:16px">Attach from Library</label>
+      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Click items to attach to this brief.</p>
+      <div id="np-res-grid" class="res-pick-grid"></div>
+      <div id="np-attached" class="attached-list" style="margin-top:8px"></div>
+      <div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal('m-post')">Cancel</button>
+        <button class="btn btn-dark" id="np-save" onclick="savePost()">Save Post →</button>
+      </div>
     </div>
-    <div id="np-attached" class="attached-list" style="margin-top:10px"></div>
 
-    <div style="margin-top:22px;display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn btn-ghost" onclick="closeModal('m-post')">Cancel</button>
-      <button class="btn btn-dark" id="np-save" onclick="savePost()">Save Post →</button>
+    <!-- RIGHT: AI Assistant -->
+    <div style="position:sticky;top:0">
+      <div style="background:var(--nav);border-radius:var(--r);overflow:hidden">
+        <div style="padding:14px 16px;border-bottom:1px solid #2a2a1a">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:#665;margin-bottom:3px">Post Assistant</div>
+          <div style="font-size:12px;color:#888;line-height:1.4">Uses your Phixo Knowledge folder. Helps you think — doesn't write for you.</div>
+        </div>
+        <div id="assist-msgs" style="height:300px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px">
+          <div class="assist-msg assist-ai">What kind of post are you thinking about? Even a rough idea is enough to start.</div>
+        </div>
+        <div style="padding:10px 12px;border-top:1px solid #2a2a1a;display:flex;gap:8px">
+          <input type="text" id="assist-input" placeholder="Reply here..." onkeydown="if(event.key==='Enter')sendAssist()"
+            style="flex:1;background:#1e1e10;border-color:#333320;color:#ccc;font-size:13px;padding:8px 10px">
+          <button class="btn btn-accent btn-sm" onclick="sendAssist()" id="assist-send">→</button>
+        </div>
+        <div style="padding:6px 12px 12px;display:flex;gap:5px;flex-wrap:wrap">
+          <button class="assist-quick" onclick="quickAssist('Help me find a hook angle')">Hook ideas</button>
+          <button class="assist-quick" onclick="quickAssist('What should the caption focus on?')">Caption angle</button>
+          <button class="assist-quick" onclick="quickAssist('What shot list do I need?')">Shot list</button>
+          <button class="assist-quick" onclick="quickAssist('What CTA makes sense?')">CTA</button>
+        </div>
+      </div>
     </div>
+
   </div>
 </div>
 </div>
@@ -567,6 +625,7 @@ function showView(name, navEl) {
   if (name==='clients') loadClients();
   if (name==='research') loadResearch();
   if (name==='posts') loadPosts();
+  if (name==='media') loadMediaFolder('Meme');
 }
 
 function closeModal(id) { document.getElementById(id).classList.add('off'); }
@@ -1141,6 +1200,7 @@ async function openNewPost() {
   document.getElementById('np-save').textContent = 'Save Post →';
   document.getElementById('np-attached').innerHTML = '';
   await renderResearchPicker([]);
+  resetAssistant();
   openModal('m-post');
 }
 
@@ -1248,6 +1308,128 @@ async function savePost() {
 }
 
 // ═════════════════════════════════════════════════
+// ═════════════════════════════════════════════════
+// POST ASSISTANT
+// ═════════════════════════════════════════════════
+let assistHistory = [];
+
+function resetAssistant() {
+  assistHistory = [];
+  const msgs = document.getElementById('assist-msgs');
+  if (msgs) {
+    msgs.innerHTML = '<div class="assist-msg assist-ai">What kind of post are you thinking about? Even a rough idea is enough to start.</div>';
+  }
+}
+
+function getCurrentBrief() {
+  return {
+    platform: document.getElementById('np-plat')?.value,
+    hook: document.getElementById('np-hook')?.value,
+    caption: document.getElementById('np-caption')?.value,
+    shot_list: document.getElementById('np-shots')?.value,
+    notes: document.getElementById('np-notes')?.value
+  };
+}
+
+function addAssistMsg(text, role) {
+  const msgs = document.getElementById('assist-msgs');
+  if (!msgs) return;
+  const div = document.createElement('div');
+  div.className = 'assist-msg ' + (role === 'user' ? 'assist-user' : 'assist-ai');
+  div.textContent = text;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+async function sendAssist() {
+  const input = document.getElementById('assist-input');
+  const btn = document.getElementById('assist-send');
+  const msg = input.value.trim();
+  if (!msg) return;
+  input.value = '';
+  btn.disabled = true;
+  btn.textContent = '...';
+
+  addAssistMsg(msg, 'user');
+  assistHistory.push({ role: 'user', content: msg });
+
+  try {
+    const result = await api('POST', '/api/assist/post', {
+      message: msg,
+      history: assistHistory.slice(0, -1), // don't double-send last msg
+      current_brief: getCurrentBrief()
+    });
+    addAssistMsg(result.reply, 'ai');
+    assistHistory.push({ role: 'assistant', content: result.reply });
+  } catch(err) {
+    addAssistMsg('Could not reach assistant — ' + err.message, 'ai');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '→';
+    input.focus();
+  }
+}
+
+function quickAssist(msg) {
+  const input = document.getElementById('assist-input');
+  input.value = msg;
+  sendAssist();
+}
+
+// ═════════════════════════════════════════════════
+// DRIVE MEDIA BROWSER (Meme, SFX, Music)
+// ═════════════════════════════════════════════════
+let activeMediaFolder = null;
+
+async function loadMediaFolder(folderName) {
+  activeMediaFolder = folderName;
+  // Update tab UI
+  document.querySelectorAll('.media-tab').forEach(t => {
+    t.classList.toggle('on', t.dataset.folder === folderName);
+  });
+  const grid = document.getElementById('media-grid');
+  const info = document.getElementById('media-info');
+  grid.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:12px">Loading from Drive...</div>';
+  info.textContent = '';
+  try {
+    const data = await api('GET', '/api/drive/browse?folder=' + encodeURIComponent(folderName));
+    if (data.message) {
+      grid.innerHTML = '';
+      info.textContent = data.message;
+      return;
+    }
+    if (!data.files.length) {
+      grid.innerHTML = '';
+      info.textContent = 'No files in ' + folderName + ' yet.';
+      return;
+    }
+    renderMediaGrid(data.files, folderName);
+  } catch(err) {
+    grid.innerHTML = '<div style="font-size:12px;color:var(--danger);padding:8px">' + esc(err.message) + '</div>';
+  }
+}
+
+function renderMediaGrid(files, folderName) {
+  const grid = document.getElementById('media-grid');
+  const isImage = f => f.mimeType && f.mimeType.startsWith('image/');
+  const isAudio = f => f.mimeType && (f.mimeType.startsWith('audio/') || f.name.match(/\.(mp3|wav|aac|m4a|ogg)$/i));
+
+  grid.innerHTML = files.map(f => `
+    <div class="media-card" onclick="openMediaFile('${f.id}','${esc(f.name)}','${esc(f.mimeType||'')}')">
+      <div class="media-thumb">
+        ${isImage(f) && f.thumbnailLink
+          ? `<img src="${esc(f.thumbnailLink)}" loading="lazy">`
+          : `<span class="media-icon">${isAudio(f) ? '🎵' : folderName === 'Meme' ? '😂' : '📁'}</span>`}
+      </div>
+      <div class="media-name">${esc(f.name)}</div>
+    </div>`).join('');
+}
+
+function openMediaFile(fileId, name, mimeType) {
+  // Open in new tab for audio/other, inline for images
+  window.open('/api/drive/file/' + fileId, '_blank');
+}
+
 // MODAL BACKDROP CLOSE
 // ═════════════════════════════════════════════════
 document.querySelectorAll('.modal-bg').forEach(bg => {
