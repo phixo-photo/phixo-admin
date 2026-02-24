@@ -4,913 +4,1259 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Phixo Admin</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@300;400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --black: #0d0d0d;
-    --off-white: #f5f2ee;
-    --warm-gray: #9a9590;
-    --border: #e2ddd8;
-    --accent: #c8a97e;
-    --accent-dark: #a88a62;
-    --surface: #faf8f5;
-    --red: #c45c4a;
-    --green: #4a7c59;
-    --blue: #3a5f8a;
-  }
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
-  body {
-    background: var(--off-white);
-    color: var(--black);
-    font-family: 'Instrument Sans', sans-serif;
-    min-height: 100vh;
-  }
-
-  /* NAV */
-  nav {
-    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
-    background: var(--black);
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 0 32px; height: 56px;
-  }
-
-  .nav-logo {
-    font-family: 'DM Serif Display', serif;
-    font-size: 20px; color: var(--off-white);
-    letter-spacing: 0.02em;
-  }
-
-  .nav-logo span { color: var(--accent); font-style: italic; }
-
-  .nav-tabs { display: flex; gap: 4px; }
-
-  .nav-tab {
-    background: none; border: none; cursor: pointer;
-    font-family: 'DM Mono', monospace; font-size: 11px;
-    color: var(--warm-gray); padding: 6px 14px; border-radius: 4px;
-    transition: all 0.15s; letter-spacing: 0.05em; text-transform: uppercase;
-  }
-
-  .nav-tab:hover { color: var(--off-white); background: rgba(255,255,255,0.07); }
-  .nav-tab.active { color: var(--off-white); background: rgba(255,255,255,0.12); }
-
-  .nav-right { display: flex; align-items: center; gap: 16px; }
-
-  .auth-badge {
-    font-family: 'DM Mono', monospace; font-size: 10px;
-    color: var(--accent); letter-spacing: 0.08em; text-transform: uppercase;
-  }
-
-  /* MAIN */
-  main {
-    margin-top: 56px;
-    max-width: 900px; margin-left: auto; margin-right: auto;
-    padding: 48px 24px;
-  }
-
-  /* VIEWS */
-  .view { display: none; }
-  .view.active { display: block; }
-
-  /* PAGE HEADER */
-  .page-header { margin-bottom: 40px; }
-
-  .page-header h1 {
-    font-family: 'DM Serif Display', serif;
-    font-size: 36px; font-weight: 400;
-    line-height: 1.1; margin-bottom: 8px;
-  }
-
-  .page-header h1 em { font-style: italic; color: var(--accent); }
-
-  .page-header p {
-    font-size: 15px; color: var(--warm-gray);
-    font-family: 'DM Mono', monospace; font-size: 12px;
-    letter-spacing: 0.03em;
-  }
-
-  /* CARDS */
-  .card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 32px;
-    margin-bottom: 24px;
-  }
-
-  .card-label {
-    font-family: 'DM Mono', monospace;
-    font-size: 10px; letter-spacing: 0.1em;
-    text-transform: uppercase; color: var(--warm-gray);
-    margin-bottom: 16px; display: block;
-  }
-
-  /* INPUT MODES */
-  .input-modes {
-    display: flex; gap: 8px; margin-bottom: 20px;
-  }
-
-  .mode-btn {
-    flex: 1; padding: 10px;
-    background: white; border: 1px solid var(--border);
-    border-radius: 8px; cursor: pointer;
-    font-family: 'Instrument Sans', sans-serif;
-    font-size: 13px; color: var(--warm-gray);
-    transition: all 0.15s; text-align: center;
-  }
-
-  .mode-btn:hover { border-color: var(--accent); color: var(--black); }
-  .mode-btn.active { background: var(--black); border-color: var(--black); color: var(--off-white); }
-
-  /* TEXTAREA */
-  textarea {
-    width: 100%; min-height: 200px;
-    background: white; border: 1px solid var(--border);
-    border-radius: 8px; padding: 16px;
-    font-family: 'DM Mono', monospace; font-size: 13px;
-    color: var(--black); resize: vertical; outline: none;
-    transition: border-color 0.15s; line-height: 1.6;
-  }
-
-  textarea:focus { border-color: var(--accent); }
-  textarea::placeholder { color: #ccc; }
-
-  /* FILE DROP */
-  .file-drop {
-    border: 2px dashed var(--border);
-    border-radius: 8px; padding: 48px 24px;
-    text-align: center; cursor: pointer;
-    transition: all 0.15s; background: white;
-  }
-
-  .file-drop:hover, .file-drop.dragging {
-    border-color: var(--accent);
-    background: #fdf9f4;
-  }
-
-  .file-drop-icon {
-    font-size: 32px; margin-bottom: 12px;
-    display: block;
-  }
-
-  .file-drop p {
-    font-size: 14px; color: var(--warm-gray);
-    margin-bottom: 4px;
-  }
-
-  .file-drop small {
-    font-family: 'DM Mono', monospace;
-    font-size: 11px; color: #bbb;
-  }
-
-  .file-drop input { display: none; }
-
-  .file-preview {
-    display: none;
-    margin-top: 12px; padding: 12px 16px;
-    background: #f0ece6; border-radius: 6px;
-    font-family: 'DM Mono', monospace; font-size: 12px;
-    color: var(--black); align-items: center; gap: 10px;
-  }
-
-  .file-preview.show { display: flex; }
-
-  /* SUBMIT BTN */
-  .submit-btn {
-    width: 100%; padding: 14px;
-    background: var(--black); border: none;
-    border-radius: 8px; cursor: pointer;
-    font-family: 'Instrument Sans', sans-serif;
-    font-size: 15px; font-weight: 500;
-    color: var(--off-white); margin-top: 16px;
-    transition: all 0.15s; position: relative;
-    overflow: hidden;
-  }
-
-  .submit-btn:hover { background: #222; }
-  .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-
-  .submit-btn.loading::after {
-    content: '';
-    position: absolute; top: 0; left: -100%; right: 0; bottom: 0;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
-    animation: shimmer 1.5s infinite;
-  }
-
-  @keyframes shimmer { to { left: 100%; } }
-
-  /* RESULT */
-  .result {
-    display: none;
-    margin-top: 24px;
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    overflow: hidden;
-  }
-
-  .result.show { display: block; }
-
-  .result-header {
-    background: var(--black); padding: 20px 24px;
-    display: flex; align-items: center; justify-content: space-between;
-  }
-
-  .result-header h3 {
-    font-family: 'DM Serif Display', serif;
-    font-size: 20px; color: var(--off-white); font-weight: 400;
-  }
-
-  .result-badge {
-    font-family: 'DM Mono', monospace; font-size: 10px;
-    padding: 4px 10px; border-radius: 20px;
-    letter-spacing: 0.08em; text-transform: uppercase;
-  }
-
-  .result-badge.new { background: var(--green); color: white; }
-  .result-badge.existing { background: var(--blue); color: white; }
-
-  .result-body { padding: 24px; background: white; }
-
-  .result-section { margin-bottom: 20px; }
-
-  .result-section-title {
-    font-family: 'DM Mono', monospace; font-size: 10px;
-    letter-spacing: 0.1em; text-transform: uppercase;
-    color: var(--warm-gray); margin-bottom: 10px;
-    padding-bottom: 6px; border-bottom: 1px solid var(--border);
-  }
-
-  .result-field { margin-bottom: 8px; }
-
-  .result-field label {
-    font-family: 'DM Mono', monospace; font-size: 11px;
-    color: var(--warm-gray); display: block; margin-bottom: 2px;
-  }
-
-  .result-field p {
-    font-size: 14px; line-height: 1.5; color: var(--black);
-  }
-
-  .tag {
-    display: inline-block; padding: 3px 10px;
-    border-radius: 20px; font-size: 12px;
-    font-family: 'DM Mono', monospace;
-  }
-
-  .tag.warm { background: #fdf3e7; color: #a0632a; border: 1px solid #f0d5b0; }
-  .tag.hot { background: #fdeaea; color: var(--red); border: 1px solid #f5c0b8; }
-  .tag.cold { background: #edf0f7; color: var(--blue); border: 1px solid #c0cde0; }
-
-  .drive-link {
-    display: inline-flex; align-items: center; gap: 8px;
-    margin-top: 16px; padding: 10px 16px;
-    background: var(--black); color: var(--off-white);
-    border-radius: 6px; text-decoration: none;
-    font-size: 13px; font-family: 'Instrument Sans', sans-serif;
-    transition: background 0.15s;
-  }
-
-  .drive-link:hover { background: #222; }
-
-  .draft-reply {
-    background: #faf7f2;
-    border: 1px solid #ede8e0;
-    border-radius: 8px; padding: 16px;
-    font-size: 14px; line-height: 1.7;
-    font-family: 'Instrument Sans', sans-serif;
-    color: var(--black); white-space: pre-wrap;
-  }
-
-  /* CLIENTS LIST */
-  .clients-grid { display: flex; flex-direction: column; gap: 12px; }
-
-  .client-row {
-    background: white; border: 1px solid var(--border);
-    border-radius: 8px; padding: 16px 20px;
-    display: flex; align-items: center; justify-content: space-between;
-    cursor: pointer; transition: all 0.15s;
-  }
-
-  .client-row:hover { border-color: var(--accent); background: #fdf9f4; }
-
-  .client-row-name {
-    font-size: 15px; font-weight: 500; margin-bottom: 2px;
-  }
-
-  .client-row-meta {
-    font-family: 'DM Mono', monospace; font-size: 11px;
-    color: var(--warm-gray);
-  }
-
-  .client-row-arrow { color: var(--warm-gray); font-size: 18px; }
-
-  /* SESSION VIEW (mobile optimized) */
-  .session-card {
-    background: var(--black); border-radius: 12px;
-    padding: 24px; margin-bottom: 16px; color: var(--off-white);
-  }
-
-  .session-card h2 {
-    font-family: 'DM Serif Display', serif;
-    font-size: 28px; font-weight: 400; margin-bottom: 4px;
-  }
-
-  .session-card .session-type {
-    font-family: 'DM Mono', monospace; font-size: 11px;
-    color: var(--accent); letter-spacing: 0.08em;
-    text-transform: uppercase; margin-bottom: 20px;
-  }
-
-  .session-briefing-item {
-    background: white; border-radius: 8px;
-    padding: 16px; margin-bottom: 12px; color: var(--black);
-  }
-
-  .session-briefing-item .item-label {
-    font-family: 'DM Mono', monospace; font-size: 10px;
-    color: var(--warm-gray); letter-spacing: 0.08em;
-    text-transform: uppercase; margin-bottom: 6px;
-  }
-
-  .session-briefing-item .item-text {
-    font-size: 14px; line-height: 1.5;
-  }
-
-  /* STATUS */
-  .status-bar {
-    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-    background: var(--black); color: var(--off-white);
-    padding: 12px 24px; border-radius: 100px;
-    font-family: 'DM Mono', monospace; font-size: 12px;
-    opacity: 0; transition: opacity 0.3s; pointer-events: none;
-    white-space: nowrap; z-index: 200;
-  }
-
-  .status-bar.show { opacity: 1; }
-  .status-bar.error { background: var(--red); }
-  .status-bar.success { background: var(--green); }
-
-  /* EMPTY STATE */
-  .empty-state {
-    text-align: center; padding: 60px 24px;
-    color: var(--warm-gray);
-  }
-
-  .empty-state .icon { font-size: 40px; margin-bottom: 16px; }
-  .empty-state p { font-size: 14px; }
-
-  /* MOBILE */
-  @media (max-width: 640px) {
-    main { padding: 32px 16px; }
-    .card { padding: 20px; }
-    nav { padding: 0 16px; }
-    .page-header h1 { font-size: 28px; }
-  }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f3f0;--surface:#fff;--border:#e5e3dc;
+  --text:#18180f;--muted:#8a8878;--accent:#c8a96e;--accent-light:#faf4ea;
+  --danger:#cc3333;--nav:#18180f;--nav-text:#a0a090;--nav-active:#fff;
+  --hot:#e04444;--warm:#d08020;--cold:#4488bb;
+  --r:10px;--shadow:0 2px 14px rgba(0,0,0,.07);--nav-w:210px
+}
+body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex}
+
+/* NAV */
+#nav{width:var(--nav-w);min-height:100vh;background:var(--nav);display:flex;flex-direction:column;position:fixed;top:0;left:0;z-index:100}
+.nav-logo{padding:22px 20px 18px;font-size:17px;font-weight:700;letter-spacing:-.3px;color:#fff}
+.nav-logo em{font-style:normal;color:var(--accent)}
+.nav-group{padding:14px 12px 4px;font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:#555544}
+.nav-btn{display:flex;align-items:center;gap:9px;padding:9px 14px;margin:1px 8px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;color:var(--nav-text);border:none;background:none;width:calc(100% - 16px);text-align:left;transition:all .13s}
+.nav-btn:hover{background:#262616;color:#ddd}
+.nav-btn.active{background:#2e2e1a;color:var(--nav-active)}
+.nav-btn .i{font-size:14px;width:18px;text-align:center;opacity:.8}
+.nav-foot{margin-top:auto;padding:16px;border-top:1px solid #262616}
+.nav-foot a,.nav-foot span{display:block;font-size:12px;color:#555544;text-decoration:none;margin-top:4px}
+.nav-foot a:hover{color:#aaa}
+.online{display:inline-block;width:7px;height:7px;border-radius:50%;background:#4a9;margin-right:5px}
+
+/* MAIN */
+#main{margin-left:var(--nav-w);flex:1;min-height:100vh}
+
+/* VIEWS */
+.view{display:none;padding:36px 40px;max-width:1080px}
+.view.on{display:block}
+.ph{margin-bottom:28px}
+.ph h1{font-size:24px;font-weight:700;letter-spacing:-.4px}
+.ph h1 em{font-style:normal;color:var(--accent)}
+.ph p{color:var(--muted);font-size:13px;margin-top:3px}
+
+/* TOOLBAR */
+.tb{display:flex;gap:8px;align-items:center;margin-bottom:22px;flex-wrap:wrap}
+.tb input{width:220px}
+
+/* CARDS */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px 24px;margin-bottom:14px;box-shadow:var(--shadow)}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .13s;white-space:nowrap}
+.btn-dark{background:var(--text);color:#fff}.btn-dark:hover{background:#333}
+.btn-ghost{background:var(--bg);color:var(--text);border:1px solid var(--border)}.btn-ghost:hover{background:var(--border)}
+.btn-accent{background:var(--accent);color:#fff}.btn-accent:hover{background:#b8955a}
+.btn-danger{background:#fff0f0;color:var(--danger);border:1px solid #fcc}.btn-danger:hover{background:#ffe0e0}
+.btn-sm{padding:6px 11px;font-size:12px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* INPUTS */
+input[type=text],input[type=date],input[type=url],select,textarea{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;background:var(--bg);color:var(--text);outline:none;transition:border .13s}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);background:#fff}
+textarea{resize:vertical;min-height:80px;line-height:1.5}
+label{font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;margin-top:14px;text-transform:uppercase;letter-spacing:.4px}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+
+/* STATUS TAGS */
+.tag{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700}
+.t-lead{background:#f0f0ec;color:#666}.t-booked{background:#e8f5e9;color:#2e7d32}
+.t-shot{background:#e3f2fd;color:#1565c0}.t-delivered{background:#f3e5f5;color:#6a1b9a}
+.t-hot{background:#fdeaea;color:var(--hot)}.t-warm{background:#fff3e0;color:var(--warm)}
+.t-cold{background:#e8f0fe;color:var(--cold)}
+
+/* CLIENT LIST GRID */
+.cl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.cl-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;cursor:pointer;transition:all .13s;box-shadow:var(--shadow)}
+.cl-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.cl-card h3{font-size:15px;font-weight:700;margin-bottom:3px}
+.cl-card .meta{font-size:12px;color:var(--muted);margin-bottom:10px}
+.cl-card .foot{display:flex;align-items:center;gap:6px}
+
+/* CLIENT FILE — exact Evelyn format */
+.cf-header{background:var(--text);color:#fff;border-radius:var(--r);padding:26px 30px;margin-bottom:6px}
+.cf-brand{font-size:10px;letter-spacing:2.5px;text-transform:uppercase;opacity:.4;margin-bottom:8px}
+.cf-name{font-size:26px;font-weight:800;letter-spacing:-.5px}
+.cf-meta{font-size:13px;opacity:.55;margin-top:4px;letter-spacing:.2px}
+.cf-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;margin-top:18px}
+
+.cf-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;box-shadow:var(--shadow);overflow:hidden}
+.cf-sh{display:flex;align-items:center;justify-content:space-between;padding:13px 20px;cursor:pointer;user-select:none;border-bottom:1px solid var(--border)}
+.cf-sh h3{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:2px;color:var(--muted)}
+.cf-sh .arr{font-size:11px;color:var(--muted);transition:transform .15s}
+.cf-sh.open .arr{transform:rotate(180deg)}
+.cf-sb{padding:0 20px 18px}
+.cf-sb.hide{display:none}
+
+/* Field table rows — matches Evelyn doc exactly */
+.cf-row{display:grid;grid-template-columns:180px 1fr;gap:12px;padding:10px 0;border-bottom:1px solid var(--bg);align-items:start}
+.cf-row:last-child{border-bottom:none}
+.cf-key{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding-top:2px;line-height:1.4}
+.cf-val{font-size:14px;line-height:1.55;color:var(--text)}
+.cf-val.edit{cursor:pointer;padding:3px 8px;margin:-3px -8px;border-radius:5px;border:1px solid transparent}
+.cf-val.edit:hover{background:var(--bg);border-color:var(--border)}
+.cf-val.muted{color:var(--muted);font-style:italic}
+
+/* Lead temp inline badge */
+.temp-badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:700;margin-bottom:4px}
+
+/* Conversation log */
+.conv-block{white-space:pre-wrap;font-size:13px;line-height:1.65;background:var(--bg);padding:16px;border-radius:8px;max-height:400px;overflow-y:auto}
+
+/* Draft reply — styled like the Evelyn doc */
+.draft-block{background:var(--accent-light);border:1px solid #e8d5a8;border-radius:8px;padding:16px 18px;font-size:14px;line-height:1.65}
+
+/* POSE GALLERY in client file */
+.pose-strip{display:flex;gap:10px;flex-wrap:wrap;padding-top:4px}
+.pose-thumb{position:relative;width:100px;height:100px;border-radius:8px;overflow:hidden;border:2px solid var(--border);cursor:default;flex-shrink:0}
+.pose-thumb img{width:100%;height:100%;object-fit:cover}
+.pose-thumb .rm{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.65);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
+.pose-thumb .rm:hover{background:rgba(200,0,0,.8)}
+.pose-add-btn{width:100px;height:100px;border-radius:8px;border:2px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:12px;gap:4px;background:none;transition:all .13s;flex-shrink:0}
+.pose-add-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+
+/* RESEARCH GRID */
+.res-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.res-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;cursor:pointer;transition:all .13s;box-shadow:var(--shadow)}
+.res-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.res-card.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.res-thumb{height:130px;background:var(--bg);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.res-thumb img{width:100%;height:100%;object-fit:cover}
+.res-icon{font-size:38px}
+.res-info{padding:12px 14px}
+.res-info h4{font-size:13px;font-weight:600;line-height:1.35;margin-bottom:4px}
+.res-type{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.res-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px}
+.res-tags span{background:var(--bg);border-radius:20px;padding:2px 7px;font-size:11px;color:var(--muted)}
+
+/* PIPELINE */
+.pipeline{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.pipe-col{background:var(--bg);border-radius:var(--r);padding:14px}
+.pipe-col h3{font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:12px;font-weight:800;padding:0 2px}
+.post-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:8px;cursor:pointer;transition:all .13s}
+.post-card:hover{border-color:var(--accent)}
+.post-plat{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:5px}
+.post-hook{font-size:13px;font-weight:600;line-height:1.4}
+.post-date{font-size:11px;color:var(--muted);margin-top:7px}
+.post-assets{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
+.post-assets .a{background:var(--bg);border-radius:5px;padding:2px 7px;font-size:11px;color:var(--muted)}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-bg.off{display:none}
+.modal{background:var(--surface);border-radius:14px;width:100%;max-width:660px;max-height:92vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.22)}
+.modal.wide{max-width:860px}
+.mh{padding:24px 28px 0;display:flex;align-items:center;justify-content:space-between}
+.mh h2{font-size:18px;font-weight:700}
+.mx{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);padding:4px;line-height:1}
+.mx:hover{color:var(--text)}
+.mb{padding:20px 28px 28px}
+
+/* TABS */
+.tabs{display:flex;gap:0;margin-bottom:18px;border-bottom:1px solid var(--border)}
+.tab{padding:9px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:var(--text);border-bottom-color:var(--accent)}
+.tc{display:none}.tc.on{display:block}
+
+/* BACK */
+.back{background:none;border:none;font-size:13px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:5px;margin-bottom:18px;padding:0}
+.back:hover{color:var(--text)}
+
+/* TOAST */
+.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
+.toast.on{opacity:1}
+.toast.ok{background:#2d7d2d}
+.toast.err{background:var(--danger)}
+
+/* EMPTY */
+.empty{text-align:center;padding:60px 20px;color:var(--muted)}
+.empty .e{font-size:44px;margin-bottom:14px}
+
+/* POSE PICKER GRID */
+.pose-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;max-height:420px;overflow-y:auto;padding-right:4px}
+.pose-pick{position:relative;border-radius:8px;overflow:hidden;border:2px solid var(--border);cursor:pointer;aspect-ratio:1;transition:all .13s}
+.pose-pick:hover{border-color:var(--accent)}
+.pose-pick.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.pose-pick img{width:100%;height:100%;object-fit:cover;display:block}
+.pose-pick .chk{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;display:none;align-items:center;justify-content:center;font-weight:700}
+.pose-pick.sel .chk{display:flex}
+.pose-pick .fname{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:3px 5px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+
+/* Research picker in post modal */
+.res-pick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;max-height:300px;overflow-y:auto}
+.res-pick-card{border:2px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer;transition:all .13s}
+.res-pick-card:hover{border-color:var(--accent)}
+.res-pick-card.sel{border-color:var(--accent);background:var(--accent-light)}
+.res-pick-card .rp-icon{height:70px;display:flex;align-items:center;justify-content:center;background:var(--bg);font-size:28px}
+.res-pick-card .rp-icon img{width:100%;height:100%;object-fit:cover}
+.res-pick-card .rp-name{font-size:11px;padding:5px 7px;font-weight:600;line-height:1.3}
+
+/* Attached assets in post detail */
+.attached-list{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.attached-item{display:flex;align-items:center;gap:6px;background:var(--bg);border-radius:7px;padding:6px 10px;font-size:12px}
+.attached-item .rm-a{background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px;padding:0;line-height:1}
+.attached-item .rm-a:hover{color:var(--danger)}
 </style>
 </head>
 <body>
 
-<nav>
-  <div class="nav-logo">Phixo <span>Admin</span></div>
-  <div class="nav-tabs">
-    <button class="nav-tab active" onclick="showView('intake')">Intake</button>
-    <button class="nav-tab" onclick="showView('clients')">Clients</button>
-    <button class="nav-tab" onclick="showView('session')">Session</button>
-    <button class="nav-tab" onclick="showView('knowledge')">Knowledge</button>
-    <button class="nav-tab" onclick="showView('learn')">Learn</button>
-  </div>
-  <div class="nav-right">
-    <span class="auth-badge" id="authStatus">●&nbsp;Connected</span>
+<nav id="nav">
+  <div class="nav-logo">Phixo <em>Admin</em></div>
+
+  <div class="nav-group">Clients</div>
+  <button class="nav-btn active" onclick="showView('clients',this)"><span class="i">👤</span> All Clients</button>
+  <button class="nav-btn" onclick="openNewClient()"><span class="i">＋</span> New Client</button>
+
+  <div class="nav-group">Library</div>
+  <button class="nav-btn" onclick="showView('research',this)"><span class="i">📚</span> Research</button>
+  <button class="nav-btn" onclick="openNewResearch()"><span class="i">＋</span> Add Item</button>
+
+  <div class="nav-group">Content</div>
+  <button class="nav-btn" onclick="showView('posts',this)"><span class="i">📅</span> Schedule</button>
+  <button class="nav-btn" onclick="openNewPost()"><span class="i">✏️</span> New Post</button>
+
+  <div class="nav-foot">
+    <span><span class="online"></span>Connected</span>
+    <a href="/auth/logout">Sign out</a>
   </div>
 </nav>
 
-<main>
+<div id="main">
 
-  <!-- INTAKE VIEW -->
-  <div id="view-intake" class="view active">
-    <div class="page-header">
-      <h1>New <em>intake</em></h1>
-      <p>Paste a conversation or drop a screenshot. Claude does the rest.</p>
+<!-- CLIENTS LIST -->
+<div id="v-clients" class="view on">
+  <div class="ph"><h1>Your <em>clients</em></h1><p>Every file, brief, and booking reference — one place.</p></div>
+  <div class="tb">
+    <input type="text" id="cl-search" placeholder="Search by name..." oninput="debouncedLoadClients()">
+    <select id="cl-status" onchange="loadClients()" style="width:140px">
+      <option value="">All statuses</option>
+      <option value="lead">Lead</option>
+      <option value="booked">Booked</option>
+      <option value="shot">Shot</option>
+      <option value="delivered">Delivered</option>
+    </select>
+    <button class="btn btn-dark" onclick="openNewClient()">+ New Client</button>
+  </div>
+  <div id="cl-grid" class="cl-grid"><div class="empty"><div class="e">👤</div><p>Loading...</p></div></div>
+</div>
+
+<!-- CLIENT FILE -->
+<div id="v-client-file" class="view">
+  <button class="back" onclick="showView('clients')">← All Clients</button>
+  <div id="cf-body"></div>
+</div>
+
+<!-- RESEARCH -->
+<div id="v-research" class="view">
+  <div class="ph"><h1>Research <em>library</em></h1><p>Poses, articles, memes, audio — tagged and findable.</p></div>
+  <div class="tb">
+    <input type="text" id="res-search" placeholder="Search..." oninput="debouncedLoadResearch()">
+    <select id="res-type" onchange="loadResearch()" style="width:160px">
+      <option value="">All types</option>
+      <option value="article">Article / URL</option>
+      <option value="pose">Pose idea</option>
+      <option value="meme">Meme</option>
+      <option value="audio">Audio / SFX</option>
+      <option value="transcript">Transcript / Notes</option>
+      <option value="image">Image</option>
+      <option value="pdf">PDF</option>
+    </select>
+    <button class="btn btn-dark" onclick="openNewResearch()">+ Add Item</button>
+  </div>
+  <div id="res-grid" class="res-grid"><div class="empty"><div class="e">📚</div><p>Loading...</p></div></div>
+</div>
+
+<!-- POSTS -->
+<div id="v-posts" class="view">
+  <div class="ph"><h1>Content <em>schedule</em></h1><p>Idea to posted — plan every piece of content.</p></div>
+  <div class="tb">
+    <select id="post-plat" onchange="loadPosts()" style="width:150px">
+      <option value="">All platforms</option>
+      <option value="Instagram">Instagram</option>
+      <option value="TikTok">TikTok</option>
+      <option value="LinkedIn">LinkedIn</option>
+    </select>
+    <button class="btn btn-dark" onclick="openNewPost()">+ New Post</button>
+  </div>
+  <div class="pipeline">
+    <div class="pipe-col"><h3>💡 Idea</h3><div id="col-idea"></div></div>
+    <div class="pipe-col"><h3>✏️ Draft</h3><div id="col-draft"></div></div>
+    <div class="pipe-col"><h3>✅ Ready</h3><div id="col-ready"></div></div>
+    <div class="pipe-col"><h3>🚀 Posted</h3><div id="col-posted"></div></div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<!-- ═══ MODALS ═══ -->
+
+<!-- New Client -->
+<div class="modal-bg off" id="m-newclient">
+<div class="modal">
+  <div class="mh"><h2>New Client</h2><button class="mx" onclick="closeModal('m-newclient')">✕</button></div>
+  <div class="mb">
+    <div class="row2">
+      <div><label>Name *</label><input type="text" id="nc-name" placeholder="First name or full name"></div>
+      <div><label>Platform</label>
+        <select id="nc-platform">
+          <option>Instagram</option><option>Facebook</option><option>TikTok</option>
+          <option>Referral</option><option>Website</option><option>Other</option>
+        </select>
+      </div>
     </div>
-
-    <div class="card">
-      <span class="card-label">Input method</span>
-      <div class="input-modes">
-        <button class="mode-btn active" onclick="setMode('text')">Paste text</button>
-        <button class="mode-btn" onclick="setMode('screenshot')">Screenshot / file</button>
+    <div class="row2">
+      <div><label>Session Type</label>
+        <select id="nc-stype">
+          <option>Professional Headshots</option><option>Personal / Confidence</option>
+          <option>Family / Legacy</option><option>Graduate</option><option>Creative</option><option>Other</option>
+        </select>
       </div>
-
-      <!-- Text mode -->
-      <div id="mode-text">
-        <textarea id="conversationInput" placeholder="Paste the full conversation here. Instagram DM, Facebook thread, email, text — anything. Claude will figure out who it is and what they need."></textarea>
-      </div>
-
-      <!-- Screenshot mode -->
-      <div id="mode-screenshot" style="display:none">
-        <div class="file-drop" id="fileDrop" onclick="document.getElementById('fileInput').click()">
-          <span class="file-drop-icon">📸</span>
-          <p>Drop a screenshot here or tap to upload</p>
-          <small>JPG, PNG, HEIC — multiple screenshots okay</small>
-          <input type="file" id="fileInput" accept="image/*" multiple onchange="handleFileSelect(this)">
-        </div>
-        <div class="file-preview" id="filePreview">
-          <span>📎</span>
-          <span id="fileName">—</span>
-        </div>
-      </div>
-
-      <button class="submit-btn" id="submitBtn" onclick="processIntake()">
-        Analyze and file →
-      </button>
+      <div><label>Session Date</label><input type="text" id="nc-date" placeholder="e.g. Saturday Feb 28, 2026"></div>
     </div>
-
-    <div class="result" id="result">
-      <div class="result-header">
-        <h3 id="resultName">—</h3>
-        <span class="result-badge" id="resultBadge">New</span>
+    <div class="row2">
+      <div><label>Offer / Package</label><input type="text" id="nc-offer" placeholder="e.g. Signature $175"></div>
+      <div><label>Status</label>
+        <select id="nc-status">
+          <option value="lead">Lead</option><option value="booked">Booked</option>
+          <option value="shot">Shot</option><option value="delivered">Delivered</option>
+        </select>
       </div>
-      <div class="result-body">
+    </div>
+    <label>First Contact Date</label>
+    <input type="text" id="nc-firstcontact" placeholder="e.g. February 22, 2026">
+    <label>Thread ID / DM Reference</label>
+    <input type="text" id="nc-thread" placeholder="Optional">
+    <div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal('m-newclient')">Cancel</button>
+      <button class="btn btn-dark" onclick="createClient()">Create Client File →</button>
+    </div>
+  </div>
+</div>
+</div>
 
-        <div class="result-section">
-          <div class="result-section-title">Overview</div>
-          <div class="result-field">
-            <label>Lead temperature</label>
-            <div id="resultTemp">—</div>
-          </div>
-          <div class="result-field">
-            <label>What they want</label>
-            <p id="resultWant">—</p>
-          </div>
-          <div class="result-field">
-            <label>Emotional read</label>
-            <p id="resultRead">—</p>
-          </div>
-        </div>
-
-        <div class="result-section">
-          <div class="result-section-title">Session briefing</div>
-          <div class="result-field">
-            <label>How to open</label>
-            <p id="resultOpen">—</p>
-          </div>
-          <div class="result-field">
-            <label>Key question</label>
-            <p id="resultQuestion">—</p>
-          </div>
-          <div class="result-field">
-            <label>Things to talk about</label>
-            <p id="resultTalk">—</p>
-          </div>
-        </div>
-
-        <div class="result-section">
-          <div class="result-section-title">Draft reply</div>
-          <div class="draft-reply" id="resultDraft">—</div>
-        </div>
-
-        <a class="drive-link" id="driveLink" href="#" target="_blank">
-          Open in Google Drive →
-        </a>
-
+<!-- Analyze Conversation -->
+<div class="modal-bg off" id="m-analyze">
+<div class="modal">
+  <div class="mh"><h2 id="m-analyze-title">Analyze Conversation</h2><button class="mx" onclick="closeModal('m-analyze')">✕</button></div>
+  <div class="mb">
+    <div class="tabs">
+      <button class="tab on" onclick="switchTab('at','text',this)">Paste Text</button>
+      <button class="tab" onclick="switchTab('at','img',this)">Screenshot</button>
+    </div>
+    <div id="at-text" class="tc on">
+      <label>Paste the full DM conversation</label>
+      <textarea id="az-text" style="min-height:200px" placeholder="Paste everything — the whole thread..."></textarea>
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal('m-analyze')">Cancel</button>
+        <button class="btn btn-dark" id="az-btn" onclick="analyzeConversation()">Analyze with Claude →</button>
+      </div>
+    </div>
+    <div id="at-img" class="tc">
+      <div style="border:2px dashed var(--border);border-radius:var(--r);padding:24px;text-align:center;color:var(--muted);margin-bottom:12px">
+        <div style="font-size:30px;margin-bottom:6px">📷</div>
+        <p style="font-size:13px">Drop screenshot or <label for="az-file" style="color:var(--accent);cursor:pointer">browse</label></p>
+        <input type="file" id="az-file" accept="image/*" style="display:none" onchange="handleAzFile(this)">
+      </div>
+      <div id="az-preview" style="display:none;margin-bottom:12px"><img id="az-img" style="max-width:100%;border-radius:8px;max-height:180px;object-fit:contain"></div>
+      <div style="display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal('m-analyze')">Cancel</button>
+        <button class="btn btn-dark" id="az-img-btn" onclick="analyzeScreenshot()">Analyze Screenshot →</button>
       </div>
     </div>
   </div>
+</div>
+</div>
 
-  <!-- CLIENTS VIEW -->
-  <div id="view-clients" class="view">
-    <div class="page-header">
-      <h1>Your <em>clients</em></h1>
-      <p>Everyone in the system, most recent first.</p>
+<!-- Edit Field -->
+<div class="modal-bg off" id="m-editfield">
+<div class="modal" style="max-width:480px">
+  <div class="mh"><h2 id="ef-title">Edit</h2><button class="mx" onclick="closeModal('m-editfield')">✕</button></div>
+  <div class="mb">
+    <textarea id="ef-val" style="min-height:130px"></textarea>
+    <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal('m-editfield')">Cancel</button>
+      <button class="btn btn-dark" onclick="saveFieldEdit()">Save</button>
     </div>
-    <div class="clients-grid" id="clientsList">
-      <div class="empty-state">
-        <div class="icon">📂</div>
-        <p>Loading clients...</p>
+  </div>
+</div>
+</div>
+
+<!-- Pose Picker -->
+<div class="modal-bg off" id="m-poses">
+<div class="modal wide">
+  <div class="mh"><h2>Add Poses from Drive</h2><button class="mx" onclick="closeModal('m-poses')">✕</button></div>
+  <div class="mb">
+    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Browsing your <strong>Phixo Poses</strong> folder in Google Drive. Select poses to attach to this client.</p>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
+      <input type="text" id="pose-search" placeholder="Filter by filename..." oninput="filterPoses()" style="width:240px">
+      <span id="pose-sel-count" style="font-size:13px;color:var(--muted)">0 selected</span>
+      <button class="btn btn-dark btn-sm" onclick="attachSelectedPoses()" id="pose-attach-btn" disabled>Attach to Client →</button>
+    </div>
+    <div id="pose-grid" class="pose-grid"><div class="empty" style="padding:30px"><div class="e" style="font-size:30px">📷</div><p>Loading poses from Drive...</p></div></div>
+    <div id="pose-msg" style="font-size:13px;color:var(--muted);margin-top:10px;display:none"></div>
+  </div>
+</div>
+</div>
+
+<!-- New Research -->
+<div class="modal-bg off" id="m-research">
+<div class="modal">
+  <div class="mh"><h2>Add to Research Library</h2><button class="mx" onclick="closeModal('m-research')">✕</button></div>
+  <div class="mb">
+    <div class="tabs">
+      <button class="tab on" onclick="switchTab('rt','url',this)">URL / Article</button>
+      <button class="tab" onclick="switchTab('rt','upload',this)">Upload File</button>
+    </div>
+    <div id="rt-url" class="tc on">
+      <label>Title *</label><input type="text" id="nr-title" placeholder="Give it a clear name">
+      <label>Type</label>
+      <select id="nr-type">
+        <option value="article">Article / URL</option><option value="pose">Pose idea</option>
+        <option value="transcript">Transcript / Notes</option><option value="audio">Audio / SFX</option>
+        <option value="meme">Meme</option><option value="image">Image</option><option value="pdf">PDF</option>
+      </select>
+      <label>Source URL</label><input type="url" id="nr-url" placeholder="https://...">
+      <label>Tags (comma separated)</label><input type="text" id="nr-tags" placeholder="posing, lighting, hooks, tiktok">
+      <label>Why it matters / summary</label>
+      <textarea id="nr-why" placeholder="Why you saved this. What it's useful for."></textarea>
+      <label>Recommended use</label>
+      <input type="text" id="nr-use" placeholder="e.g. hook style for nervous client reels">
+      <label>Platform</label>
+      <select id="nr-plat">
+        <option value="">Any</option><option>Instagram</option><option>TikTok</option><option>LinkedIn</option>
+      </select>
+      <div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal('m-research')">Cancel</button>
+        <button class="btn btn-dark" onclick="saveResearchUrl()">Save to Library →</button>
+      </div>
+    </div>
+    <div id="rt-upload" class="tc">
+      <div style="border:2px dashed var(--border);border-radius:var(--r);padding:24px;text-align:center;color:var(--muted);margin-bottom:12px">
+        <div style="font-size:30px;margin-bottom:6px">📁</div>
+        <p style="font-size:13px">Drop file here or <label for="nr-file" style="color:var(--accent);cursor:pointer">browse</label></p>
+        <p style="font-size:11px;margin-top:4px">Images, audio, PDFs — uploaded to Phixo Research in Drive</p>
+        <input type="file" id="nr-file" style="display:none" onchange="handleResearchFile(this)">
+      </div>
+      <div id="nr-file-name" style="font-size:12px;color:var(--muted);margin-bottom:8px;display:none"></div>
+      <label>Title</label><input type="text" id="nru-title">
+      <label>Type</label>
+      <select id="nru-type">
+        <option value="image">Image</option><option value="meme">Meme</option>
+        <option value="audio">Audio / SFX</option><option value="pose">Pose idea</option><option value="pdf">PDF</option>
+      </select>
+      <label>Tags</label><input type="text" id="nru-tags" placeholder="posing, lighting, hooks">
+      <label>Why it matters</label><textarea id="nru-why"></textarea>
+      <div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeModal('m-research')">Cancel</button>
+        <button class="btn btn-dark" id="nru-btn" onclick="uploadResearch()">Upload to Drive →</button>
       </div>
     </div>
   </div>
+</div>
+</div>
 
-  <!-- SESSION VIEW -->
-  <div id="view-session" class="view">
-    <div class="page-header">
-      <h1>Today's <em>session</em></h1>
-      <p>Quick brief for whoever you're shooting.</p>
+<!-- Research Detail -->
+<div class="modal-bg off" id="m-resdetail">
+<div class="modal">
+  <div class="mh"><h2 id="rd-title"></h2><button class="mx" onclick="closeModal('m-resdetail')">✕</button></div>
+  <div class="mb" id="rd-body"></div>
+</div>
+</div>
+
+<!-- New / Edit Post -->
+<div class="modal-bg off" id="m-post">
+<div class="modal wide">
+  <div class="mh"><h2 id="pm-title">New Post Brief</h2><button class="mx" onclick="closeModal('m-post')">✕</button></div>
+  <div class="mb">
+    <div class="row3">
+      <div><label>Platform</label>
+        <select id="np-plat"><option>Instagram</option><option>TikTok</option><option>LinkedIn</option></select>
+      </div>
+      <div><label>Status</label>
+        <select id="np-status">
+          <option value="idea">Idea</option><option value="draft">Draft</option>
+          <option value="ready">Ready</option><option value="posted">Posted</option>
+        </select>
+      </div>
+      <div><label>Post Date</label><input type="text" id="np-date" placeholder="e.g. March 3"></div>
     </div>
+    <label>Hook *</label>
+    <input type="text" id="np-hook" placeholder="The first line — what stops the scroll">
+    <label>Caption draft</label>
+    <textarea id="np-caption" placeholder="Full caption or rough notes..."></textarea>
+    <label>Shot list / B-roll notes</label>
+    <textarea id="np-shots" style="min-height:60px" placeholder="What needs to be filmed or set up"></textarea>
+    <label>CTA</label>
+    <input type="text" id="np-cta" placeholder="e.g. Book a session — link in bio">
+    <label>Notes</label>
+    <textarea id="np-notes" style="min-height:60px" placeholder="Audio ideas, vibe, references, anything else"></textarea>
 
-    <div class="card">
-      <span class="card-label">Find a client</span>
-      <input type="text" id="sessionSearch" placeholder="Type a name..." 
-        style="width:100%; padding:12px 16px; border:1px solid var(--border); border-radius:8px; font-family:'Instrument Sans',sans-serif; font-size:14px; outline:none;"
-        oninput="searchClient(this.value)">
-      <div id="sessionSearchResults" style="margin-top:8px;"></div>
+    <!-- Research attachment -->
+    <label>Attach from Research Library</label>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Click items to attach them to this post brief.</p>
+    <div id="np-res-grid" class="res-pick-grid">
+      <div style="font-size:12px;color:var(--muted);padding:8px">Loading library...</div>
     </div>
+    <div id="np-attached" class="attached-list" style="margin-top:10px"></div>
 
-    <div id="sessionBriefing" style="display:none">
-      <div class="session-card">
-        <h2 id="sessionClientName">—</h2>
-        <div class="session-type" id="sessionType">—</div>
-      </div>
-
-      <div class="session-briefing-item">
-        <div class="item-label">How to open</div>
-        <div class="item-text" id="sb-open">—</div>
-      </div>
-      <div class="session-briefing-item">
-        <div class="item-label">Key question</div>
-        <div class="item-text" id="sb-question">—</div>
-      </div>
-      <div class="session-briefing-item">
-        <div class="item-label">Things to talk about</div>
-        <div class="item-text" id="sb-talk">—</div>
-      </div>
-      <div class="session-briefing-item">
-        <div class="item-label">What they need</div>
-        <div class="item-text" id="sb-need">—</div>
-      </div>
-      <div class="session-briefing-item">
-        <div class="item-label">Moment to watch for</div>
-        <div class="item-text" id="sb-moment">—</div>
-      </div>
-      <div class="session-briefing-item" style="background:#fff8f0; border:1px solid #f0dcc0;">
-        <div class="item-label">Shooting plan</div>
-        <div class="item-text" id="sb-shoot">—</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- KNOWLEDGE VIEW -->
-  <div id="view-knowledge" class="view">
-    <div class="page-header">
-      <h1>Your <em>knowledge</em></h1>
-      <p>Ask anything. Answers come only from your Phixo Knowledge folder in Drive.</p>
-    </div>
-
-    <div class="card">
-      <span class="card-label">Ask a question</span>
-      <textarea id="knowledgeQuestion" placeholder="How should I pose someone who is nervous? What hook should I use for a comeback story post? What lighting works for professional headshots?" style="min-height:100px;"></textarea>
-      <button class="submit-btn" id="knowledgeBtn" onclick="queryKnowledge()">Ask →</button>
-    </div>
-
-    <div id="knowledgeResult" style="display:none">
-      <div class="card">
-        <span class="card-label">Answer</span>
-        <div id="knowledgeAnswer" style="font-size:15px; line-height:1.7; color:var(--text); white-space:pre-wrap;"></div>
-      </div>
-      <div id="knowledgeSources" style="margin-top:8px; padding:12px 16px; background:#f8f8f8; border-radius:8px; font-size:12px; color:#888;"></div>
-    </div>
-
-    <div id="knowledgeEmpty" style="display:none">
-      <div class="card" style="text-align:center; padding:40px 24px;">
-        <div style="font-size:32px; margin-bottom:16px;">📂</div>
-        <p style="color:#888; margin:0;" id="knowledgeEmptyMsg">Add documents to your Phixo Knowledge folder in Google Drive to get started.</p>
-      </div>
+    <div style="margin-top:22px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeModal('m-post')">Cancel</button>
+      <button class="btn btn-dark" id="np-save" onclick="savePost()">Save Post →</button>
     </div>
   </div>
+</div>
+</div>
 
-  <!-- LEARN VIEW -->
-  <div id="view-learn" class="view">
-    <div class="page-header">
-      <h1>Learn from <em>videos</em></h1>
-      <p>Paste any public Instagram or TikTok URL. The audio gets transcribed and the key knowledge gets saved to your Phixo Knowledge folder.</p>
-    </div>
-
-    <div class="card">
-      <span class="card-label">Video URL</span>
-      <input type="text" id="learnUrl" placeholder="https://www.instagram.com/reel/... or https://www.tiktok.com/..." 
-        style="width:100%; padding:12px 16px; border:1px solid var(--border); border-radius:8px; font-family:'Instrument Sans',sans-serif; font-size:14px; outline:none; box-sizing:border-box;">
-      <button class="submit-btn" id="learnBtn" onclick="startLearn()" style="margin-top:12px;">Extract knowledge →</button>
-    </div>
-
-    <div id="learnProgress" style="display:none">
-      <div class="card">
-        <div id="learnSteps" style="font-size:14px; color:#888; line-height:2;"></div>
-      </div>
-    </div>
-
-    <div id="learnResult" style="display:none">
-      <div class="card">
-        <span class="card-label">Extracted knowledge</span>
-        <div id="learnKnowledge" style="font-size:14px; line-height:1.8; color:var(--text); white-space:pre-wrap;"></div>
-      </div>
-      <div style="padding:12px 16px; background:#f0f8f0; border-radius:8px; font-size:13px; color:#2a7a2a; margin-top:8px;">
-        ✓ Saved to Video Notes in your Phixo Knowledge folder
-      </div>
-    </div>
-  </div>
-
-</main>
-
-<div class="status-bar" id="statusBar"></div>
+<div class="toast" id="toast"></div>
 
 <script>
-let currentMode = 'text';
-let selectedFile = null;
-let allClients = [];
+// ═════════════════════════════════════════════════
+// STATE
+// ═════════════════════════════════════════════════
+let CID = null;          // current client id
+let PID = null;          // current post id
+let efKey = null;        // field being edited
+let azFile = null;       // screenshot file
+let resFile = null;      // research upload file
+let poseFiles = [];      // all pose files from Drive
+let selPoses = new Set(); // selected pose file ids
+let postResIds = new Set(); // research ids attached to current post
+let allResearch = [];    // cached research items
 
-function showView(name) {
-  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('view-' + name).classList.add('active');
-  event.target.classList.add('active');
-  if (name === 'clients') loadClients();
+// ═════════════════════════════════════════════════
+// UTILITIES
+// ═════════════════════════════════════════════════
+function toast(msg, type='') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast on ' + type;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('on'), 2800);
 }
 
-function setMode(mode) {
-  currentMode = mode;
-  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
-  event.target.classList.add('active');
-  document.getElementById('mode-text').style.display = mode === 'text' ? 'block' : 'none';
-  document.getElementById('mode-screenshot').style.display = mode === 'screenshot' ? 'block' : 'none';
+function debounce(fn, ms) {
+  let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
 }
 
-function handleFileSelect(input) {
-  if (input.files.length > 0) {
-    selectedFile = input.files[0];
-    document.getElementById('filePreview').classList.add('show');
-    document.getElementById('fileName').textContent = selectedFile.name;
-  }
+const debouncedLoadClients = debounce(loadClients, 280);
+const debouncedLoadResearch = debounce(loadResearch, 280);
+
+async function api(method, url, body) {
+  const opts = { method, headers: {} };
+  if (body instanceof FormData) { opts.body = body; }
+  else if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
+  const res = await fetch(url, opts);
+  if (!res.ok) { const e = await res.json().catch(()=>({error:'Request failed'})); throw new Error(e.error||'Failed'); }
+  return res.json();
 }
 
-// Drag and drop
-const fileDrop = document.getElementById('fileDrop');
-fileDrop.addEventListener('dragover', e => { e.preventDefault(); fileDrop.classList.add('dragging'); });
-fileDrop.addEventListener('dragleave', () => fileDrop.classList.remove('dragging'));
-fileDrop.addEventListener('drop', e => {
-  e.preventDefault(); fileDrop.classList.remove('dragging');
-  selectedFile = e.dataTransfer.files[0];
-  document.getElementById('filePreview').classList.add('show');
-  document.getElementById('fileName').textContent = selectedFile.name;
-});
+function esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-function showStatus(msg, type = '') {
-  const bar = document.getElementById('statusBar');
-  bar.textContent = msg;
-  bar.className = 'status-bar show ' + type;
-  setTimeout(() => bar.classList.remove('show'), 3000);
+function showView(name, navEl) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  const v = document.getElementById('v-'+name);
+  if (v) v.classList.add('on');
+  if (navEl) navEl.classList.add('active');
+  if (name==='clients') loadClients();
+  if (name==='research') loadResearch();
+  if (name==='posts') loadPosts();
 }
 
-async function processIntake() {
-  const btn = document.getElementById('submitBtn');
-  btn.disabled = true;
-  btn.classList.add('loading');
-  btn.textContent = 'Analyzing...';
-  showStatus('Claude is reading this...');
+function closeModal(id) { document.getElementById(id).classList.add('off'); }
+function openModal(id) { document.getElementById(id).classList.remove('off'); }
 
-  try {
-    let response, data;
-
-    if (currentMode === 'text') {
-      const conversation = document.getElementById('conversationInput').value.trim();
-      if (!conversation) { showStatus('Paste a conversation first', 'error'); return; }
-      
-      response = await fetch('/api/process', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ conversation })
-      });
-    } else {
-      if (!selectedFile) { showStatus('Select a file first', 'error'); return; }
-      const formData = new FormData();
-      formData.append('file', selectedFile);
-      response = await fetch('/api/process-file', { method: 'POST', body: formData });
-    }
-
-    data = await response.json();
-    if (!response.ok) throw new Error(data.error);
-
-    showResult(data);
-    showStatus(data.isNew ? `New client: ${data.clientName}` : `Updated: ${data.clientName}`, 'success');
-  } catch (err) {
-    showStatus('Something went wrong: ' + err.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.classList.remove('loading');
-    btn.textContent = 'Analyze and file →';
-  }
+function switchTab(group, tab, btn) {
+  const container = btn.closest('.modal,.card');
+  container.querySelectorAll('.tc').forEach(c=>c.classList.remove('on'));
+  const tc = document.getElementById(group+'-'+tab);
+  if (tc) tc.classList.add('on');
+  btn.closest('.tabs').querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
 }
 
-function showResult(data) {
-  const a = data.analysis;
-  const result = document.getElementById('result');
-  result.classList.add('show');
-
-  document.getElementById('resultName').textContent = data.clientName;
-  
-  const badge = document.getElementById('resultBadge');
-  badge.textContent = data.isNew ? 'New client' : 'Updated';
-  badge.className = 'result-badge ' + (data.isNew ? 'new' : 'existing');
-
-  const temp = a.leadTemperature || '';
-  const tempEl = document.getElementById('resultTemp');
-  const tempLower = temp.toLowerCase();
-  const tempClass = tempLower.includes('hot') ? 'hot' : tempLower.includes('cold') ? 'cold' : 'warm';
-  tempEl.innerHTML = `<span class="tag ${tempClass}">${temp}</span>`;
-
-  document.getElementById('resultWant').textContent = a.whatTheyWant || '—';
-  document.getElementById('resultRead').textContent = a.emotionalRead || '—';
-
-  if (a.sessionBriefing) {
-    document.getElementById('resultOpen').textContent = a.sessionBriefing.howToOpen || '—';
-    document.getElementById('resultQuestion').textContent = a.sessionBriefing.keyQuestion || '—';
-    document.getElementById('resultTalk').textContent = a.sessionBriefing.thingsToTalkAbout || '—';
-  }
-
-  document.getElementById('resultDraft').textContent = a.draftReply || '—';
-  
-  const link = document.getElementById('driveLink');
-  link.href = `https://docs.google.com/document/d/${data.docId}/edit`;
-
-  result.scrollIntoView({ behavior: 'smooth', block: 'start' });
+function tempClass(t) {
+  if (!t) return 't-lead';
+  const l = t.toLowerCase();
+  if (l.startsWith('hot')) return 't-hot';
+  if (l.startsWith('warm')) return 't-warm';
+  if (l.startsWith('cold')) return 't-cold';
+  return 't-lead';
 }
 
+function statusClass(s) {
+  return {lead:'t-lead',booked:'t-booked',shot:'t-shot',delivered:'t-delivered'}[s]||'t-lead';
+}
+
+function typeIcon(type) {
+  return {article:'📄',pose:'🧍',meme:'😂',audio:'🎵',transcript:'📝',image:'🖼️',pdf:'📋'}[type]||'📁';
+}
+
+// ═════════════════════════════════════════════════
+// CLIENTS — LIST
+// ═════════════════════════════════════════════════
 async function loadClients() {
-  try {
-    const res = await fetch('/api/clients');
-    const data = await res.json();
-    allClients = data.clients || [];
-    renderClients(allClients);
-  } catch (err) {
-    showStatus('Could not load clients', 'error');
-  }
-}
-
-function renderClients(clients) {
-  const list = document.getElementById('clientsList');
+  const search = document.getElementById('cl-search').value;
+  const status = document.getElementById('cl-status').value;
+  const p = new URLSearchParams();
+  if (search) p.set('search', search);
+  if (status) p.set('status', status);
+  const clients = await api('GET', '/api/clients?'+p);
+  const grid = document.getElementById('cl-grid');
   if (!clients.length) {
-    list.innerHTML = '<div class="empty-state"><div class="icon">📂</div><p>No clients yet. Submit your first intake above.</p></div>';
+    grid.innerHTML = '<div class="empty"><div class="e">👤</div><p>No clients yet — create your first one</p></div>';
     return;
   }
-  list.innerHTML = clients.map(c => {
-    const date = new Date(c.modifiedTime).toLocaleDateString('en-CA', { month: 'short', day: 'numeric' });
-    const name = c.name.replace(/\[.*?\]/g, '').trim();
-    return `<div class="client-row" onclick="openClient('${c.id}', '${name}')">
-      <div>
-        <div class="client-row-name">${name}</div>
-        <div class="client-row-meta">Last updated ${date}</div>
+  grid.innerHTML = clients.map(c => `
+    <div class="cl-card" onclick="openClientFile(${c.id})">
+      <h3>${esc(c.name)}</h3>
+      <div class="meta">${esc(c.platform||'')}${c.session_type?' · '+esc(c.session_type):''}${c.session_date?' · '+esc(c.session_date):''}</div>
+      <div class="foot">
+        <span class="tag ${statusClass(c.status)}">${c.status}</span>
+        ${c.lead_temperature?`<span class="tag ${tempClass(c.lead_temperature)}">${esc(c.lead_temperature.split(' ')[0])}</span>`:''}
+        <span style="margin-left:auto;font-size:11px;color:var(--muted)">${new Date(c.updated_at).toLocaleDateString('en-CA')}</span>
       </div>
-      <div class="client-row-arrow">›</div>
-    </div>`;
-  }).join('');
+    </div>`).join('');
 }
 
-function openClient(folderId, name) {
-  window.open(`https://drive.google.com/drive/folders/${folderId}`, '_blank');
+// ═════════════════════════════════════════════════
+// CLIENTS — NEW
+// ═════════════════════════════════════════════════
+function openNewClient() {
+  ['nc-name','nc-date','nc-offer','nc-firstcontact','nc-thread'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('nc-status').value = 'lead';
+  openModal('m-newclient');
 }
 
-function searchClient(query) {
-  const results = document.getElementById('sessionSearchResults');
-  if (!query) { results.innerHTML = ''; return; }
-  
-  const matches = allClients.filter(c => c.name.toLowerCase().includes(query.toLowerCase()));
-  if (!matches.length) { results.innerHTML = ''; return; }
-  
-  results.innerHTML = matches.slice(0, 5).map(c => {
-    const name = c.name.replace(/\[.*?\]/g, '').trim();
-    return `<div class="client-row" style="margin-bottom:6px" onclick="loadSessionBrief('${c.id}', '${name}')">
-      <div class="client-row-name">${name}</div>
-      <div class="client-row-arrow">›</div>
-    </div>`;
-  }).join('');
-}
-
-async function loadSessionBrief(folderId, name) {
-  showStatus('Loading brief...');
-  document.getElementById('sessionSearchResults').innerHTML = '';
-  document.getElementById('sessionSearch').value = name;
-  document.getElementById('sessionBriefing').style.display = 'none';
-
+async function createClient() {
+  const name = document.getElementById('nc-name').value.trim();
+  if (!name) { toast('Name is required','err'); return; }
   try {
-    const res = await fetch(`/api/client/${folderId}`);
-    const data = await res.json();
+    const c = await api('POST','/api/clients',{
+      name, platform: document.getElementById('nc-platform').value,
+      session_type: document.getElementById('nc-stype').value,
+      session_date: document.getElementById('nc-date').value,
+      offer: document.getElementById('nc-offer').value,
+      first_contact: document.getElementById('nc-firstcontact').value,
+      status: document.getElementById('nc-status').value,
+      thread_id: document.getElementById('nc-thread').value
+    });
+    closeModal('m-newclient');
+    toast('Client created','ok');
+    openClientFile(c.id);
+  } catch(err) { toast(err.message,'err'); }
+}
 
-    if (!data.briefing) { showStatus('No client file found', 'error'); return; }
+// ═════════════════════════════════════════════════
+// CLIENTS — FILE VIEW (Evelyn format)
+// ═════════════════════════════════════════════════
+async function openClientFile(id) {
+  CID = id;
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.getElementById('v-client-file').classList.add('on');
+  const c = await api('GET','/api/clients/'+id);
+  renderCF(c);
+}
 
-    const b = data.briefing;
-    document.getElementById('sessionClientName').textContent = b.clientName || name;
-    document.getElementById('sessionType').textContent = b.sessionType || 'Portrait Session';
-    document.getElementById('sb-open').textContent = b.howToOpen || '—';
-    document.getElementById('sb-question').textContent = b.keyQuestion || '—';
-    document.getElementById('sb-talk').textContent = b.thingsToTalkAbout || '—';
-    document.getElementById('sb-need').textContent = b.whatTheyNeed || '—';
-    document.getElementById('sb-moment').textContent = b.momentToWatchFor || '—';
-    document.getElementById('sb-shoot').textContent = b.posesSuggestions || b.conversationStarters || '—';
+function renderCF(c) {
+  // Build the header exactly like Evelyn:
+  // Phixo — Client File
+  // [Name]
+  // Platform | Session Type | Session Date
+  const metaParts = [c.platform, c.session_type, c.session_date].filter(Boolean);
 
-    document.getElementById('sessionBriefing').style.display = 'block';
-    document.getElementById('sessionBriefing').scrollIntoView({ behavior: 'smooth' });
-    showStatus('Brief loaded', 'success');
-  } catch (err) {
-    showStatus('Could not load brief', 'error');
+  // Poses strip
+  const posesHtml = (c.poses||[]).map(p => `
+    <div class="pose-thumb">
+      <img src="/api/drive/file/${p.drive_file_id}" alt="${esc(p.file_name)}" title="${esc(p.file_name)}"
+           onerror="this.src='data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\'><rect fill=\'%23eee\' width=\'100\' height=\'100\'/><text x=\'50\' y=\'55\' text-anchor=\'middle\' font-size=\'28\'>🧍</text></svg>'">
+      <button class="rm" onclick="removePose(${p.id},event)" title="Remove">✕</button>
+    </div>`).join('');
+
+  function row(label, key, val, multiline) {
+    const display = val
+      ? `<span class="cf-val edit" onclick="editField('${key}','${esc(val)}','${label}')">${multiline ? esc(val) : esc(val)}</span>`
+      : `<span class="cf-val edit muted" onclick="editField('${key}','','${label}')">— click to add</span>`;
+    return `<div class="cf-row"><div class="cf-key">${label}</div><div>${display}</div></div>`;
+  }
+
+  document.getElementById('cf-body').innerHTML = `
+    <div class="cf-header">
+      <div class="cf-brand">Phixo — Client File</div>
+      <div class="cf-name">${esc(c.name)}</div>
+      <div class="cf-meta">${metaParts.map(esc).join('  |  ')}</div>
+    </div>
+
+    <div class="cf-actions">
+      <button class="btn btn-dark btn-sm" onclick="openAnalyze()">📋 Analyze Conversation</button>
+      <select onchange="updateStatus(this.value)" style="padding:6px 11px;font-size:13px;border-radius:7px;border:1px solid var(--border);background:var(--bg)">
+        <option value="lead" ${c.status==='lead'?'selected':''}>Lead</option>
+        <option value="booked" ${c.status==='booked'?'selected':''}>Booked</option>
+        <option value="shot" ${c.status==='shot'?'selected':''}>Shot</option>
+        <option value="delivered" ${c.status==='delivered'?'selected':''}>Delivered</option>
+      </select>
+      <button class="btn btn-danger btn-sm" onclick="deleteClient(${c.id})">Delete</button>
+    </div>
+
+    <!-- CLIENT INFO -->
+    <div class="cf-section">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Client Info</h3><span class="arr">▾</span></div>
+      <div class="cf-sb">
+        ${row('Name','name',c.name)}
+        ${row('Platform','platform',c.platform)}
+        ${row('Thread ID','thread_id',c.thread_id)}
+        ${row('Session Type','session_type',c.session_type)}
+        ${row('Session Date','session_date',c.session_date)}
+        ${row('Offer','offer',c.offer)}
+        ${row('First Contact','first_contact',c.first_contact)}
+      </div>
+    </div>
+
+    <!-- MESSAGE ANALYSIS -->
+    <div class="cf-section">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Message Analysis</h3><span class="arr">▾</span></div>
+      <div class="cf-sb">
+        <div class="cf-row">
+          <div class="cf-key">Lead Temperature</div>
+          <div>
+            ${c.lead_temperature
+              ? `<span class="temp-badge ${tempClass(c.lead_temperature)}">${esc(c.lead_temperature)}</span>`
+              : `<span class="cf-val edit muted" onclick="editField('lead_temperature','','Lead Temperature')">— click to add</span>`}
+          </div>
+        </div>
+        ${row('What They Want','what_they_want',c.what_they_want)}
+        ${row('Emotional Read','emotional_read',c.emotional_read)}
+        ${row('Red Flags','red_flags',c.red_flags)}
+        ${row('Opportunity','opportunity',c.opportunity)}
+      </div>
+    </div>
+
+    <!-- SESSION BRIEFING -->
+    <div class="cf-section">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Session Briefing</h3><span class="arr">▾</span></div>
+      <div class="cf-sb">
+        ${row('How to Open','how_to_open',c.how_to_open)}
+        ${row('Things to Avoid','things_to_avoid',c.things_to_avoid)}
+        ${row('Key Question','key_question',c.key_question)}
+        ${row('Talk About','things_to_talk_about',c.things_to_talk_about)}
+        ${row('What They Need','what_they_need',c.what_they_need)}
+        ${row('Watch For','moment_to_watch',c.moment_to_watch)}
+        ${row('How to Close','how_to_close',c.how_to_close)}
+        ${row('Lighting Setup','lighting_setup',c.lighting_setup)}
+      </div>
+    </div>
+
+    <!-- POSES -->
+    <div class="cf-section">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Pose Selection</h3><span class="arr">▾</span></div>
+      <div class="cf-sb" style="padding-top:14px">
+        <div class="pose-strip" id="pose-strip">
+          ${posesHtml}
+          <button class="pose-add-btn" onclick="openPosePicker()">
+            <span style="font-size:22px">＋</span>
+            <span>Add Poses</span>
+          </button>
+        </div>
+        ${!(c.poses||[]).length ? '<p style="font-size:12px;color:var(--muted);margin-top:10px">No poses attached yet. Click + to browse your Phixo Poses folder in Drive.</p>' : ''}
+      </div>
+    </div>
+
+    <!-- CONVERSATION LOG -->
+    <div class="cf-section">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Conversation Log</h3><span class="arr">▾</span></div>
+      <div class="cf-sb" style="padding-top:14px">
+        ${c.conversation_log
+          ? `<div class="conv-block">${esc(c.conversation_log)}</div>`
+          : `<p style="font-size:13px;color:var(--muted)">No conversation yet — use Analyze Conversation above.</p>`}
+      </div>
+    </div>
+
+    <!-- DRAFT REPLY -->
+    <div class="cf-section">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Draft Reply / Final Sent</h3><span class="arr">▾</span></div>
+      <div class="cf-sb" style="padding-top:14px">
+        ${c.draft_reply
+          ? `<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px">Draft Reply — Ready to Edit</div>
+            <div class="draft-block">${esc(c.draft_reply)}</div></div>`
+          : ''}
+        ${row('Final Version Sent','final_reply',c.final_reply)}
+      </div>
+    </div>
+
+    <!-- NOTES -->
+    <div class="cf-section">
+      <div class="cf-sh" onclick="toggleSec(this)"><h3>Notes</h3><span class="arr">▸</span></div>
+      <div class="cf-sb hide">
+        ${row('Notes','notes',c.notes)}
+      </div>
+    </div>
+
+    <div style="font-size:11px;color:var(--muted);text-align:right;margin-top:14px">
+      Last updated: ${new Date(c.updated_at).toLocaleString('en-CA')}  |  Phixo Studio — West Island Montreal
+    </div>`;
+}
+
+function toggleSec(header) {
+  const body = header.nextElementSibling;
+  const arr = header.querySelector('.arr');
+  const hidden = body.classList.toggle('hide');
+  header.classList.toggle('open', !hidden);
+  arr.textContent = hidden ? '▸' : '▾';
+}
+
+// ─── Edit a field inline ──────────────────────────────────
+function editField(key, current, label) {
+  efKey = key;
+  document.getElementById('ef-title').textContent = 'Edit: ' + label;
+  document.getElementById('ef-val').value = current;
+  openModal('m-editfield');
+  setTimeout(()=>document.getElementById('ef-val').focus(),80);
+}
+
+async function saveFieldEdit() {
+  const val = document.getElementById('ef-val').value;
+  try {
+    const c = await api('PATCH','/api/clients/'+CID,{[efKey]:val});
+    closeModal('m-editfield');
+    toast('Saved','ok');
+    renderCF(c);
+  } catch(err) { toast(err.message,'err'); }
+}
+
+async function updateStatus(status) {
+  try {
+    await api('PATCH','/api/clients/'+CID,{status});
+    toast('Status updated','ok');
+  } catch(err) { toast(err.message,'err'); }
+}
+
+async function deleteClient(id) {
+  if (!confirm('Delete this client file? Cannot be undone.')) return;
+  try {
+    await api('DELETE','/api/clients/'+id);
+    toast('Deleted');
+    showView('clients');
+    loadClients();
+  } catch(err) { toast(err.message,'err'); }
+}
+
+// ─── Analyze ─────────────────────────────────────────────
+function openAnalyze() {
+  document.getElementById('az-text').value = '';
+  azFile = null;
+  document.getElementById('az-preview').style.display = 'none';
+  openModal('m-analyze');
+}
+
+async function analyzeConversation() {
+  const conv = document.getElementById('az-text').value.trim();
+  if (!conv) { toast('Paste a conversation first','err'); return; }
+  const btn = document.getElementById('az-btn');
+  btn.disabled = true; btn.textContent = 'Analyzing...';
+  try {
+    const result = await api('POST','/api/clients/'+CID+'/analyze',{conversation:conv});
+    closeModal('m-analyze');
+    toast('Analysis complete','ok');
+    renderCF(result.client);
+  } catch(err) { toast(err.message,'err'); }
+  finally { btn.disabled = false; btn.textContent = 'Analyze with Claude →'; }
+}
+
+function handleAzFile(input) {
+  azFile = input.files[0];
+  if (azFile) {
+    const r = new FileReader();
+    r.onload = e => { document.getElementById('az-img').src = e.target.result; document.getElementById('az-preview').style.display='block'; };
+    r.readAsDataURL(azFile);
   }
 }
 
-
-async function startLearn() {
-  const btn = document.getElementById('learnBtn');
-  const url = document.getElementById('learnUrl').value.trim();
-  if (!url) { showStatus('Paste a URL first', 'error'); return; }
-
-  btn.disabled = true;
-  btn.textContent = 'Working...';
-  document.getElementById('learnProgress').style.display = 'block';
-  document.getElementById('learnResult').style.display = 'none';
-  document.getElementById('learnSteps').innerHTML = '';
-
-  const addStep = (icon, msg) => {
-    const el = document.getElementById('learnSteps');
-    el.innerHTML += '<div>' + icon + ' ' + msg + '</div>';
-  };
-
+async function analyzeScreenshot() {
+  if (!azFile) { toast('Select a screenshot first','err'); return; }
+  const btn = document.getElementById('az-img-btn');
+  btn.disabled = true; btn.textContent = 'Analyzing...';
   try {
-    const response = await fetch('/api/learn', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url })
-    });
+    const fd = new FormData();
+    fd.append('screenshot', azFile);
+    const res = await fetch('/api/clients/'+CID+'/analyze-image',{method:'POST',body:fd});
+    if (!res.ok) throw new Error((await res.json()).error);
+    const result = await res.json();
+    closeModal('m-analyze');
+    toast('Screenshot analyzed','ok');
+    renderCF(result.client);
+  } catch(err) { toast(err.message,'err'); }
+  finally { btn.disabled = false; btn.textContent = 'Analyze Screenshot →'; }
+}
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+// ═════════════════════════════════════════════════
+// POSES
+// ═════════════════════════════════════════════════
+async function openPosePicker() {
+  selPoses.clear();
+  document.getElementById('pose-sel-count').textContent = '0 selected';
+  document.getElementById('pose-attach-btn').disabled = true;
+  document.getElementById('pose-search').value = '';
+  openModal('m-poses');
+  await loadPosesFromDrive();
+}
 
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop();
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        try {
-          const data = JSON.parse(line.slice(6));
-          if (data.step === 'error') {
-            addStep('❌', data.message);
-            showStatus(data.message, 'error');
-          } else if (data.step === 'done') {
-            const result = JSON.parse(data.message);
-            document.getElementById('learnKnowledge').textContent = result.knowledge;
-            document.getElementById('learnProgress').style.display = 'none';
-            document.getElementById('learnResult').style.display = 'block';
-            showStatus('Saved to your knowledge base', 'success');
-          } else {
-            const icons = { start: '🔧', download: '⬇️', transcribe: '🎙️', extract: '🧠', save: '💾' };
-            addStep(icons[data.step] || '•', data.message);
-          }
-        } catch(e) {}
-      }
+async function loadPosesFromDrive() {
+  const grid = document.getElementById('pose-grid');
+  const msg = document.getElementById('pose-msg');
+  grid.innerHTML = '<div class="empty" style="padding:30px;grid-column:1/-1"><div class="e" style="font-size:30px">⏳</div><p>Loading from Drive...</p></div>';
+  msg.style.display = 'none';
+  try {
+    const data = await api('GET','/api/drive/poses');
+    poseFiles = data.files || [];
+    if (data.message) {
+      grid.innerHTML = '<div style="grid-column:1/-1;padding:8px"></div>';
+      msg.textContent = data.message;
+      msg.style.display = 'block';
+      return;
     }
-  } catch (err) {
-    addStep('❌', 'Something went wrong: ' + err.message);
-    showStatus('Error: ' + err.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Extract knowledge →';
+    renderPoseGrid(poseFiles);
+  } catch(err) {
+    grid.innerHTML = `<div style="grid-column:1/-1;font-size:13px;color:var(--danger);padding:8px">${esc(err.message)}</div>`;
   }
 }
 
-async function queryKnowledge() {
-  const btn = document.getElementById('knowledgeBtn');
-  const question = document.getElementById('knowledgeQuestion').value.trim();
-  if (!question) { showStatus('Type a question first', 'error'); return; }
+function renderPoseGrid(files) {
+  const grid = document.getElementById('pose-grid');
+  if (!files.length) {
+    grid.innerHTML = '<div style="grid-column:1/-1;font-size:13px;color:var(--muted);padding:8px">No images found in Phixo Poses folder.</div>';
+    return;
+  }
+  grid.innerHTML = files.map(f => {
+    const sel = selPoses.has(f.id);
+    return `<div class="pose-pick ${sel?'sel':''}" onclick="togglePoseSel('${f.id}')" data-id="${f.id}">
+      ${f.thumbnailLink
+        ? `<img src="${esc(f.thumbnailLink)}" alt="${esc(f.name)}" loading="lazy">`
+        : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:36px">🧍</div>`}
+      <div class="chk">✓</div>
+      <div class="fname">${esc(f.name)}</div>
+    </div>`;
+  }).join('');
+}
 
-  btn.disabled = true;
-  btn.textContent = 'Reading your docs...';
-  document.getElementById('knowledgeResult').style.display = 'none';
-  document.getElementById('knowledgeEmpty').style.display = 'none';
-  showStatus('Searching your knowledge base...');
+function filterPoses() {
+  const q = document.getElementById('pose-search').value.toLowerCase();
+  const filtered = q ? poseFiles.filter(f=>f.name.toLowerCase().includes(q)) : poseFiles;
+  renderPoseGrid(filtered);
+}
 
+function togglePoseSel(fileId) {
+  if (selPoses.has(fileId)) selPoses.delete(fileId);
+  else selPoses.add(fileId);
+  // Update UI
+  const el = document.querySelector(`.pose-pick[data-id="${fileId}"]`);
+  if (el) el.classList.toggle('sel', selPoses.has(fileId));
+  const count = selPoses.size;
+  document.getElementById('pose-sel-count').textContent = count + ' selected';
+  document.getElementById('pose-attach-btn').disabled = count === 0;
+}
+
+async function attachSelectedPoses() {
+  if (!selPoses.size) return;
+  const btn = document.getElementById('pose-attach-btn');
+  btn.disabled = true; btn.textContent = 'Attaching...';
   try {
-    const res = await fetch('/api/knowledge', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ question })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error);
+    for (const fileId of selPoses) {
+      const file = poseFiles.find(f=>f.id===fileId);
+      await api('POST','/api/clients/'+CID+'/poses',{
+        drive_file_id: fileId,
+        file_name: file ? file.name : fileId,
+        thumbnail_url: file ? file.thumbnailLink : null
+      });
+    }
+    closeModal('m-poses');
+    toast(selPoses.size+' pose'+(selPoses.size>1?'s':'')+' attached','ok');
+    // Reload client to refresh poses
+    const c = await api('GET','/api/clients/'+CID);
+    renderCF(c);
+  } catch(err) { toast(err.message,'err'); }
+  finally { btn.disabled = false; btn.textContent = 'Attach to Client →'; }
+}
 
-    if (data.empty) {
-      document.getElementById('knowledgeEmptyMsg').textContent = data.message;
-      document.getElementById('knowledgeEmpty').style.display = 'block';
-      showStatus('No documents found', 'error');
+async function removePose(poseId, evt) {
+  evt.stopPropagation();
+  try {
+    await api('DELETE','/api/clients/'+CID+'/poses/'+poseId);
+    toast('Pose removed');
+    const c = await api('GET','/api/clients/'+CID);
+    renderCF(c);
+  } catch(err) { toast(err.message,'err'); }
+}
+
+// ═════════════════════════════════════════════════
+// RESEARCH
+// ═════════════════════════════════════════════════
+async function loadResearch() {
+  const search = document.getElementById('res-search').value;
+  const type = document.getElementById('res-type').value;
+  const p = new URLSearchParams();
+  if (search) p.set('search',search);
+  if (type) p.set('type',type);
+  allResearch = await api('GET','/api/research?'+p);
+  const grid = document.getElementById('res-grid');
+  if (!allResearch.length) {
+    grid.innerHTML = '<div class="empty"><div class="e">📚</div><p>Nothing saved yet — add your first item</p></div>';
+    return;
+  }
+  grid.innerHTML = allResearch.map(r => `
+    <div class="res-card" onclick="openResDetail(${r.id})">
+      <div class="res-thumb">
+        ${r.drive_file_id && r.file_mime && r.file_mime.startsWith('image/')
+          ? `<img src="/api/drive/file/${r.drive_file_id}" loading="lazy" onerror="this.parentElement.innerHTML='<span class=res-icon>${typeIcon(r.type)}</span>'">`
+          : `<span class="res-icon">${typeIcon(r.type)}</span>`}
+      </div>
+      <div class="res-info">
+        <div class="res-type">${r.type}</div>
+        <h4>${esc(r.title)}</h4>
+        ${r.tags&&r.tags.length?`<div class="res-tags">${r.tags.map(t=>`<span>${esc(t)}</span>`).join('')}</div>`:''}
+      </div>
+    </div>`).join('');
+}
+
+function openNewResearch() {
+  ['nr-title','nr-url','nr-tags','nr-why','nr-use','nru-title','nru-tags','nru-why'].forEach(id=>document.getElementById(id).value='');
+  resFile = null;
+  document.getElementById('nr-file-name').style.display = 'none';
+  openModal('m-research');
+}
+
+async function saveResearchUrl() {
+  const title = document.getElementById('nr-title').value.trim();
+  if (!title) { toast('Title is required','err'); return; }
+  try {
+    const tags = document.getElementById('nr-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
+    await api('POST','/api/research',{
+      title, type: document.getElementById('nr-type').value,
+      tags, source_url: document.getElementById('nr-url').value,
+      summary: document.getElementById('nr-why').value,
+      why_it_matters: document.getElementById('nr-why').value,
+      recommended_use: document.getElementById('nr-use').value,
+      platform: document.getElementById('nr-plat').value
+    });
+    closeModal('m-research');
+    toast('Saved to library','ok');
+    loadResearch();
+  } catch(err) { toast(err.message,'err'); }
+}
+
+function handleResearchFile(input) {
+  resFile = input.files[0];
+  if (resFile) {
+    document.getElementById('nru-title').value = resFile.name.replace(/\.[^.]+$/,'');
+    document.getElementById('nr-file-name').textContent = resFile.name + ' (' + (resFile.size/1024).toFixed(0)+' KB)';
+    document.getElementById('nr-file-name').style.display = 'block';
+  }
+}
+
+async function uploadResearch() {
+  if (!resFile) { toast('Select a file first','err'); return; }
+  const btn = document.getElementById('nru-btn');
+  btn.disabled = true; btn.textContent = 'Uploading...';
+  try {
+    const fd = new FormData();
+    fd.append('file', resFile);
+    fd.append('title', document.getElementById('nru-title').value || resFile.name);
+    fd.append('type', document.getElementById('nru-type').value);
+    fd.append('tags', document.getElementById('nru-tags').value);
+    fd.append('why_it_matters', document.getElementById('nru-why').value);
+    const res = await fetch('/api/research/upload',{method:'POST',body:fd});
+    if (!res.ok) throw new Error((await res.json()).error);
+    closeModal('m-research');
+    toast('Uploaded to Drive','ok');
+    loadResearch();
+  } catch(err) { toast(err.message,'err'); }
+  finally { btn.disabled = false; btn.textContent = 'Upload to Drive →'; }
+}
+
+async function openResDetail(id) {
+  const item = await api('GET','/api/research/'+id);
+  document.getElementById('rd-title').textContent = item.title;
+  document.getElementById('rd-body').innerHTML = `
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+      <span class="tag t-lead">${item.type}</span>
+      ${item.platform?`<span class="tag t-lead">${esc(item.platform)}</span>`:''}
+      ${(item.tags||[]).map(t=>`<span class="tag t-lead">${esc(t)}</span>`).join('')}
+    </div>
+    ${item.drive_file_id&&item.file_mime&&item.file_mime.startsWith('image/')
+      ?`<img src="/api/drive/file/${item.drive_file_id}" style="max-width:100%;border-radius:8px;margin-bottom:14px">`:'' }
+    ${item.source_url?`<div style="margin-bottom:10px"><a href="${esc(item.source_url)}" target="_blank" style="color:var(--accent);font-size:14px">↗ Open source</a></div>`:''}
+    ${item.why_it_matters||item.summary
+      ?`<div style="background:var(--bg);padding:14px;border-radius:8px;font-size:14px;line-height:1.6;margin-bottom:10px">${esc(item.why_it_matters||item.summary)}</div>`:'' }
+    ${item.recommended_use?`<div style="font-size:13px;color:var(--muted)"><strong>Use for:</strong> ${esc(item.recommended_use)}</div>`:''}
+    <div style="margin-top:20px;display:flex;gap:8px">
+      <button class="btn btn-danger btn-sm" onclick="deleteResearch(${item.id})">Delete</button>
+    </div>`;
+  openModal('m-resdetail');
+}
+
+async function deleteResearch(id) {
+  if (!confirm('Delete this research item?')) return;
+  try {
+    await api('DELETE','/api/research/'+id);
+    closeModal('m-resdetail');
+    toast('Deleted','ok');
+    loadResearch();
+  } catch(err) { toast(err.message,'err'); }
+}
+
+// ═════════════════════════════════════════════════
+// POSTS
+// ═════════════════════════════════════════════════
+async function loadPosts() {
+  const platform = document.getElementById('post-plat').value;
+  const p = new URLSearchParams();
+  if (platform) p.set('platform',platform);
+  const posts = await api('GET','/api/posts?'+p);
+  ['idea','draft','ready','posted'].forEach(status => {
+    const col = document.getElementById('col-'+status);
+    const items = posts.filter(p=>p.status===status);
+    col.innerHTML = items.length ? items.map(p=>`
+      <div class="post-card" onclick="openEditPost(${p.id})">
+        <div class="post-plat">${p.platform||''}</div>
+        <div class="post-hook">${esc(p.hook||'Untitled')}</div>
+        ${p.post_date?`<div class="post-date">📅 ${esc(p.post_date)}</div>`:''}
+      </div>`).join('')
+      : '<div style="font-size:12px;color:var(--muted);text-align:center;padding:10px">—</div>';
+  });
+}
+
+async function openNewPost() {
+  PID = null;
+  postResIds.clear();
+  document.getElementById('pm-title').textContent = 'New Post Brief';
+  ['np-hook','np-caption','np-shots','np-cta','np-date','np-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('np-plat').value = 'Instagram';
+  document.getElementById('np-status').value = 'idea';
+  document.getElementById('np-save').textContent = 'Save Post →';
+  document.getElementById('np-attached').innerHTML = '';
+  await renderResearchPicker([]);
+  openModal('m-post');
+}
+
+async function openEditPost(id) {
+  PID = id;
+  const post = await api('GET','/api/posts/'+id);
+  postResIds = new Set((post.research_items||[]).map(r=>r.id));
+  document.getElementById('pm-title').textContent = 'Edit Post Brief';
+  document.getElementById('np-plat').value = post.platform||'Instagram';
+  document.getElementById('np-status').value = post.status||'idea';
+  document.getElementById('np-hook').value = post.hook||'';
+  document.getElementById('np-caption').value = post.caption||'';
+  document.getElementById('np-shots').value = post.shot_list||'';
+  document.getElementById('np-cta').value = post.cta||'';
+  document.getElementById('np-date').value = post.post_date||'';
+  document.getElementById('np-notes').value = post.notes||'';
+  document.getElementById('np-save').textContent = 'Update Post →';
+  await renderResearchPicker(post.research_items||[]);
+  renderAttachedList();
+  openModal('m-post');
+}
+
+async function renderResearchPicker(attachedItems) {
+  // Load all research if not cached
+  if (!allResearch.length) {
+    try { allResearch = await api('GET','/api/research'); } catch(e) { allResearch = []; }
+  }
+  const grid = document.getElementById('np-res-grid');
+  if (!allResearch.length) {
+    grid.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px">No research items yet — add some in the library first.</div>';
+    return;
+  }
+  grid.innerHTML = allResearch.map(r => {
+    const sel = postResIds.has(r.id);
+    return `<div class="res-pick-card ${sel?'sel':''}" onclick="togglePostRes(${r.id})" data-rid="${r.id}">
+      <div class="rp-icon">
+        ${r.drive_file_id&&r.file_mime&&r.file_mime.startsWith('image/')
+          ?`<img src="/api/drive/file/${r.drive_file_id}" style="width:100%;height:100%;object-fit:cover" loading="lazy">`
+          :`${typeIcon(r.type)}`}
+      </div>
+      <div class="rp-name">${esc(r.title)}</div>
+    </div>`;
+  }).join('');
+}
+
+function togglePostRes(id) {
+  if (postResIds.has(id)) postResIds.delete(id);
+  else postResIds.add(id);
+  const el = document.querySelector(`.res-pick-card[data-rid="${id}"]`);
+  if (el) el.classList.toggle('sel', postResIds.has(id));
+  renderAttachedList();
+}
+
+function renderAttachedList() {
+  const container = document.getElementById('np-attached');
+  const items = allResearch.filter(r=>postResIds.has(r.id));
+  container.innerHTML = items.map(r=>`
+    <div class="attached-item">
+      <span>${typeIcon(r.type)}</span>
+      <span>${esc(r.title)}</span>
+      <button class="rm-a" onclick="togglePostRes(${r.id})">✕</button>
+    </div>`).join('');
+}
+
+async function savePost() {
+  const hook = document.getElementById('np-hook').value.trim();
+  if (!hook) { toast('Hook is required','err'); return; }
+  const btn = document.getElementById('np-save');
+  btn.disabled = true;
+  try {
+    const data = {
+      platform: document.getElementById('np-plat').value,
+      status: document.getElementById('np-status').value,
+      hook,
+      caption: document.getElementById('np-caption').value,
+      shot_list: document.getElementById('np-shots').value,
+      cta: document.getElementById('np-cta').value,
+      post_date: document.getElementById('np-date').value,
+      notes: document.getElementById('np-notes').value
+    };
+    let post;
+    if (PID) {
+      post = await api('PATCH','/api/posts/'+PID, data);
     } else {
-      document.getElementById('knowledgeAnswer').textContent = data.answer;
-      if (data.sources && data.sources.length) {
-        document.getElementById('knowledgeSources').textContent = 'Sources: ' + data.sources.join(', ');
-      }
-      document.getElementById('knowledgeResult').style.display = 'block';
-      showStatus('Answer ready', 'success');
+      post = await api('POST','/api/posts', data);
+      PID = post.id;
     }
-  } catch (err) {
-    showStatus('Something went wrong: ' + err.message, 'error');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = 'Ask →';
-  }
+    // Sync research attachments
+    // Get current attached
+    const current = await api('GET','/api/posts/'+PID);
+    const currentIds = new Set((current.research_items||[]).map(r=>r.id));
+    // Add new
+    for (const id of postResIds) {
+      if (!currentIds.has(id)) await api('POST','/api/posts/'+PID+'/research/'+id);
+    }
+    // Remove old
+    for (const id of currentIds) {
+      if (!postResIds.has(id)) await api('DELETE','/api/posts/'+PID+'/research/'+id);
+    }
+    closeModal('m-post');
+    toast(PID ? 'Post updated' : 'Post saved','ok');
+    loadPosts();
+  } catch(err) { toast(err.message,'err'); }
+  finally { btn.disabled = false; }
 }
 
-// Load clients for session search
+// ═════════════════════════════════════════════════
+// MODAL BACKDROP CLOSE
+// ═════════════════════════════════════════════════
+document.querySelectorAll('.modal-bg').forEach(bg => {
+  bg.addEventListener('click', e => { if (e.target===bg) bg.classList.add('off'); });
+});
+
+// ═════════════════════════════════════════════════
+// INIT
+// ═════════════════════════════════════════════════
 loadClients();
 </script>
 </body>
