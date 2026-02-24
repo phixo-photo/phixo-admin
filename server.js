@@ -4,12 +4,14 @@ const { google } = require('googleapis');
 const Anthropic = require('@anthropic-ai/sdk');
 const cookieSession = require('cookie-session');
 const path = require('path');
+const { Pool } = require('pg');
+const { Readable } = require('stream');
 
 const app = express();
-const upload = multer({ storage: multer.memoryStorage() });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 app.set('trust proxy', 1);
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(cookieSession({
@@ -20,6 +22,103 @@ app.use(cookieSession({
   sameSite: 'lax'
 }));
 
+// ─── Database ───────────────────────────────────────────────
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+});
+
+async function initDb() {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS clients (
+        id SERIAL PRIMARY KEY,
+        name TEXT NOT NULL,
+        platform TEXT,
+        session_type TEXT,
+        session_date TEXT,
+        offer TEXT,
+        first_contact TEXT,
+        status TEXT DEFAULT 'lead',
+        thread_id TEXT,
+        lead_temperature TEXT,
+        what_they_want TEXT,
+        emotional_read TEXT,
+        red_flags TEXT,
+        opportunity TEXT,
+        how_to_open TEXT,
+        things_to_avoid TEXT,
+        key_question TEXT,
+        things_to_talk_about TEXT,
+        what_they_need TEXT,
+        moment_to_watch TEXT,
+        how_to_close TEXT,
+        lighting_setup TEXT,
+        conversation_log TEXT,
+        draft_reply TEXT,
+        final_reply TEXT,
+        notes TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS client_poses (
+        id SERIAL PRIMARY KEY,
+        client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+        drive_file_id TEXT NOT NULL,
+        file_name TEXT,
+        thumbnail_url TEXT,
+        note TEXT,
+        added_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS research_items (
+        id SERIAL PRIMARY KEY,
+        title TEXT NOT NULL,
+        type TEXT NOT NULL,
+        tags TEXT[],
+        source_url TEXT,
+        drive_file_id TEXT,
+        summary TEXT,
+        why_it_matters TEXT,
+        recommended_use TEXT,
+        platform TEXT,
+        file_name TEXT,
+        file_mime TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS posts (
+        id SERIAL PRIMARY KEY,
+        platform TEXT,
+        hook TEXT,
+        caption TEXT,
+        shot_list TEXT,
+        cta TEXT,
+        status TEXT DEFAULT 'idea',
+        post_date TEXT,
+        notes TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+
+      CREATE TABLE IF NOT EXISTS post_research (
+        post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
+        research_id INTEGER REFERENCES research_items(id) ON DELETE CASCADE,
+        PRIMARY KEY (post_id, research_id)
+      );
+    `);
+    console.log('Database ready');
+  } catch (err) {
+    console.error('DB init error:', err.message);
+  } finally {
+    client.release();
+  }
+}
+
+// ─── Google OAuth ─────────────────────────────────────────
 const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_CLIENT_ID,
   process.env.GOOGLE_CLIENT_SECRET,
@@ -36,12 +135,24 @@ function requireAuth(req, res, next) {
   res.redirect('/auth/login');
 }
 
+function getDrive(req) {
+  const auth = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID,
+    process.env.GOOGLE_CLIENT_SECRET,
+    process.env.GOOGLE_REDIRECT_URI
+  );
+  auth.setCredentials(req.session.tokens);
+  return google.drive({ version: 'v3', auth });
+}
+
+// ─── Auth routes ──────────────────────────────────────────
 app.get('/auth/login', (req, res) => {
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: [
       'https://www.googleapis.com/auth/drive',
-      'https://www.googleapis.com/auth/documents'
+      'https://www.googleapis.com/auth/documents',
+      'https://www.googleapis.com/auth/userinfo.email'
     ],
     prompt: 'consent'
   });
@@ -49,14 +160,10 @@ app.get('/auth/login', (req, res) => {
 });
 
 app.get('/auth/callback', async (req, res) => {
-  try {
-    const { tokens } = await oauth2Client.getToken(req.query.code);
-    req.session.tokens = tokens;
-    res.redirect('/');
-  } catch (err) {
-    console.error('Auth error:', err);
-    res.redirect('/auth/login');
-  }
+  const { code } = req.query;
+  const { tokens } = await oauth2Client.getToken(code);
+  req.session.tokens = tokens;
+  res.redirect('/');
 });
 
 app.get('/auth/logout', (req, res) => {
@@ -64,730 +171,522 @@ app.get('/auth/logout', (req, res) => {
   res.redirect('/auth/login');
 });
 
-function getDrive(req) {
-  oauth2Client.setCredentials(req.session.tokens);
-  return google.drive({ version: 'v3', auth: oauth2Client });
-}
-
-function getDocs() {
-  return google.docs({ version: 'v1', auth: oauth2Client });
-}
-
-async function getClientsFolder(drive) {
-  const res = await drive.files.list({
-    q: "name='Clients' and mimeType='application/vnd.google-apps.folder' and trashed=false",
-    fields: 'files(id, name)'
-  });
-  if (res.data.files.length > 0) return res.data.files[0].id;
-  const folder = await drive.files.create({
-    requestBody: { name: 'Clients', mimeType: 'application/vnd.google-apps.folder' },
-    fields: 'id'
-  });
-  return folder.data.id;
-}
-
-async function getClientFolder(drive, clientsRootId, clientName, clientId) {
-  const folderName = clientName + ' [' + clientId + ']';
-  const safeId = clientId.replace(/'/g, "\\'");
-  const res = await drive.files.list({
-    q: "name contains '" + safeId + "' and mimeType='application/vnd.google-apps.folder' and '" + clientsRootId + "' in parents and trashed=false",
-    fields: 'files(id, name)'
-  });
-  if (res.data.files.length > 0) return { id: res.data.files[0].id, isNew: false, name: res.data.files[0].name };
-  const folder = await drive.files.create({
-    requestBody: { name: folderName, mimeType: 'application/vnd.google-apps.folder', parents: [clientsRootId] },
-    fields: 'id'
-  });
-  return { id: folder.data.id, isNew: true, name: folderName };
-}
-
-async function getClientDoc(drive, folderId) {
-  const res = await drive.files.list({
-    q: "mimeType='application/vnd.google-apps.document' and '" + folderId + "' in parents and trashed=false",
-    fields: 'files(id, name)',
-    orderBy: 'modifiedTime desc'
-  });
-  return res.data.files.length > 0 ? res.data.files[0] : null;
-}
-
-async function readDocText(docId) {
-  const docs = getDocs();
-  const docData = await docs.documents.get({ documentId: docId });
-  let text = '';
-  docData.data.body.content.forEach(el => {
-    if (el.paragraph) {
-      el.paragraph.elements.forEach(e => {
-        if (e.textRun) text += e.textRun.content;
-      });
-    }
-    if (el.table) {
-      el.table.tableRows.forEach(row => {
-        row.tableCells.forEach(cell => {
-          cell.content.forEach(c => {
-            if (c.paragraph) {
-              c.paragraph.elements.forEach(e => {
-                if (e.textRun) text += e.textRun.content + ' ';
-              });
-            }
-          });
-          text += '\n';
-        });
-      });
-    }
-  });
-  return text;
-}
-
-async function extractBriefingFromDoc(fullText) {
-  const promptText = [
-    'You are reading a client file for Ian Green, a portrait photographer at Phixo studio in Montreal.',
-    'This document may use table formatting. Extract the key briefing info.',
-    'Return ONLY a valid JSON object with these exact fields (null if not found):',
-    '',
-    '{',
-    '  "clientName": "look for Name field or subtitle line",',
-    '  "sessionType": "e.g. Professional Headshots",',
-    '  "sessionDate": "session date if mentioned",',
-    '  "emotionalRead": "look for Emotional Read field",',
-    '  "howToOpen": "look for How to open field",',
-    '  "keyQuestion": "the key question to unlock the session",',
-    '  "thingsToTalkAbout": "look for Things to talk about",',
-    '  "whatTheyNeed": "look for What she/he probably needs",',
-    '  "thingsToAvoid": "look for What to avoid",',
-    '  "momentToWatchFor": "look for Moment to watch for",',
-    '  "howToClose": "look for How to close",',
-    '  "lightingSetup": "lighting notes if any",',
-    '  "posesSuggestions": "pose suggestions if any",',
-    '  "conversationStarters": "conversation starters if any",',
-    '  "draftReply": "the draft reply text if present",',
-    '  "leadTemperature": "warm/hot/cold",',
-    '  "questionnaire": {',
-    '    "imageUsage": "where images will live",',
-    '    "impression": "impression words selected",',
-    '    "cameraComfort": "comfort level 1-5",',
-    '    "glasses": "yes or no",',
-    '    "brandColors": "brand color requirements",',
-    '    "additionalNotes": "anything else they shared"',
-    '  }',
-    '}',
-    '',
-    'DOCUMENT CONTENT:',
-    fullText.slice(0, 8000)
-  ].join('\n');
-
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 2000,
-    system: 'You extract structured briefing data from photography client files. Return only valid JSON, no other text.',
-    messages: [{ role: 'user', content: promptText }]
-  });
-
-  const raw = response.content[0].text.replace(/```json|```/g, '').trim();
-  return JSON.parse(raw);
-}
-
-async function analyzeConversation(conversationText) {
-  const promptLines = [
-    'Analyze this conversation between Ian Green (photographer at Phixo studio, Montreal) and a potential client.',
-    '',
-    'CONVERSATION:',
-    conversationText,
-    '',
-    'Return ONLY a valid JSON object:',
-    '{',
-    '  "clientName": "full name if found",',
-    '  "clientEmail": "email if mentioned",',
-    '  "clientPhone": "phone if mentioned",',
-    '  "platform": "where this conversation happened",',
-    '  "sessionType": "type of session they want",',
-    '  "sessionDate": "if mentioned",',
-    '  "leadTemperature": "cold/warm/hot — one sentence why",',
-    '  "whatTheyWant": "clear summary",',
-    '  "emotionalRead": "detailed read of their emotional state",',
-    '  "redFlags": "anything to watch out for",',
-    '  "opportunity": "bigger picture opportunity",',
-    '  "conversationLog": [{"who": "name", "message": "text"}],',
-    '  "sessionBriefing": {',
-    '    "howToOpen": "exactly how to greet and open",',
-    '    "doNotAsk": "what NOT to say",',
-    '    "keyQuestion": "the one question that unlocks everything",',
-    '    "thingsToTalkAbout": "natural conversation topics",',
-    '    "whatTheyNeed": "what this person needs emotionally",',
-    '    "thingsToAvoid": "specific things to avoid",',
-    '    "momentToWatchFor": "the turning point moment",',
-    '    "howToClose": "how to end the session well"',
-    '  },',
-    '  "shootingPlan": {',
-    '    "lightingSetup": "specific lighting recommendation",',
-    '    "posesSuggestions": "3-5 specific pose directions",',
-    '    "conversationStarters": "3-4 conversation starters for THIS person",',
-    '    "technicalNotes": "camera settings, lens, background"',
-    '  },',
-    '  "draftReply": "warm casual reply in Ian\'s voice — direct, human, no corporate language",',
-    '  "postSession": {',
-    '    "galleryDeliveryEmail": "personalized gallery delivery email",',
-    '    "reviewRequest": "natural review request",',
-    '    "followUpNote": "follow up a few days after gallery"',
-    '  },',
-    '  "isCollaborator": false,',
-    '  "collaboratorResearch": null',
-    '}'
-  ];
-
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 4000,
-    system: 'You analyze client conversations for Ian Green, a portrait photographer in Montreal. Be specific and genuinely insightful. Return only valid JSON.',
-    messages: [{ role: 'user', content: promptLines.join('\n') }]
-  });
-
-  const raw = response.content[0].text.replace(/```json|```/g, '').trim();
-  return JSON.parse(raw);
-}
-
-async function analyzeFile(fileBuffer, mimeType) {
-  const base64 = fileBuffer.toString('base64');
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 4000,
-    system: 'You analyze client conversations for Ian Green, a portrait photographer in Montreal. Extract all text from the image then analyze. Return only valid JSON.',
-    messages: [{
-      role: 'user',
-      content: [
-        { type: 'image', source: { type: 'base64', media_type: mimeType, data: base64 } },
-        { type: 'text', text: 'Extract all text from this screenshot and analyze the conversation. Return a JSON object with: clientName, clientEmail, clientPhone, platform, sessionType, sessionDate, leadTemperature, whatTheyWant, emotionalRead, redFlags, opportunity, conversationLog (array of {who, message}), sessionBriefing (howToOpen, doNotAsk, keyQuestion, thingsToTalkAbout, whatTheyNeed, thingsToAvoid, momentToWatchFor, howToClose), shootingPlan (lightingSetup, posesSuggestions, conversationStarters, technicalNotes), draftReply, postSession (galleryDeliveryEmail, reviewRequest, followUpNote), isCollaborator (false), collaboratorResearch (null).' }
-      ]
-    }]
-  });
-  const raw = response.content[0].text.replace(/```json|```/g, '').trim();
-  return JSON.parse(raw);
-}
-
-function formatDocContent(analysis, isAppend) {
-  const timestamp = new Date().toLocaleDateString('en-CA', {
-    year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
-  });
-
-  let c = isAppend
-    ? '\n\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nUPDATED: ' + timestamp + '\n\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\n'
-    : 'PHIXO \u2014 CLIENT FILE\n' + (analysis.clientName || 'Unknown') + '\nLast updated: ' + timestamp + '\n\n';
-
-  if (!isAppend) {
-    c += 'CLIENT INFO\nName: ' + (analysis.clientName || '\u2014') + '\nEmail: ' + (analysis.clientEmail || '\u2014') + '\nPhone: ' + (analysis.clientPhone || '\u2014') + '\nPlatform: ' + (analysis.platform || '\u2014') + '\nSession Type: ' + (analysis.sessionType || '\u2014') + '\nSession Date: ' + (analysis.sessionDate || '\u2014') + '\n\n';
-  }
-
-  c += 'MESSAGE ANALYSIS\nLead Temperature: ' + (analysis.leadTemperature || '\u2014') + '\nWhat They Want: ' + (analysis.whatTheyWant || '\u2014') + '\nEmotional Read: ' + (analysis.emotionalRead || '\u2014') + '\nRed Flags: ' + (analysis.redFlags || '\u2014') + '\nOpportunity: ' + (analysis.opportunity || '\u2014') + '\n\n';
-
-  if (analysis.sessionBriefing) {
-    const b = analysis.sessionBriefing;
-    c += 'SESSION BRIEFING\nHow to Open: ' + (b.howToOpen || '\u2014') + '\nDon\'t Ask: ' + (b.doNotAsk || '\u2014') + '\nKey Question: ' + (b.keyQuestion || '\u2014') + '\nThings to Talk About: ' + (b.thingsToTalkAbout || '\u2014') + '\nWhat They Need: ' + (b.whatTheyNeed || '\u2014') + '\nThings to Avoid: ' + (b.thingsToAvoid || '\u2014') + '\nMoment to Watch For: ' + (b.momentToWatchFor || '\u2014') + '\nHow to Close: ' + (b.howToClose || '\u2014') + '\n\n';
-  }
-
-  if (analysis.shootingPlan) {
-    const s = analysis.shootingPlan;
-    c += 'SHOOTING PLAN\nLighting: ' + (s.lightingSetup || '\u2014') + '\nPoses: ' + (s.posesSuggestions || '\u2014') + '\nConversation Starters: ' + (s.conversationStarters || '\u2014') + '\nTechnical Notes: ' + (s.technicalNotes || '\u2014') + '\n\n';
-  }
-
-  if (analysis.conversationLog && analysis.conversationLog.length) {
-    c += 'CONVERSATION LOG\n';
-    analysis.conversationLog.forEach(msg => { c += (msg.who || '?') + ': ' + (msg.message || '') + '\n'; });
-    c += '\n';
-  }
-
-  if (analysis.draftReply) c += 'DRAFT REPLY\n' + analysis.draftReply + '\n\n';
-
-  if (analysis.postSession) {
-    const p = analysis.postSession;
-    c += 'POST-SESSION\nGallery Delivery:\n' + (p.galleryDeliveryEmail || '\u2014') + '\n\nReview Request:\n' + (p.reviewRequest || '\u2014') + '\n\nFollow Up:\n' + (p.followUpNote || '\u2014') + '\n\n';
-  }
-
-  return c;
-}
-
-async function saveToGoogleDoc(drive, analysis, folderId, existingDoc) {
-  const docs = getDocs();
-  const docContent = formatDocContent(analysis, !!existingDoc);
-
-  if (existingDoc) {
-    const doc = await docs.documents.get({ documentId: existingDoc.id });
-    const endIndex = doc.data.body.content.reduce((max, el) => el.endIndex ? Math.max(max, el.endIndex) : max, 1);
-    await docs.documents.batchUpdate({
-      documentId: existingDoc.id,
-      requestBody: { requests: [{ insertText: { location: { index: endIndex - 1 }, text: docContent } }] }
-    });
-    return existingDoc.id;
-  } else {
-    const newDoc = await docs.documents.create({ requestBody: { title: (analysis.clientName || 'Unknown') + ' \u2014 Client File' } });
-    await docs.documents.batchUpdate({
-      documentId: newDoc.data.documentId,
-      requestBody: { requests: [{ insertText: { location: { index: 1 }, text: docContent } }] }
-    });
-    await drive.files.update({ fileId: newDoc.data.documentId, addParents: folderId, removeParents: 'root', fields: 'id, parents' });
-    return newDoc.data.documentId;
-  }
-}
-
-app.post('/api/process', requireAuth, async (req, res) => {
-  try {
-    const { conversation } = req.body;
-    if (!conversation) return res.status(400).json({ error: 'No conversation provided' });
-    const drive = getDrive(req);
-    const analysis = await analyzeConversation(conversation);
-    const clientsRootId = await getClientsFolder(drive);
-    const clientId = analysis.clientEmail || analysis.clientPhone || analysis.clientName || 'unknown';
-    const clientName = analysis.clientName || 'Unknown Client';
-    const { id: folderId, name: folderName } = await getClientFolder(drive, clientsRootId, clientName, clientId);
-    const existingDoc = await getClientDoc(drive, folderId);
-    const docId = await saveToGoogleDoc(drive, analysis, folderId, existingDoc);
-    res.json({ success: true, isNew: !existingDoc, clientName, folderName, docId, analysis });
-  } catch (err) {
-    console.error('Process error:', err);
-    res.status(500).json({ error: err.message });
-  }
+app.get('/', requireAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-app.post('/api/process-file', requireAuth, upload.single('file'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'No file provided' });
-    const drive = getDrive(req);
-    const analysis = await analyzeFile(req.file.buffer, req.file.mimetype);
-    const clientsRootId = await getClientsFolder(drive);
-    const clientId = analysis.clientEmail || analysis.clientPhone || analysis.clientName || 'unknown';
-    const clientName = analysis.clientName || 'Unknown Client';
-    const { id: folderId, name: folderName } = await getClientFolder(drive, clientsRootId, clientName, clientId);
-    const existingDoc = await getClientDoc(drive, folderId);
-    const docId = await saveToGoogleDoc(drive, analysis, folderId, existingDoc);
-    res.json({ success: true, isNew: !existingDoc, clientName, folderName, docId, analysis });
-  } catch (err) {
-    console.error('Process file error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
+// ═══════════════════════════════════════════════════════════
+// CLIENTS
+// ═══════════════════════════════════════════════════════════
 
 app.get('/api/clients', requireAuth, async (req, res) => {
   try {
-    const drive = getDrive(req);
-    const clientsRootId = await getClientsFolder(drive);
-    const result = await drive.files.list({
-      q: "'" + clientsRootId + "' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false",
-      fields: 'files(id, name, modifiedTime)',
-      orderBy: 'modifiedTime desc',
-      pageSize: 20
-    });
-    res.json({ clients: result.data.files });
-  } catch (err) {
-    console.error('Clients error:', err);
-    res.status(500).json({ error: err.message });
-  }
+    const { search, status } = req.query;
+    let q = 'SELECT id, name, platform, session_type, session_date, status, lead_temperature, updated_at FROM clients';
+    const params = [];
+    const conditions = [];
+    if (search) {
+      params.push('%' + search + '%');
+      conditions.push(`(name ILIKE $${params.length} OR session_type ILIKE $${params.length})`);
+    }
+    if (status) {
+      params.push(status);
+      conditions.push(`status = $${params.length}`);
+    }
+    if (conditions.length) q += ' WHERE ' + conditions.join(' AND ');
+    q += ' ORDER BY updated_at DESC';
+    const result = await pool.query(q, params);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-app.get('/api/client/:folderId', requireAuth, async (req, res) => {
+app.get('/api/clients/:id', requireAuth, async (req, res) => {
   try {
-    const drive = getDrive(req);
-    const fileList = await drive.files.list({
-      q: "(mimeType='application/vnd.google-apps.document' or mimeType='application/pdf') and '" + req.params.folderId + "' in parents and trashed=false",
-      fields: 'files(id, name, mimeType)',
-      orderBy: 'modifiedTime desc'
-    });
-
-    if (!fileList.data.files.length) return res.json({ doc: null, briefing: null });
-
-    let fullText = '';
-    for (const file of fileList.data.files) {
-      try {
-        if (file.mimeType === 'application/vnd.google-apps.document') {
-          fullText += await readDocText(file.id) + '\n\n';
-        } else if (file.mimeType === 'application/pdf') {
-          const exported = await drive.files.export({ fileId: file.id, mimeType: 'text/plain' }, { responseType: 'text' });
-          fullText += exported.data + '\n\n';
-        }
-      } catch (fileErr) {
-        console.error('Error reading file:', fileErr.message);
-      }
-    }
-
-    if (!fullText.trim()) return res.json({ doc: null, briefing: null });
-
-    const briefing = await extractBriefingFromDoc(fullText);
-    res.json({ doc: { id: fileList.data.files[0].id, name: fileList.data.files[0].name }, briefing });
-  } catch (err) {
-    console.error('Client briefing error:', err);
-    res.status(500).json({ error: err.message });
-  }
+    const result = await pool.query('SELECT * FROM clients WHERE id = $1', [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
+    // Also get poses
+    const poses = await pool.query('SELECT * FROM client_poses WHERE client_id = $1 ORDER BY added_at ASC', [req.params.id]);
+    const client = result.rows[0];
+    client.poses = poses.rows;
+    res.json(client);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// API: Get or create Phixo Knowledge folder
-async function getKnowledgeFolder(drive) {
-  const res = await drive.files.list({
-    q: "name='Phixo Knowledge' and mimeType='application/vnd.google-apps.folder' and trashed=false",
-    fields: 'files(id, name)'
-  });
-  if (res.data.files.length > 0) return res.data.files[0].id;
-  const folder = await drive.files.create({
-    requestBody: { name: 'Phixo Knowledge', mimeType: 'application/vnd.google-apps.folder' },
-    fields: 'id'
-  });
-  return folder.data.id;
-}
-
-// API: Query knowledge base
-app.post('/api/knowledge', requireAuth, async (req, res) => {
+app.post('/api/clients', requireAuth, async (req, res) => {
   try {
-    const { question } = req.body;
-    if (!question) return res.status(400).json({ error: 'No question provided' });
+    const f = req.body;
+    const result = await pool.query(
+      `INSERT INTO clients (name, platform, session_type, session_date, offer, first_contact, status, thread_id)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [f.name, f.platform, f.session_type, f.session_date, f.offer, f.first_contact, f.status || 'lead', f.thread_id]
+    );
+    result.rows[0].poses = [];
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
-    const drive = getDrive(req);
-    const knowledgeFolderId = await getKnowledgeFolder(drive);
-
-    // List all files in Phixo Knowledge folder
-    const fileList = await drive.files.list({
-      q: "'" + knowledgeFolderId + "' in parents and trashed=false",
-      fields: 'files(id, name, mimeType)',
-      orderBy: 'name'
-    });
-
-    if (!fileList.data.files.length) {
-      return res.json({
-        answer: null,
-        sources: [],
-        empty: true,
-        message: "Your Phixo Knowledge folder is empty. Add documents to Google Drive in a folder called 'Phixo Knowledge' and they will be used to answer questions."
-      });
-    }
-
-    // Read all documents
-    let allContent = '';
-    const sources = [];
-
-    for (const file of fileList.data.files) {
-      try {
-        let text = '';
-        if (file.mimeType === 'application/vnd.google-apps.document') {
-          text = await readDocText(file.id);
-        } else if (file.mimeType === 'application/pdf') {
-          const exported = await drive.files.export(
-            { fileId: file.id, mimeType: 'text/plain' },
-            { responseType: 'text' }
-          );
-          text = exported.data;
-        } else if (file.mimeType === 'text/plain') {
-          const exported = await drive.files.export(
-            { fileId: file.id, mimeType: 'text/plain' },
-            { responseType: 'text' }
-          );
-          text = exported.data;
-        }
-
-        if (text && text.trim()) {
-          allContent += '\n\n--- SOURCE: ' + file.name + ' ---\n' + text.trim();
-          sources.push(file.name);
-        }
-      } catch (fileErr) {
-        console.error('Error reading knowledge file ' + file.name + ':', fileErr.message);
+app.patch('/api/clients/:id', requireAuth, async (req, res) => {
+  try {
+    const allowed = [
+      'name','platform','session_type','session_date','offer','first_contact','status','thread_id',
+      'lead_temperature','what_they_want','emotional_read','red_flags','opportunity',
+      'how_to_open','things_to_avoid','key_question','things_to_talk_about','what_they_need',
+      'moment_to_watch','how_to_close','lighting_setup',
+      'conversation_log','draft_reply','final_reply','notes'
+    ];
+    const updates = [];
+    const values = [];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) {
+        values.push(req.body[key]);
+        updates.push(`${key} = $${values.length}`);
       }
     }
+    if (!updates.length) return res.json({ ok: true });
+    values.push(new Date());
+    values.push(req.params.id);
+    const result = await pool.query(
+      `UPDATE clients SET ${updates.join(', ')}, updated_at = $${values.length - 1} WHERE id = $${values.length} RETURNING *`,
+      values
+    );
+    const poses = await pool.query('SELECT * FROM client_poses WHERE client_id = $1 ORDER BY added_at ASC', [req.params.id]);
+    result.rows[0].poses = poses.rows;
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
-    // Build Claude message content — text docs go inline, PDFs go as base64
-    const messageContent = [];
-    const pdfSources = [];
+app.delete('/api/clients/:id', requireAuth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM clients WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
-    // Re-process files: text content already in allContent, now handle PDFs for Claude vision
-    for (const file of fileList.data.files) {
-      if (file.mimeType === 'application/pdf') {
-        try {
-          const pdfRes = await drive.files.get(
-            { fileId: file.id, alt: 'media' },
-            { responseType: 'arraybuffer' }
-          );
-          const base64 = Buffer.from(pdfRes.data).toString('base64');
-          messageContent.push({
-            type: 'document',
-            source: { type: 'base64', media_type: 'application/pdf', data: base64 }
-          });
-          pdfSources.push(file.name);
-          if (!sources.includes(file.name)) sources.push(file.name);
-        } catch (pdfErr) {
-          console.error('Error downloading PDF ' + file.name + ':', pdfErr.message);
-        }
-      }
-    }
+// ─── Analyze conversation with Claude ─────────────────────
+app.post('/api/clients/:id/analyze', requireAuth, async (req, res) => {
+  try {
+    const { conversation } = req.body;
+    const clientRes = await pool.query('SELECT * FROM clients WHERE id = $1', [req.params.id]);
+    if (!clientRes.rows.length) return res.status(404).json({ error: 'Client not found' });
+    const client = clientRes.rows[0];
 
-    // Add the question with any text content
-    const questionText = [
-      'You are a knowledge assistant for Ian Green, a portrait photographer at Phixo studio in Montreal.',
-      '',
-      'CRITICAL RULE: Answer ONLY using the documents provided. Do not use any outside knowledge.',
-      'If the answer is not found in these documents, say: "I could not find an answer to that in your knowledge base. You may want to add a source that covers this topic."',
-      'When you answer, note which source the information came from.',
-      '',
-      'QUESTION: ' + question,
-      allContent.trim() ? ('\n\nADDITIONAL TEXT SOURCES:\n' + allContent.slice(0, 8000)) : ''
-    ].join('\n');
+    const prompt = `You are analyzing a DM conversation for Ian Green, portrait photographer at Phixo studio in Montreal.
+Ian's approach: collaborative sessions, clients see photos in real time on tethered screen, he reads nervous clients and helps them open up, keeps confident clients' energy flowing.
 
-    messageContent.push({ type: 'text', text: questionText });
+CLIENT: ${client.name} | Platform: ${client.platform || 'unknown'} | Session type: ${client.session_type || 'unknown'}
 
-    if (messageContent.length === 1 && !allContent.trim()) {
-      return res.json({
-        answer: null,
-        sources: [],
-        empty: true,
-        message: 'Could not read any files from your Phixo Knowledge folder. Make sure files are Google Docs or PDFs.'
-      });
-    }
+CONVERSATION:
+${conversation}
+
+Write a complete session briefing in Ian's voice — direct, warm, specific. Not generic advice.
+Return ONLY valid JSON with these exact keys:
+{
+  "lead_temperature": "hot/warm/cold — one sentence explaining why",
+  "what_they_want": "what they're actually asking for, in plain terms",
+  "emotional_read": "how they're coming across — their tone, confidence level, what's underneath the words",
+  "red_flags": "specific concerns or friction points to watch for — or null if none",
+  "opportunity": "the real opening here — what this could become if the session goes well",
+  "how_to_open": "the exact first thing Ian should do or say when they walk in — specific, not generic",
+  "things_to_avoid": "what NOT to do or say with this specific person",
+  "key_question": "the one question that will unlock them during the session",
+  "things_to_talk_about": "conversation topics that will make them comfortable and talkative",
+  "what_they_need": "what they actually need from this experience beyond the photos",
+  "moment_to_watch": "the specific moment or signal to look for during the shoot",
+  "how_to_close": "how to end the session so they leave feeling great",
+  "lighting_setup": "suggested lighting approach for this type of client and session",
+  "draft_reply": "a reply Ian can send right now — warm, direct, moves things forward"
+}`;
 
     const response = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
-      max_tokens: 1500,
-      system: 'You answer questions strictly from provided source documents only. Never use outside knowledge. Always cite which document your answer comes from.',
-      messages: [{ role: 'user', content: messageContent }]
+      max_tokens: 2000,
+      messages: [{ role: 'user', content: prompt }]
     });
 
-    const answer = response.content[0].text;
+    const text = response.content[0].text.replace(/```json|```/g, '').trim();
+    const analysis = JSON.parse(text);
+    analysis.conversation_log = conversation;
 
-    res.json({ answer, sources, empty: false });
+    const keys = Object.keys(analysis).filter(k =>
+      ['lead_temperature','what_they_want','emotional_read','red_flags','opportunity',
+       'how_to_open','things_to_avoid','key_question','things_to_talk_about','what_they_need',
+       'moment_to_watch','how_to_close','lighting_setup','draft_reply','conversation_log'].includes(k)
+    );
+    const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
+    const vals = keys.map(k => analysis[k]);
+    vals.push(req.params.id);
+    await pool.query(`UPDATE clients SET ${setClause}, updated_at = NOW() WHERE id = $${vals.length}`, vals);
+
+    const updated = await pool.query('SELECT * FROM clients WHERE id = $1', [req.params.id]);
+    const poses = await pool.query('SELECT * FROM client_poses WHERE client_id = $1', [req.params.id]);
+    updated.rows[0].poses = poses.rows;
+    res.json({ client: updated.rows[0] });
   } catch (err) {
-    console.error('Knowledge error:', err);
+    console.error('Analyze error:', err);
     res.status(500).json({ error: err.message });
   }
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log('Phixo Admin running on port ' + PORT));
-
-// ============================================================
-// LEARN ENDPOINT — yt-dlp-wrap + Whisper + Claude + Google Docs
-// ============================================================
-
-const { exec, execFile } = require('child_process');
-const fs = require('fs');
-const os = require('os');
-const FormData = require('form-data');
-
-// Download standalone yt-dlp binary (no Python needed)
-const YTDLP_BIN = path.join(os.tmpdir(), 'yt-dlp-standalone');
-
-async function ensureYtDlpBinary() {
-  if (fs.existsSync(YTDLP_BIN)) return YTDLP_BIN;
-
-  console.log('Downloading standalone yt-dlp binary...');
-  // Use the Linux standalone binary from yt-dlp releases
-  const url = 'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux';
-  
-  const response = await fetch(url);
-  if (!response.ok) throw new Error('Failed to download yt-dlp: ' + response.status);
-  
-  const buffer = await response.arrayBuffer();
-  fs.writeFileSync(YTDLP_BIN, Buffer.from(buffer));
-  fs.chmodSync(YTDLP_BIN, '755');
-  console.log('yt-dlp standalone binary ready');
-  return YTDLP_BIN;
-}
-
-// Download audio from URL
-async function downloadAudio(url, outputPath) {
-  const binPath = await ensureYtDlpBinary();
-
-  const args = [
-    url,
-    '--no-playlist',
-    '--extract-audio',
-    '--audio-format', 'mp3',
-    '--audio-quality', '5',
-    '--max-filesize', '25m',
-    '-o', outputPath,
-    '--no-warnings'
-  ];
-
-  console.log('Running yt-dlp standalone...');
-
-  return new Promise((resolve, reject) => {
-    execFile(binPath, args, { timeout: 180000 }, (err, stdout, stderr) => {
-      if (err) reject(new Error(stderr || err.message));
-      else resolve(outputPath);
-    });
-  });
-}
-
-// Transcribe audio using OpenAI Whisper API
-async function transcribeAudio(audioPath) {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) throw new Error('OPENAI_API_KEY not set — add it to Railway environment variables');
-
-  const formData = new FormData();
-  formData.append('file', fs.createReadStream(audioPath), {
-    filename: 'audio.mp3',
-    contentType: 'audio/mpeg'
-  });
-  formData.append('model', 'whisper-1');
-  formData.append('language', 'en');
-
-  const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-    method: 'POST',
-    headers: {
-      'Authorization': 'Bearer ' + apiKey,
-      ...formData.getHeaders()
-    },
-    body: formData
-  });
-
-  if (!response.ok) {
-    const err = await response.text();
-    throw new Error('Whisper transcription failed: ' + err);
-  }
-
-  const data = await response.json();
-  return data.text;
-}
-
-// Extract structured knowledge using Claude
-async function extractKnowledge(transcript, sourceUrl) {
-  const prompt = [
-    'You are extracting knowledge from a social media video for Ian Green, a portrait photographer in Montreal.',
-    'Source: ' + sourceUrl,
-    '',
-    'TRANSCRIPT:',
-    transcript,
-    '',
-    'Extract and structure the most useful knowledge. Format EXACTLY like this:',
-    '',
-    '## SUMMARY',
-    'One or two sentences on what this video is about.',
-    '',
-    '## KEY TIPS & TECHNIQUES',
-    '- tip 1',
-    '- tip 2',
-    '(only tips useful for photography, posing, client work, content creation, or marketing)',
-    '',
-    '## HOOKS & CONTENT IDEAS',
-    '- hook or content angle',
-    '(only if the video contains hooks or content creation advice — skip this section otherwise)',
-    '',
-    '## QUOTES WORTH REMEMBERING',
-    '- "direct quote"',
-    '(only the most memorable or actionable lines — skip if none)',
-    '',
-    '## TOPICS COVERED',
-    'Comma-separated list (e.g. posing, lighting, client psychology, hooks, marketing)',
-    '',
-    'Be ruthless — only include things Ian can actually use in his photography business.'
-  ].join('\n');
-
-  const response = await anthropic.messages.create({
-    model: 'claude-sonnet-4-6',
-    max_tokens: 1500,
-    messages: [{ role: 'user', content: prompt }]
-  });
-
-  return response.content[0].text;
-}
-
-// Get or create Video Notes doc in Phixo Knowledge folder
-async function getOrCreateVideoNotes(docs, drive, knowledgeFolderId) {
-  const existing = await drive.files.list({
-    q: "name='Video Notes' and mimeType='application/vnd.google-apps.document' and '" + knowledgeFolderId + "' in parents and trashed=false",
-    fields: 'files(id, name)'
-  });
-
-  if (existing.data.files.length > 0) return existing.data.files[0].id;
-
-  const newDoc = await docs.documents.create({
-    requestBody: { title: 'Video Notes' }
-  });
-  const docId = newDoc.data.documentId;
-
-  await drive.files.update({
-    fileId: docId,
-    addParents: knowledgeFolderId,
-    removeParents: 'root',
-    fields: 'id, parents'
-  });
-
-  await docs.documents.batchUpdate({
-    documentId: docId,
-    requestBody: {
-      requests: [{ insertText: { location: { index: 1 }, text: 'PHIXO VIDEO NOTES\nKnowledge extracted from videos — dated and sourced.\n\n' } }]
-    }
-  });
-
-  return docId;
-}
-
-// Append new entry to Video Notes doc
-async function appendToVideoNotes(docs, docId, sourceUrl, extractedKnowledge) {
-  const date = new Date().toLocaleDateString('en-CA', {
-    year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
-  });
-
-  const entryText = '\n─────────────────────────────────────\nDATE: ' + date + '\nSOURCE: ' + sourceUrl + '\n\n' + extractedKnowledge + '\n\n';
-
-  const docContent = await docs.documents.get({ documentId: docId });
-  const endIndex = docContent.data.body.content.reduce((max, el) => {
-    return el.endIndex ? Math.max(max, el.endIndex) : max;
-  }, 1);
-
-  await docs.documents.batchUpdate({
-    documentId: docId,
-    requestBody: {
-      requests: [{ insertText: { location: { index: endIndex - 1 }, text: entryText } }]
-    }
-  });
-}
-
-// Main Learn endpoint
-app.post('/api/learn', requireAuth, async (req, res) => {
-  const { url } = req.body;
-  if (!url) return res.status(400).json({ error: 'No URL provided' });
-
-  const audioPath = path.join(os.tmpdir(), 'phixo-learn-' + Date.now() + '.mp3');
-
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive'
-  });
-
-  const send = (step, message) => {
-    try { res.write('data: ' + JSON.stringify({ step, message }) + '\n\n'); } catch(e) {}
-  };
-
+// ─── Analyze screenshot ───────────────────────────────────
+app.post('/api/clients/:id/analyze-image', requireAuth, upload.single('screenshot'), async (req, res) => {
   try {
-    send('start', 'Preparing yt-dlp (first run downloads binary)...');
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const base64 = req.file.buffer.toString('base64');
 
-    send('download', 'Downloading audio from video...');
-    await downloadAudio(url, audioPath);
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2000,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: req.file.mimetype, data: base64 } },
+          { type: 'text', text: `This is a DM screenshot for Ian Green, portrait photographer at Phixo in Montreal.
+Extract the full conversation and analyze it. Return ONLY valid JSON:
+{
+  "conversation_log": "full conversation as plain text, formatted clearly",
+  "lead_temperature": "hot/warm/cold — why",
+  "what_they_want": "what they want",
+  "emotional_read": "how they come across",
+  "red_flags": "concerns or null",
+  "opportunity": "real opening here",
+  "how_to_open": "how to start the session",
+  "things_to_avoid": "what not to do",
+  "key_question": "one question that unlocks them",
+  "things_to_talk_about": "comfortable topics",
+  "what_they_need": "what they need beyond photos",
+  "moment_to_watch": "signal to look for",
+  "how_to_close": "how to end the session",
+  "draft_reply": "reply Ian can send now"
+}` }
+        ]
+      }]
+    });
 
-    if (!fs.existsSync(audioPath)) {
-      send('error', 'Audio download failed. Make sure the URL is a public video.');
-      return res.end();
-    }
+    const text = response.content[0].text.replace(/```json|```/g, '').trim();
+    const analysis = JSON.parse(text);
 
-    const fileSizeMB = (fs.statSync(audioPath).size / 1024 / 1024).toFixed(1);
-    send('transcribe', 'Transcribing audio (' + fileSizeMB + ' MB)...');
-    const transcript = await transcribeAudio(audioPath);
+    const keys = Object.keys(analysis).filter(k =>
+      ['conversation_log','lead_temperature','what_they_want','emotional_read','red_flags','opportunity',
+       'how_to_open','things_to_avoid','key_question','things_to_talk_about','what_they_need',
+       'moment_to_watch','how_to_close','draft_reply'].includes(k)
+    );
+    const setClause = keys.map((k, i) => `${k} = $${i + 1}`).join(', ');
+    const vals = keys.map(k => analysis[k]);
+    vals.push(req.params.id);
+    await pool.query(`UPDATE clients SET ${setClause}, updated_at = NOW() WHERE id = $${vals.length}`, vals);
 
-    if (!transcript || transcript.trim().length < 20) {
-      send('error', 'Transcript came back empty — video may have no speech or is private.');
-      return res.end();
-    }
+    const updated = await pool.query('SELECT * FROM clients WHERE id = $1', [req.params.id]);
+    const poses = await pool.query('SELECT * FROM client_poses WHERE client_id = $1', [req.params.id]);
+    updated.rows[0].poses = poses.rows;
+    res.json({ client: updated.rows[0] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
 
-    send('extract', 'Extracting knowledge with Claude...');
-    const knowledge = await extractKnowledge(transcript, url);
+// ═══════════════════════════════════════════════════════════
+// POSES — Browse Drive folder & attach to clients
+// ═══════════════════════════════════════════════════════════
 
-    send('save', 'Saving to Phixo Knowledge folder...');
+// List files from "Phixo Poses" Drive folder
+app.get('/api/drive/poses', requireAuth, async (req, res) => {
+  try {
     const drive = getDrive(req);
-    const docs = google.docs({ version: 'v1', auth: oauth2Client });
-    const knowledgeFolderId = await getKnowledgeFolder(drive);
-    const docId = await getOrCreateVideoNotes(docs, drive, knowledgeFolderId);
-    await appendToVideoNotes(docs, docId, url, knowledge);
+    const { search } = req.query;
 
-    send('done', JSON.stringify({ knowledge, transcript: transcript.substring(0, 300) + '...' }));
-    res.end();
+    // Find or surface the Phixo Poses folder
+    const folderRes = await drive.files.list({
+      q: "name='Phixo Poses' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+      fields: 'files(id, name)'
+    });
 
+    if (!folderRes.data.files.length) {
+      return res.json({ files: [], message: 'No "Phixo Poses" folder found in your Drive. Create a folder named exactly "Phixo Poses" and add your pose images.' });
+    }
+
+    const folderId = folderRes.data.files[0].id;
+    let q = `'${folderId}' in parents and mimeType contains 'image/' and trashed=false`;
+    if (search) q += ` and name contains '${search.replace(/'/g, "\\'")}'`;
+
+    const filesRes = await drive.files.list({
+      q,
+      fields: 'files(id, name, thumbnailLink, mimeType, size)',
+      pageSize: 100,
+      orderBy: 'name'
+    });
+
+    res.json({ files: filesRes.data.files || [], folderId });
   } catch (err) {
-    console.error('Learn error:', err);
-    send('error', err.message);
-    res.end();
-  } finally {
-    try { if (fs.existsSync(audioPath)) fs.unlinkSync(audioPath); } catch(e) {}
+    console.error('Drive poses error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Get poses attached to a client
+app.get('/api/clients/:id/poses', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM client_poses WHERE client_id = $1 ORDER BY added_at ASC',
+      [req.params.id]
+    );
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Attach a pose to a client
+app.post('/api/clients/:id/poses', requireAuth, async (req, res) => {
+  try {
+    const { drive_file_id, file_name, thumbnail_url, note } = req.body;
+    // Check not already attached
+    const existing = await pool.query(
+      'SELECT id FROM client_poses WHERE client_id = $1 AND drive_file_id = $2',
+      [req.params.id, drive_file_id]
+    );
+    if (existing.rows.length) return res.json({ ok: true, message: 'Already attached' });
+
+    const result = await pool.query(
+      'INSERT INTO client_poses (client_id, drive_file_id, file_name, thumbnail_url, note) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      [req.params.id, drive_file_id, file_name, thumbnail_url, note]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Remove a pose from a client
+app.delete('/api/clients/:id/poses/:poseId', requireAuth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM client_poses WHERE id = $1 AND client_id = $2', [req.params.poseId, req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════
+// RESEARCH LIBRARY
+// ═══════════════════════════════════════════════════════════
+
+app.get('/api/research', requireAuth, async (req, res) => {
+  try {
+    const { search, type, tag } = req.query;
+    let q = 'SELECT * FROM research_items';
+    const params = [];
+    const conditions = [];
+    if (search) {
+      params.push('%' + search + '%');
+      conditions.push(`(title ILIKE $${params.length} OR summary ILIKE $${params.length} OR why_it_matters ILIKE $${params.length})`);
+    }
+    if (type) { params.push(type); conditions.push(`type = $${params.length}`); }
+    if (tag) { params.push(tag); conditions.push(`$${params.length} = ANY(tags)`); }
+    if (conditions.length) q += ' WHERE ' + conditions.join(' AND ');
+    q += ' ORDER BY created_at DESC';
+    const result = await pool.query(q, params);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/research/:id', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM research_items WHERE id = $1', [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/research', requireAuth, async (req, res) => {
+  try {
+    const { title, type, tags, source_url, summary, why_it_matters, recommended_use, platform } = req.body;
+    const result = await pool.query(
+      `INSERT INTO research_items (title, type, tags, source_url, summary, why_it_matters, recommended_use, platform)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [title, type, tags || [], source_url, summary, why_it_matters, recommended_use, platform]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch('/api/research/:id', requireAuth, async (req, res) => {
+  try {
+    const allowed = ['title','type','tags','source_url','summary','why_it_matters','recommended_use','platform'];
+    const updates = [];
+    const values = [];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) { values.push(req.body[key]); updates.push(`${key} = $${values.length}`); }
+    }
+    if (!updates.length) return res.json({ ok: true });
+    values.push(req.params.id);
+    const result = await pool.query(
+      `UPDATE research_items SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${values.length} RETURNING *`,
+      values
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/research/:id', requireAuth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM research_items WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Upload file to Drive + save research item
+app.post('/api/research/upload', requireAuth, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file' });
+    const { title, type, tags, summary, why_it_matters, recommended_use, platform } = req.body;
+    const drive = getDrive(req);
+
+    // Get or create Phixo Research folder
+    let folderId;
+    const folderSearch = await drive.files.list({
+      q: "name='Phixo Research' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+      fields: 'files(id)'
+    });
+    if (folderSearch.data.files.length) {
+      folderId = folderSearch.data.files[0].id;
+    } else {
+      const folder = await drive.files.create({
+        requestBody: { name: 'Phixo Research', mimeType: 'application/vnd.google-apps.folder' },
+        fields: 'id'
+      });
+      folderId = folder.data.id;
+    }
+
+    const stream = Readable.from(req.file.buffer);
+    const uploaded = await drive.files.create({
+      requestBody: { name: req.file.originalname, parents: [folderId] },
+      media: { mimeType: req.file.mimetype, body: stream },
+      fields: 'id, webViewLink'
+    });
+
+    const tagArray = tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [];
+    const result = await pool.query(
+      `INSERT INTO research_items (title, type, tags, summary, why_it_matters, recommended_use, platform, drive_file_id, file_name, file_mime)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      [title || req.file.originalname, type || 'image', tagArray, summary, why_it_matters,
+       recommended_use, platform, uploaded.data.id, req.file.originalname, req.file.mimetype]
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════
+// POSTS / CONTENT SCHEDULE
+// ═══════════════════════════════════════════════════════════
+
+app.get('/api/posts', requireAuth, async (req, res) => {
+  try {
+    const { status, platform } = req.query;
+    let q = 'SELECT * FROM posts';
+    const params = [];
+    const conditions = [];
+    if (status) { params.push(status); conditions.push(`status = $${params.length}`); }
+    if (platform) { params.push(platform); conditions.push(`platform = $${params.length}`); }
+    if (conditions.length) q += ' WHERE ' + conditions.join(' AND ');
+    q += ` ORDER BY CASE status
+      WHEN 'idea' THEN 1 WHEN 'draft' THEN 2 WHEN 'ready' THEN 3 WHEN 'posted' THEN 4 ELSE 5
+    END, created_at DESC`;
+    const result = await pool.query(q, params);
+    res.json(result.rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.get('/api/posts/:id', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM posts WHERE id = $1', [req.params.id]);
+    if (!result.rows.length) return res.status(404).json({ error: 'Not found' });
+    const post = result.rows[0];
+    // Attach linked research
+    const research = await pool.query(
+      `SELECT r.* FROM research_items r
+       JOIN post_research pr ON pr.research_id = r.id
+       WHERE pr.post_id = $1 ORDER BY r.created_at DESC`,
+      [req.params.id]
+    );
+    post.research_items = research.rows;
+    res.json(post);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.post('/api/posts', requireAuth, async (req, res) => {
+  try {
+    const { platform, hook, caption, shot_list, cta, status, post_date, notes } = req.body;
+    const result = await pool.query(
+      `INSERT INTO posts (platform, hook, caption, shot_list, cta, status, post_date, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [platform, hook, caption, shot_list, cta, status || 'idea', post_date, notes]
+    );
+    result.rows[0].research_items = [];
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.patch('/api/posts/:id', requireAuth, async (req, res) => {
+  try {
+    const allowed = ['platform','hook','caption','shot_list','cta','status','post_date','notes'];
+    const updates = [];
+    const values = [];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) { values.push(req.body[key]); updates.push(`${key} = $${values.length}`); }
+    }
+    if (!updates.length) return res.json({ ok: true });
+    values.push(req.params.id);
+    const result = await pool.query(
+      `UPDATE posts SET ${updates.join(', ')}, updated_at = NOW() WHERE id = $${values.length} RETURNING *`,
+      values
+    );
+    res.json(result.rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/posts/:id', requireAuth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM posts WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Attach / detach research from post
+app.post('/api/posts/:id/research/:researchId', requireAuth, async (req, res) => {
+  try {
+    await pool.query(
+      'INSERT INTO post_research (post_id, research_id) VALUES ($1,$2) ON CONFLICT DO NOTHING',
+      [req.params.id, req.params.researchId]
+    );
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+app.delete('/api/posts/:id/research/:researchId', requireAuth, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM post_research WHERE post_id = $1 AND research_id = $2',
+      [req.params.id, req.params.researchId]);
+    res.json({ ok: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════
+// DRIVE FILE PROXY (serve Drive images through app auth)
+// ═══════════════════════════════════════════════════════════
+
+app.get('/api/drive/file/:fileId', requireAuth, async (req, res) => {
+  try {
+    const drive = getDrive(req);
+    const meta = await drive.files.get({ fileId: req.params.fileId, fields: 'mimeType, name' });
+    const file = await drive.files.get(
+      { fileId: req.params.fileId, alt: 'media' },
+      { responseType: 'stream' }
+    );
+    res.setHeader('Content-Type', meta.data.mimeType);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    file.data.pipe(res);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ─── Start ────────────────────────────────────────────────
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, async () => {
+  console.log('Phixo Admin v2.1 on port ' + PORT);
+  if (process.env.DATABASE_URL) {
+    await initDb();
+  } else {
+    console.log('WARNING: No DATABASE_URL — database disabled');
   }
 });
