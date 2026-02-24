@@ -376,6 +376,33 @@ app.post('/api/blocks/from-drive', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
+// ─── Debug endpoint ───────────────────────────────
+app.get('/api/debug', async (req, res) => {
+  const out = { env: {}, db: {}, blocks: null };
+  out.env.DATABASE_URL = process.env.DATABASE_URL ? 'set' : 'MISSING';
+  out.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ? 'set' : 'MISSING';
+  out.env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ? 'set' : 'MISSING';
+  try {
+    await pool.query('SELECT 1');
+    out.db.connected = true;
+    const tables = await pool.query(`SELECT table_name FROM information_schema.tables WHERE table_schema='public'`);
+    out.db.tables = tables.rows.map(r => r.table_name);
+    if (out.db.tables.includes('blocks')) {
+      const count = await pool.query('SELECT COUNT(*) as n FROM blocks');
+      out.db.block_count = parseInt(count.rows[0].n);
+      const sample = await pool.query('SELECT id,type,title,drive_file_id FROM blocks LIMIT 5');
+      out.blocks = sample.rows;
+    } else {
+      out.db.note = 'blocks table does not exist yet - initDb may not have run';
+    }
+  } catch(e) {
+    out.db.connected = false;
+    out.db.error = e.message;
+  }
+  res.json(out);
+});
+
 // ─── Block Attachments ────────────────────────────
 app.get('/api/attachments/:entity_type/:entity_id', requireAuth, async (req, res) => {
   try {
