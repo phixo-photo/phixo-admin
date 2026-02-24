@@ -386,20 +386,20 @@ Extract the full conversation and analyze it. Return ONLY valid JSON:
 // POSES — Browse Drive folder & attach to clients
 // ═══════════════════════════════════════════════════════════
 
-// List files from "Phixo Poses" Drive folder
+// List files from "Pose" Drive folder
 app.get('/api/drive/poses', requireAuth, async (req, res) => {
   try {
     const drive = getDrive(req);
     const { search } = req.query;
 
-    // Find or surface the Phixo Poses folder
+    // Find the Pose folder
     const folderRes = await drive.files.list({
-      q: "name='Phixo Poses' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+      q: "name='Pose' and mimeType='application/vnd.google-apps.folder' and trashed=false",
       fields: 'files(id, name)'
     });
 
     if (!folderRes.data.files.length) {
-      return res.json({ files: [], message: 'No "Phixo Poses" folder found in your Drive. Create a folder named exactly "Phixo Poses" and add your pose images.' });
+      return res.json({ files: [], message: 'No "Pose" folder found in your Drive. Make sure your folder is named exactly "Pose".' });
     }
 
     const folderId = folderRes.data.files[0].id;
@@ -456,6 +456,112 @@ app.delete('/api/clients/:id/poses/:poseId', requireAuth, async (req, res) => {
     await pool.query('DELETE FROM client_poses WHERE id = $1 AND client_id = $2', [req.params.poseId, req.params.id]);
     res.json({ ok: true });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+
+// Browse any named Drive folder (Meme, SFX, Music, etc.)
+app.get('/api/drive/browse', requireAuth, async (req, res) => {
+  try {
+    const drive = getDrive(req);
+    const { folder } = req.query;
+    if (!folder) return res.status(400).json({ error: 'folder param required' });
+
+    const folderRes = await drive.files.list({
+      q: `name='${folder.replace(/'/g,"\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: 'files(id, name)'
+    });
+
+    if (!folderRes.data.files.length) {
+      return res.json({ files: [], message: `No "${folder}" folder found in Drive.` });
+    }
+
+    const folderId = folderRes.data.files[0].id;
+    const filesRes = await drive.files.list({
+      q: `'${folderId}' in parents and trashed=false`,
+      fields: 'files(id, name, thumbnailLink, mimeType, size)',
+      pageSize: 100,
+      orderBy: 'name'
+    });
+
+    res.json({ files: filesRes.data.files || [], folderId });
+  } catch (err) {
+    console.error('Drive browse error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Post AI Assistant ────────────────────────────────────
+app.post('/api/assist/post', requireAuth, async (req, res) => {
+  try {
+    const { message, history, current_brief } = req.body;
+    const drive = getDrive(req);
+
+    // Try to pull hooks content from Phixo Knowledge folder
+    let hooksContext = '';
+    try {
+      const folderRes = await drive.files.list({
+        q: "name='Phixo Knowledge' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+        fields: 'files(id)'
+      });
+      if (folderRes.data.files.length) {
+        const folderId = folderRes.data.files[0].id;
+        const filesRes = await drive.files.list({
+          q: `'${folderId}' in parents and trashed=false`,
+          fields: 'files(id, name, mimeType)',
+          pageSize: 20
+        });
+        const hooksFile = filesRes.data.files.find(f =>
+          f.name.toLowerCase().includes('hook') || f.name.toLowerCase().includes('viral')
+        );
+        if (hooksFile) {
+          try {
+            const resp = await drive.files.export(
+              { fileId: hooksFile.id, mimeType: 'text/plain' },
+              { responseType: 'text' }
+            ).catch(() => null);
+            if (resp && resp.data) {
+              hooksContext = String(resp.data).substring(0, 3000);
+            }
+          } catch(e) { /* skip */ }
+        }
+      }
+    } catch(e) { /* no knowledge folder */ }
+
+    const systemPrompt = `You are Ian's post-building assistant for Phixo, his portrait photography studio in Montreal.
+
+Your job is NOT to write posts for Ian. Ask smart questions that help him decide what to post, then help him fill in the brief.
+
+Ian's voice: warm, direct, casual. No hype language, no corporate tone, no emojis. Like a friend who knows their stuff.
+Ian's content: his comeback to photography, working with nervous clients, technical teaching, behind-the-scenes, client transformations.
+
+${hooksContext ? `HOOKS REFERENCE (from Ian's Drive):\n${hooksContext}\n\nUse specific hook patterns from this when suggesting hooks.` : 'No hooks document found — use strong hook principles: curiosity gap, contrast, stakes, specificity.'}
+
+CURRENT BRIEF: ${JSON.stringify(current_brief || {}, null, 2)}
+
+Rules:
+- Ask ONE focused question at a time
+- When suggesting hooks, give 2-3 SHORT specific options
+- Never write a full caption — help him find the angle
+- Keep replies to 3-5 sentences max unless listing hook options
+- Be direct, no padding`;
+
+    const messages = [
+      ...(history || []),
+      { role: 'user', content: message }
+    ];
+
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 600,
+      system: systemPrompt,
+      messages
+    });
+
+    res.json({ reply: response.content[0].text });
+  } catch (err) {
+    console.error('Assist error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ═══════════════════════════════════════════════════════════
