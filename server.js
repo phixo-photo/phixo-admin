@@ -25,9 +25,21 @@ app.use(cookieSession({
 // ═══════════════════════════════════════════════════
 // DATABASE
 // ═══════════════════════════════════════════════════
+if (!process.env.DATABASE_URL) {
+  console.error('⚠️  DATABASE_URL not set — database features will fail');
+}
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL ? { rejectUnauthorized: false } : false
+  ssl: process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('localhost')
+    ? { rejectUnauthorized: false }
+    : false,
+  connectionTimeoutMillis: 5000,
+  idleTimeoutMillis: 30000,
+});
+
+pool.on('error', (err) => {
+  console.error('Postgres pool error:', err.message);
 });
 
 async function initDb() {
@@ -190,6 +202,14 @@ app.get('/auth/callback', async (req, res) => {
 
 app.get('/auth/logout', (req, res) => { req.session = null; res.redirect('/auth/login'); });
 app.get('/', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+
+// Health check
+app.get('/health', async (req, res) => {
+  const hasDb = !!process.env.DATABASE_URL;
+  let dbOk = false;
+  if (hasDb) { try { await pool.query('SELECT 1'); dbOk = true; } catch(e) {} }
+  res.json({ ok:true, db:dbOk, DATABASE_URL:hasDb?'set':'MISSING', GOOGLE_CLIENT_ID:process.env.GOOGLE_CLIENT_ID?'set':'MISSING', ANTHROPIC_API_KEY:process.env.ANTHROPIC_API_KEY?'set':'MISSING' });
+});
 
 // ═══════════════════════════════════════════════════
 // BLOCKS — Universal content unit
@@ -862,14 +882,31 @@ app.get('/api/drive/browse', requireAuth, async (req, res) => {
       q: `name='${folder.replace(/'/g,"\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
       fields: 'files(id)'
     });
-    if (!fr.data.files.length) return res.json({ files: [], message: `Folder "${folder}" not found in Drive.` });
+    if (!fr.data.files.length) return res.json({ files: [], message: `Folder "${folder}" not found in Drive. Create a folder called "${folder}" in My Drive.` });
     const folderId = fr.data.files[0].id;
     const files = await drive.files.list({
       q: `'${folderId}' in parents and trashed=false`,
       fields: 'files(id,name,thumbnailLink,mimeType,size)',
-      pageSize: 100, orderBy: 'name'
+      pageSize: 200, orderBy: 'name'
     });
-    res.json({ files: files.data.files||[], folderId });
+    const driveFiles = files.data.files || [];
+    // Mark which ones are already imported as blocks
+    let alreadyImported = new Set();
+    try {
+      const ids = driveFiles.map(f => f.id);
+      if (ids.length) {
+        const r = await pool.query(
+          'SELECT drive_file_id FROM blocks WHERE drive_file_id = ANY($1)',
+          [ids]
+        );
+        r.rows.forEach(row => alreadyImported.add(row.drive_file_id));
+      }
+    } catch(e) { /* if DB not ready, skip */ }
+    const enriched = driveFiles.map(f => ({
+      ...f,
+      already_imported: alreadyImported.has(f.id)
+    }));
+    res.json({ files: enriched, folderId, folder });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
