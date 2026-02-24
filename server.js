@@ -182,6 +182,12 @@ function getDrive(req) {
     process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, process.env.GOOGLE_REDIRECT_URI
   );
   auth.setCredentials(req.session.tokens);
+  // Auto-save refreshed tokens back to session
+  auth.on('tokens', (tokens) => {
+    if (tokens.refresh_token) req.session.tokens.refresh_token = tokens.refresh_token;
+    req.session.tokens.access_token = tokens.access_token;
+    req.session.tokens.expiry_date = tokens.expiry_date;
+  });
   return google.drive({ version: 'v3', auth });
 }
 
@@ -910,15 +916,100 @@ app.get('/api/drive/browse', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+
+// ─── Sync Drive folders → auto-import new blocks ─────
+app.post('/api/drive/sync', requireAuth, async (req, res) => {
+  try {
+    const drive = getDrive(req);
+    const folderMap = [
+      { name: 'Pose',             type: 'pose',  category: 'posing'    },
+      { name: 'Meme',             type: 'meme',  category: 'memes'     },
+      { name: 'SFX',              type: 'sfx',   category: 'audio'     },
+      { name: 'Music',            type: 'sfx',   category: 'music'     },
+      { name: 'Phixo Knowledge',  type: 'pdf',   category: 'knowledge' },
+      { name: 'Tik Tok Scripts',  type: 'note',  category: 'scripts'   },
+    ];
+
+    let imported = 0;
+    let skipped = 0;
+    const results = [];
+
+    for (const folder of folderMap) {
+      // Find folder in Drive
+      const fr = await drive.files.list({
+        q: `name='${folder.name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+        fields: 'files(id,name)', pageSize: 5
+      });
+      if (!fr.data.files.length) {
+        results.push({ folder: folder.name, status: 'not found in Drive' });
+        continue;
+      }
+      const folderId = fr.data.files[0].id;
+
+      // List files in folder
+      const files = await drive.files.list({
+        q: `'${folderId}' in parents and trashed=false`,
+        fields: 'files(id,name,thumbnailLink,mimeType,size)',
+        pageSize: 200, orderBy: 'name'
+      });
+      const driveFiles = files.data.files || [];
+
+      // Find which are already imported
+      const ids = driveFiles.map(f => f.id);
+      let existingIds = new Set();
+      if (ids.length) {
+        const r = await pool.query(
+          'SELECT drive_file_id FROM blocks WHERE drive_file_id = ANY($1)', [ids]
+        );
+        r.rows.forEach(row => existingIds.add(row.drive_file_id));
+      }
+
+      // Import new ones
+      const newFiles = driveFiles.filter(f => !existingIds.has(f.id));
+      for (const f of newFiles) {
+        await pool.query(
+          `INSERT INTO blocks (type,title,category,tags,source,drive_file_id,file_name,file_mime,thumbnail_url)
+           VALUES ($1,$2,$3,$4,'drive',$5,$6,$7,$8)`,
+          [folder.type, f.name, folder.category, [], f.id, f.name, f.mimeType||'', f.thumbnailLink||'']
+        );
+        imported++;
+      }
+      skipped += existingIds.size;
+      results.push({ folder: folder.name, new: newFiles.length, existing: existingIds.size });
+    }
+
+    res.json({ ok: true, imported, skipped, results });
+  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+});
+
 app.get('/api/drive/file/:fileId', requireAuth, async (req, res) => {
   try {
     const drive = getDrive(req);
-    const meta = await drive.files.get({ fileId: req.params.fileId, fields: 'mimeType,name' });
-    const file = await drive.files.get({ fileId: req.params.fileId, alt: 'media' }, { responseType: 'stream' });
-    res.setHeader('Content-Type', meta.data.mimeType);
-    res.setHeader('Cache-Control', 'private, max-age=3600');
-    file.data.pipe(res);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+    // Single call: get meta + stream together
+    const meta = await drive.files.get({
+      fileId: req.params.fileId,
+      fields: 'mimeType,name,size,thumbnailLink'
+    });
+    const mimeType = meta.data.mimeType || 'application/octet-stream';
+    res.setHeader('Content-Type', mimeType);
+    res.setHeader('Cache-Control', 'private, max-age=7200');
+    res.setHeader('X-File-Name', encodeURIComponent(meta.data.name || 'file'));
+
+    const fileRes = await drive.files.get(
+      { fileId: req.params.fileId, alt: 'media' },
+      { responseType: 'stream' }
+    );
+
+    fileRes.data.on('error', (err) => {
+      console.error('Drive stream error:', err.message);
+      if (!res.headersSent) res.status(500).end();
+    });
+
+    fileRes.data.pipe(res);
+  } catch (err) {
+    console.error('Drive file error:', err.message);
+    if (!res.headersSent) res.status(500).json({ error: err.message });
+  }
 });
 
 // ═══════════════════════════════════════════════════
