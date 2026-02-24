@@ -7,675 +7,581 @@
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#f4f3f0;--surface:#fff;--border:#e5e3dc;
-  --text:#18180f;--muted:#8a8878;--accent:#c8a96e;--accent-light:#faf4ea;
-  --danger:#cc3333;--nav:#18180f;--nav-text:#a0a090;--nav-active:#fff;
-  --hot:#e04444;--warm:#d08020;--cold:#4488bb;
-  --r:10px;--shadow:0 2px 14px rgba(0,0,0,.07);--nav-w:210px
+  --bg:#f5f4f0;--surface:#fff;--border:#e4e2d8;
+  --text:#16160e;--muted:#8c8a78;--accent:#c8a96e;--accent-light:#faf4ea;
+  --nav:#111108;--nav2:#1a1a0f;--nav-text:#777760;--nav-active:#fff;
+  --hot:#d94040;--warm:#c07820;--cold:#3a7abd;
+  --tof:#4a7c59;--mof:#5a6a9e;--bof:#9e5a5a;
+  --r:10px;--sh:0 2px 16px rgba(0,0,0,.07);--nw:220px
 }
-body{font-family:'Inter',system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex}
-
-/* NAV */
-#nav{width:var(--nav-w);min-height:100vh;background:var(--nav);display:flex;flex-direction:column;position:fixed;top:0;left:0;z-index:100}
-.nav-logo{padding:22px 20px 18px;font-size:17px;font-weight:700;letter-spacing:-.3px;color:#fff}
-.nav-logo em{font-style:normal;color:var(--accent)}
-.nav-group{padding:14px 12px 4px;font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:#555544}
-.nav-btn{display:flex;align-items:center;gap:9px;padding:9px 14px;margin:1px 8px;border-radius:6px;cursor:pointer;font-size:13px;font-weight:500;color:var(--nav-text);border:none;background:none;width:calc(100% - 16px);text-align:left;transition:all .13s}
-.nav-btn:hover{background:#262616;color:#ddd}
-.nav-btn.active{background:#2e2e1a;color:var(--nav-active)}
-.nav-btn .i{font-size:14px;width:18px;text-align:center;opacity:.8}
-.nav-foot{margin-top:auto;padding:16px;border-top:1px solid #262616}
-.nav-foot a,.nav-foot span{display:block;font-size:12px;color:#555544;text-decoration:none;margin-top:4px}
-.nav-foot a:hover{color:#aaa}
-.online{display:inline-block;width:7px;height:7px;border-radius:50%;background:#4a9;margin-right:5px}
-
-/* MAIN */
-#main{margin-left:var(--nav-w);flex:1;min-height:100vh}
-
-/* VIEWS */
-.view{display:none;padding:36px 40px;max-width:1080px}
+body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex}
+#nav{width:var(--nw);min-height:100vh;background:var(--nav);display:flex;flex-direction:column;position:fixed;top:0;left:0;z-index:100;border-right:1px solid #1e1e12}
+.nav-logo{padding:22px 20px 16px;font-size:16px;font-weight:700;color:#fff}
+.nav-logo span{color:var(--accent)}
+.nav-section{padding:14px 12px 4px;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#383828;font-weight:600}
+.nb{display:flex;align-items:center;gap:9px;padding:8px 12px;margin:1px 6px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:500;color:var(--nav-text);border:none;background:none;width:calc(100% - 12px);text-align:left;transition:all .12s}
+.nb:hover{background:var(--nav2);color:#ccc}
+.nb.on{background:#222214;color:var(--nav-active)}
+.nb .ico{font-size:13px;width:16px;text-align:center}
+.nav-foot{margin-top:auto;padding:16px 14px;border-top:1px solid #1a1a10}
+.nav-foot a{display:block;font-size:11px;color:#444430;text-decoration:none;margin-top:3px}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#4a9;margin-right:5px}
+#main{margin-left:var(--nw);flex:1;min-height:100vh}
+.view{display:none;padding:36px 40px;max-width:1100px}
 .view.on{display:block}
-.ph{margin-bottom:28px}
-.ph h1{font-size:24px;font-weight:700;letter-spacing:-.4px}
+.ph{margin-bottom:26px}
+.ph h1{font-size:22px;font-weight:800;letter-spacing:-.4px}
 .ph h1 em{font-style:normal;color:var(--accent)}
 .ph p{color:var(--muted);font-size:13px;margin-top:3px}
-
-/* TOOLBAR */
-.tb{display:flex;gap:8px;align-items:center;margin-bottom:22px;flex-wrap:wrap}
-.tb input{width:220px}
-
-/* CARDS */
-.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px 24px;margin-bottom:14px;box-shadow:var(--shadow)}
-
-/* BUTTONS */
-.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .13s;white-space:nowrap}
-.btn-dark{background:var(--text);color:#fff}.btn-dark:hover{background:#333}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .12s;white-space:nowrap;font-family:inherit}
+.btn-dark{background:var(--text);color:#fff}.btn-dark:hover{background:#2a2a18}
 .btn-ghost{background:var(--bg);color:var(--text);border:1px solid var(--border)}.btn-ghost:hover{background:var(--border)}
 .btn-accent{background:var(--accent);color:#fff}.btn-accent:hover{background:#b8955a}
-.btn-danger{background:#fff0f0;color:var(--danger);border:1px solid #fcc}.btn-danger:hover{background:#ffe0e0}
-.btn-sm{padding:6px 11px;font-size:12px}
-.btn:disabled{opacity:.45;cursor:not-allowed}
-
-/* INPUTS */
-input[type=text],input[type=date],input[type=url],select,textarea{width:100%;padding:9px 12px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;background:var(--bg);color:var(--text);outline:none;transition:border .13s}
+.btn-danger{background:#fff0f0;color:var(--hot);border:1px solid #fcc}.btn-danger:hover{background:#ffe0e0}
+.btn-sm{padding:5px 11px;font-size:12px}.btn-xs{padding:3px 8px;font-size:11px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+input,select,textarea{width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;background:var(--bg);color:var(--text);outline:none;transition:border .12s}
 input:focus,select:focus,textarea:focus{border-color:var(--accent);background:#fff}
-textarea{resize:vertical;min-height:80px;line-height:1.5}
-label{font-size:11px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px;margin-top:14px;text-transform:uppercase;letter-spacing:.4px}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
-
-/* STATUS TAGS */
-.tag{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700}
-.t-lead{background:#f0f0ec;color:#666}.t-booked{background:#e8f5e9;color:#2e7d32}
-.t-shot{background:#e3f2fd;color:#1565c0}.t-delivered{background:#f3e5f5;color:#6a1b9a}
-.t-hot{background:#fdeaea;color:var(--hot)}.t-warm{background:#fff3e0;color:var(--warm)}
-.t-cold{background:#e8f0fe;color:var(--cold)}
-
-/* CLIENT LIST GRID */
-.cl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
-.cl-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;cursor:pointer;transition:all .13s;box-shadow:var(--shadow)}
-.cl-card:hover{border-color:var(--accent);transform:translateY(-1px)}
-.cl-card h3{font-size:15px;font-weight:700;margin-bottom:3px}
-.cl-card .meta{font-size:12px;color:var(--muted);margin-bottom:10px}
-.cl-card .foot{display:flex;align-items:center;gap:6px}
-
-/* CLIENT FILE — exact Evelyn format */
-.cf-header{background:var(--text);color:#fff;border-radius:var(--r);padding:26px 30px;margin-bottom:6px}
-.cf-brand{font-size:10px;letter-spacing:2.5px;text-transform:uppercase;opacity:.4;margin-bottom:8px}
-.cf-name{font-size:26px;font-weight:800;letter-spacing:-.5px}
-.cf-meta{font-size:13px;opacity:.55;margin-top:4px;letter-spacing:.2px}
-.cf-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px;margin-top:18px}
-
-.cf-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);margin-bottom:10px;box-shadow:var(--shadow);overflow:hidden}
-.cf-sh{display:flex;align-items:center;justify-content:space-between;padding:13px 20px;cursor:pointer;user-select:none;border-bottom:1px solid var(--border)}
-.cf-sh h3{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:2px;color:var(--muted)}
-.cf-sh .arr{font-size:11px;color:var(--muted);transition:transform .15s}
+textarea{resize:vertical;min-height:70px;line-height:1.55}
+label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px;margin-top:12px;text-transform:uppercase;letter-spacing:.5px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px}
+.tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
+.t-lead{background:#f0efe8;color:#666}.t-booked{background:#e8f5e9;color:#2a7a2a}
+.t-shot{background:#e3f2fd;color:#1255aa}.t-delivered{background:#f3e5f5;color:#6a1b9a}
+.t-watching{background:#f0efe8;color:#777}.t-outreach{background:#fff3e0;color:#b06000}
+.t-contacted{background:#e8f0fe;color:#3050aa}.t-notfit{background:#fdeaea;color:#aa2020}
+.t-hot{background:#fdeaea;color:var(--hot)}.t-warm{background:#fff3e0;color:var(--warm)}.t-cold{background:#e8f0fd;color:var(--cold)}
+.tb{display:flex;gap:8px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
+.tb input,.tb select{width:auto}
+.tb input{min-width:200px}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;cursor:pointer;transition:all .12s;box-shadow:var(--sh)}
+.card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.card h3{font-size:14px;font-weight:700;margin-bottom:2px;line-height:1.3}
+.card .meta{font-size:12px;color:var(--muted);margin-bottom:10px}
+.card .foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.block-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}
+.block-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;cursor:pointer;transition:all .12s;box-shadow:var(--sh)}
+.block-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.block-thumb{height:120px;background:var(--bg);display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.block-thumb img{width:100%;height:100%;object-fit:cover}
+.type-badge{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.55);color:#fff;font-size:9px;padding:2px 6px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px}
+.block-body{padding:10px 12px}
+.block-title{font-size:12px;font-weight:600;line-height:1.35;margin-bottom:4px}
+.block-meta{font-size:11px;color:var(--muted)}
+.block-tags{display:flex;gap:3px;flex-wrap:wrap;margin-top:6px}
+.block-tags span{background:var(--bg);border-radius:20px;padding:1px 6px;font-size:10px;color:var(--muted)}
+.funnel-label{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;display:inline-block}
+.fl-tof{background:#e8f4ec;color:var(--tof)}.fl-mof{background:#eef0fa;color:var(--mof)}.fl-bof{background:#faeaea;color:var(--bof)}
+.cf-header{background:var(--nav);color:#fff;border-radius:var(--r);padding:24px 28px;margin-bottom:8px}
+.cf-brand{font-size:9px;letter-spacing:3px;text-transform:uppercase;opacity:.35;margin-bottom:8px}
+.cf-name{font-size:28px;font-weight:800;letter-spacing:-.5px}
+.cf-meta{font-size:13px;opacity:.5;margin-top:3px}
+.cf-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.cf-sec{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;box-shadow:var(--sh);overflow:hidden}
+.cf-sh{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;cursor:pointer;user-select:none;border-bottom:1px solid var(--border)}
+.cf-sh h3{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:2px;color:var(--muted)}
+.cf-sh .arr{font-size:10px;color:var(--muted);transition:transform .15s}
 .cf-sh.open .arr{transform:rotate(180deg)}
-.cf-sb{padding:0 20px 18px}
-.cf-sb.hide{display:none}
-
-/* Field table rows — matches Evelyn doc exactly */
-.cf-row{display:grid;grid-template-columns:180px 1fr;gap:12px;padding:10px 0;border-bottom:1px solid var(--bg);align-items:start}
+.cf-bd{padding:0 20px 16px}
+.cf-bd.hide{display:none}
+.cf-row{display:grid;grid-template-columns:170px 1fr;gap:10px;padding:9px 0;border-bottom:1px solid var(--bg);align-items:start}
 .cf-row:last-child{border-bottom:none}
-.cf-key{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);padding-top:2px;line-height:1.4}
-.cf-val{font-size:14px;line-height:1.55;color:var(--text)}
-.cf-val.edit{cursor:pointer;padding:3px 8px;margin:-3px -8px;border-radius:5px;border:1px solid transparent}
-.cf-val.edit:hover{background:var(--bg);border-color:var(--border)}
-.cf-val.muted{color:var(--muted);font-style:italic}
-
-/* Lead temp inline badge */
-.temp-badge{display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px;font-weight:700;margin-bottom:4px}
-
-/* Conversation log */
-.conv-block{white-space:pre-wrap;font-size:13px;line-height:1.65;background:var(--bg);padding:16px;border-radius:8px;max-height:400px;overflow-y:auto}
-
-/* Draft reply — styled like the Evelyn doc */
-.draft-block{background:var(--accent-light);border:1px solid #e8d5a8;border-radius:8px;padding:16px 18px;font-size:14px;line-height:1.65}
-
-/* POSE GALLERY in client file */
-.pose-strip{display:flex;gap:10px;flex-wrap:wrap;padding-top:4px}
-.pose-thumb{position:relative;width:100px;height:100px;border-radius:8px;overflow:hidden;border:2px solid var(--border);cursor:default;flex-shrink:0}
-.pose-thumb img{width:100%;height:100%;object-fit:cover}
-.pose-thumb .rm{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.65);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1}
-.pose-thumb .rm:hover{background:rgba(200,0,0,.8)}
-.pose-add-btn{width:100px;height:100px;border-radius:8px;border:2px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:12px;gap:4px;background:none;transition:all .13s;flex-shrink:0}
-.pose-add-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
-
-/* RESEARCH GRID */
-.res-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
-.res-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;cursor:pointer;transition:all .13s;box-shadow:var(--shadow)}
-.res-card:hover{border-color:var(--accent);transform:translateY(-1px)}
-.res-card.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
-.res-thumb{height:130px;background:var(--bg);display:flex;align-items:center;justify-content:center;overflow:hidden}
-.res-thumb img{width:100%;height:100%;object-fit:cover}
-.res-icon{font-size:38px}
-.res-info{padding:12px 14px}
-.res-info h4{font-size:13px;font-weight:600;line-height:1.35;margin-bottom:4px}
-.res-type{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
-.res-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:7px}
-.res-tags span{background:var(--bg);border-radius:20px;padding:2px 7px;font-size:11px;color:var(--muted)}
-
-/* PIPELINE */
-.pipeline{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
-.pipe-col{background:var(--bg);border-radius:var(--r);padding:14px}
-.pipe-col h3{font-size:10px;text-transform:uppercase;letter-spacing:1.2px;color:var(--muted);margin-bottom:12px;font-weight:800;padding:0 2px}
-.post-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:8px;cursor:pointer;transition:all .13s}
-.post-card:hover{border-color:var(--accent)}
-.post-plat{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:5px}
-.post-hook{font-size:13px;font-weight:600;line-height:1.4}
-.post-date{font-size:11px;color:var(--muted);margin-top:7px}
-.post-assets{display:flex;gap:4px;flex-wrap:wrap;margin-top:8px}
-.post-assets .a{background:var(--bg);border-radius:5px;padding:2px 7px;font-size:11px;color:var(--muted)}
-
-/* MODAL */
-.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
-.modal-bg.off{display:none}
-.modal{background:var(--surface);border-radius:14px;width:100%;max-width:660px;max-height:92vh;overflow-y:auto;box-shadow:0 24px 64px rgba(0,0,0,.22)}
-.modal.wide{max-width:860px}
-.mh{padding:24px 28px 0;display:flex;align-items:center;justify-content:space-between}
-.mh h2{font-size:18px;font-weight:700}
-.mx{background:none;border:none;font-size:20px;cursor:pointer;color:var(--muted);padding:4px;line-height:1}
-.mx:hover{color:var(--text)}
-.mb{padding:20px 28px 28px}
-
-/* TABS */
-.tabs{display:flex;gap:0;margin-bottom:18px;border-bottom:1px solid var(--border)}
-.tab{padding:9px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.cf-key{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);padding-top:2px}
+.cf-val{font-size:13px;line-height:1.55}
+.cf-val.editable{cursor:pointer;padding:3px 7px;margin:-3px -7px;border-radius:5px;border:1px solid transparent}
+.cf-val.editable:hover{background:var(--bg);border-color:var(--border)}
+.cf-val.empty{color:var(--muted);font-style:italic}
+.temp-badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;margin-bottom:3px}
+.conv-block{white-space:pre-wrap;font-size:13px;line-height:1.6;background:var(--bg);padding:14px;border-radius:8px;max-height:350px;overflow-y:auto}
+.draft-block{background:var(--accent-light);border:1px solid #e8d5a8;border-radius:8px;padding:14px 16px;font-size:13px;line-height:1.6}
+.back-btn{background:none;border:none;font-size:13px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:5px;margin-bottom:16px;padding:0;font-family:inherit}
+.back-btn:hover{color:var(--text)}
+.block-strip{display:flex;gap:8px;flex-wrap:wrap;padding:4px 0}
+.strip-thumb{position:relative;width:90px;height:90px;border-radius:8px;overflow:hidden;border:2px solid var(--border);flex-shrink:0}
+.strip-thumb img{width:100%;height:100%;object-fit:cover}
+.strip-thumb .rm{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.65);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.strip-add{width:90px;height:90px;border-radius:8px;border:2px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:11px;gap:3px;background:none;font-family:inherit;flex-shrink:0;transition:all .12s}
+.strip-add:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+.strip-add .ico{font-size:20px}
+.kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.kcol{background:var(--bg);border-radius:var(--r);padding:12px}
+.kcol-head{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:10px}
+.kcard{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:7px;cursor:pointer;transition:all .12s}
+.kcard:hover{border-color:var(--accent)}
+.kcard .plat{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:4px}
+.kcard .goal{font-size:13px;font-weight:600;line-height:1.35}
+.kcard .kdate{font-size:11px;color:var(--muted);margin-top:5px}
+.pb-layout{display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start}
+.pb-stack{display:flex;flex-direction:column;gap:6px}
+.module{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.module.dragging{opacity:.5;border:2px dashed var(--accent)}
+.module-head{display:flex;align-items:center;gap:8px;padding:9px 14px;cursor:move;user-select:none;border-bottom:1px solid var(--border);background:var(--bg)}
+.module-head .mtype{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)}
+.module-head .drag{color:#ccc;font-size:12px}
+.module-body{padding:10px 14px}
+.module-body textarea{min-height:50px}
+.module-actions{display:flex;gap:5px;margin-left:auto}
+.pb-sidebar{position:sticky;top:20px}
+.pbs-inner{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.pbs-head{padding:12px 14px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.pbs-f{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border-bottom:1px solid var(--border)}
+.pbs-f input,.pbs-f select{font-size:12px;padding:5px 9px}
+.pbs-blocks{max-height:360px;overflow-y:auto;padding:6px}
+.pbs-block{display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:7px;cursor:pointer;border:1px solid transparent;transition:all .12s}
+.pbs-block:hover{background:var(--bg);border-color:var(--border)}
+.pbs-block .pi{font-size:18px;flex-shrink:0}
+.pbs-block .pt{font-size:12px;font-weight:600;line-height:1.3}
+.pbs-block .pm{font-size:11px;color:var(--muted)}
+.pbs-empty{font-size:12px;color:var(--muted);padding:14px;text-align:center}
+.assist-panel{background:var(--nav);border-radius:var(--r);overflow:hidden;margin-top:10px}
+.assist-head{padding:10px 12px;border-bottom:1px solid #1e1e12}
+.assist-head .at{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#555540;margin-bottom:2px}
+.assist-head .as{font-size:11px;color:#666650;line-height:1.4}
+.assist-msgs{height:220px;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:5px}
+.am{font-size:12px;line-height:1.5;padding:7px 9px;border-radius:6px;max-width:92%}
+.am-ai{background:#1c1c0e;color:#bbb;align-self:flex-start}
+.am-user{background:var(--accent);color:#fff;align-self:flex-end}
+.assist-ir{padding:7px 9px;border-top:1px solid #1e1e12;display:flex;gap:6px}
+.assist-ir input{flex:1;background:#161608;border-color:#282818;color:#ccc;font-size:12px;padding:6px 9px}
+.assist-qr{padding:5px 9px 9px;display:flex;gap:4px;flex-wrap:wrap}
+.aq{background:#161608;border:1px solid #282818;color:#666;border-radius:5px;padding:3px 7px;font-size:10px;cursor:pointer;font-family:inherit}
+.aq:hover{background:#1e1e0e;color:#aaa;border-color:#444}
+.hook-item{padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;line-height:1.4}
+.hook-item:hover{background:var(--accent-light)}
+.hook-item:last-child{border-bottom:none}
+.hook-cat{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:2px}
+.bpm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;max-height:380px;overflow-y:auto}
+.bpm-card{border:2px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer;transition:all .12s}
+.bpm-card:hover{border-color:var(--accent)}
+.bpm-card.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.bpm-thumb{height:80px;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:28px;overflow:hidden}
+.bpm-thumb img{width:100%;height:100%;object-fit:cover}
+.bpm-label{font-size:11px;padding:5px 7px;font-weight:600;line-height:1.3;border-top:1px solid var(--border)}
+.drive-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;max-height:360px;overflow-y:auto}
+.drive-card{border:2px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer;transition:all .12s;position:relative}
+.drive-card:hover{border-color:var(--accent)}
+.drive-card.sel{border-color:var(--accent)}
+.drive-card img{width:100%;height:75px;object-fit:cover;display:block}
+.drive-icon{height:75px;display:flex;align-items:center;justify-content:center;font-size:28px;background:var(--bg)}
+.dname{font-size:10px;padding:3px 5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-top:1px solid var(--border)}
+.drive-check{position:absolute;top:3px;right:3px;background:var(--accent);color:#fff;width:16px;height:16px;border-radius:50%;font-size:9px;display:none;align-items:center;justify-content:center;font-weight:700}
+.drive-card.sel .drive-check{display:flex}
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
+.mbg.off{display:none}
+.modal{background:var(--surface);border-radius:14px;width:100%;max-width:600px;max-height:92vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.22)}
+.modal.wide{max-width:820px}
+.mh{padding:20px 24px 0;display:flex;align-items:center;justify-content:space-between}
+.mh h2{font-size:17px;font-weight:700}
+.mx{background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);padding:4px;line-height:1;font-family:inherit}
+.mb{padding:16px 24px 24px}
+.tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:14px}
+.tab{padding:8px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;font-family:inherit}
 .tab.on{color:var(--text);border-bottom-color:var(--accent)}
 .tc{display:none}.tc.on{display:block}
-
-/* BACK */
-.back{background:none;border:none;font-size:13px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:5px;margin-bottom:18px;padding:0}
-.back:hover{color:var(--text)}
-
-/* TOAST */
-.toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .25s;pointer-events:none;white-space:nowrap}
-.toast.on{opacity:1}
-.toast.ok{background:#2d7d2d}
-.toast.err{background:var(--danger)}
-
-/* EMPTY */
-.empty{text-align:center;padding:60px 20px;color:var(--muted)}
-.empty .e{font-size:44px;margin-bottom:14px}
-
-/* POSE PICKER GRID */
-.pose-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;max-height:420px;overflow-y:auto;padding-right:4px}
-.pose-pick{position:relative;border-radius:8px;overflow:hidden;border:2px solid var(--border);cursor:pointer;aspect-ratio:1;transition:all .13s}
-.pose-pick:hover{border-color:var(--accent)}
-.pose-pick.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
-.pose-pick img{width:100%;height:100%;object-fit:cover;display:block}
-.pose-pick .chk{position:absolute;top:4px;right:4px;width:20px;height:20px;border-radius:50%;background:var(--accent);color:#fff;font-size:11px;display:none;align-items:center;justify-content:center;font-weight:700}
-.pose-pick.sel .chk{display:flex}
-.pose-pick .fname{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:3px 5px;line-height:1.3;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-
-/* Research picker in post modal */
-.res-pick-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;max-height:300px;overflow-y:auto}
-.res-pick-card{border:2px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer;transition:all .13s}
-.res-pick-card:hover{border-color:var(--accent)}
-.res-pick-card.sel{border-color:var(--accent);background:var(--accent-light)}
-.res-pick-card .rp-icon{height:70px;display:flex;align-items:center;justify-content:center;background:var(--bg);font-size:28px}
-.res-pick-card .rp-icon img{width:100%;height:100%;object-fit:cover}
-.res-pick-card .rp-name{font-size:11px;padding:5px 7px;font-weight:600;line-height:1.3}
-
-/* Attached assets in post detail */
-.attached-list{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
-.attached-item{display:flex;align-items:center;gap:6px;background:var(--bg);border-radius:7px;padding:6px 10px;font-size:12px}
-.attached-item .rm-a{background:none;border:none;cursor:pointer;color:var(--muted);font-size:13px;padding:0;line-height:1}
-.attached-item .rm-a:hover{color:var(--danger)}
-/* ── ASSIST CHAT ── */
-.assist-msg{font-size:13px;line-height:1.5;padding:9px 12px;border-radius:8px;max-width:90%}
-.assist-ai{background:#252515;color:#ccc;align-self:flex-start;border-radius:4px 8px 8px 8px}
-.assist-user{background:var(--accent);color:#fff;align-self:flex-end;border-radius:8px 4px 8px 8px}
-.assist-quick{background:#1e1e10;border:1px solid #333;color:#888;border-radius:5px;padding:4px 9px;font-size:11px;cursor:pointer;font-family:inherit}
-.assist-quick:hover{background:#2a2a18;color:#bbb;border-color:#555}
-/* ── MEDIA BROWSER ── */
-.media-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px}
-.media-tab{padding:8px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
-.media-tab.on{color:var(--text);border-bottom-color:var(--accent)}
-.media-tab:hover{color:var(--text)}
-.media-grid-wrap{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;max-height:420px;overflow-y:auto}
-.media-card{border:1px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer;transition:all .13s;background:var(--surface)}
-.media-card:hover{border-color:var(--accent);transform:translateY(-1px)}
-.media-thumb{height:90px;background:var(--bg);display:flex;align-items:center;justify-content:center;overflow:hidden}
-.media-thumb img{width:100%;height:100%;object-fit:cover}
-.media-icon{font-size:32px}
-.media-name{font-size:10px;padding:5px 6px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-top:1px solid var(--border)}
+.empty{text-align:center;padding:50px 20px;color:var(--muted)}
+.empty .ei{font-size:40px;margin-bottom:12px}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--nav);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.on{opacity:1}.toast.ok{background:#2a7a2a}.toast.err{background:var(--hot)}
 </style>
 </head>
 <body>
-
 <nav id="nav">
-  <div class="nav-logo">Phixo <em>Admin</em></div>
-
-  <div class="nav-group">Clients</div>
-  <button class="nav-btn active" onclick="showView('clients',this)"><span class="i">👤</span> All Clients</button>
-  <button class="nav-btn" onclick="openNewClient()"><span class="i">＋</span> New Client</button>
-
-  <div class="nav-group">Library</div>
-  <button class="nav-btn" onclick="showView('research',this)"><span class="i">📚</span> Research</button>
-  <button class="nav-btn" onclick="openNewResearch()"><span class="i">＋</span> Add Item</button>
-  <button class="nav-btn" onclick="showView('media',this)"><span class="i">🎬</span> Drive Media</button>
-
-  <div class="nav-group">Content</div>
-  <button class="nav-btn" onclick="showView('posts',this)"><span class="i">📅</span> Schedule</button>
-  <button class="nav-btn" onclick="openNewPost()"><span class="i">✏️</span> New Post</button>
-
+  <div class="nav-logo">Phixo <span>Admin</span></div>
+  <div class="nav-section">Clients</div>
+  <button class="nb on" data-view="pipeline" onclick="showView('pipeline',this)"><span class="ico">👤</span> Pipeline</button>
+  <button class="nb" onclick="openNewClient()"><span class="ico">＋</span> New Client</button>
+  <button class="nb" data-view="discovery" onclick="showView('discovery',this)"><span class="ico">🔭</span> Discovery</button>
+  <button class="nb" onclick="openNewProspect()"><span class="ico">＋</span> New Target</button>
+  <div class="nav-section">Research</div>
+  <button class="nb" data-view="research" onclick="showView('research',this)"><span class="ico">📚</span> All Blocks</button>
+  <button class="nb" onclick="openAddBlock()"><span class="ico">＋</span> Add Block</button>
+  <div class="nav-section">Content</div>
+  <button class="nb" data-view="calendar" onclick="showView('calendar',this)"><span class="ico">📅</span> Calendar</button>
+  <button class="nb" onclick="openNewPost()"><span class="ico">✏️</span> New Post</button>
   <div class="nav-foot">
-    <span><span class="online"></span>Connected</span>
+    <span><span class="dot"></span>Connected</span>
     <a href="/auth/logout">Sign out</a>
   </div>
 </nav>
-
 <div id="main">
-
-<!-- CLIENTS LIST -->
-<div id="v-clients" class="view on">
-  <div class="ph"><h1>Your <em>clients</em></h1><p>Every file, brief, and booking reference — one place.</p></div>
+<div id="v-pipeline" class="view on">
+  <div class="ph"><h1>Client <em>pipeline</em></h1><p>Active leads, bookings, and deliveries.</p></div>
   <div class="tb">
-    <input type="text" id="cl-search" placeholder="Search by name..." oninput="debouncedLoadClients()">
-    <select id="cl-status" onchange="loadClients()" style="width:140px">
+    <input type="text" id="pl-search" placeholder="Search clients..." oninput="debouncedLoad('loadPipeline')">
+    <select id="pl-status" onchange="loadPipeline()" style="width:140px">
       <option value="">All statuses</option>
-      <option value="lead">Lead</option>
-      <option value="booked">Booked</option>
-      <option value="shot">Shot</option>
-      <option value="delivered">Delivered</option>
+      <option value="lead">Lead</option><option value="booked">Booked</option>
+      <option value="shot">Shot</option><option value="delivered">Delivered</option>
     </select>
-    <button class="btn btn-dark" onclick="openNewClient()">+ New Client</button>
+    <button class="btn btn-dark btn-sm" onclick="openNewClient()">+ New Client</button>
   </div>
-  <div id="cl-grid" class="cl-grid"><div class="empty"><div class="e">👤</div><p>Loading...</p></div></div>
+  <div id="pipeline-grid" class="card-grid"></div>
 </div>
-
-<!-- CLIENT FILE -->
 <div id="v-client-file" class="view">
-  <button class="back" onclick="showView('clients')">← All Clients</button>
+  <button class="back-btn" onclick="showView('pipeline')">← Pipeline</button>
   <div id="cf-body"></div>
 </div>
-
-<!-- RESEARCH -->
+<div id="v-discovery" class="view">
+  <div class="ph"><h1>Discovery <em>board</em></h1><p>Who do you want to shoot next?</p></div>
+  <div class="tb">
+    <input type="text" id="disc-search" placeholder="Search targets..." oninput="debouncedLoad('loadDiscovery')">
+    <select id="disc-status" onchange="loadDiscovery()" style="width:150px">
+      <option value="">All statuses</option>
+      <option value="watching">Watching</option><option value="outreach-ready">Outreach Ready</option>
+      <option value="contacted">Contacted</option><option value="not-a-fit">Not a Fit</option>
+    </select>
+    <button class="btn btn-dark btn-sm" onclick="openNewProspect()">+ New Target</button>
+  </div>
+  <div id="discovery-grid" class="card-grid"></div>
+</div>
+<div id="v-prospect-file" class="view">
+  <button class="back-btn" onclick="showView('discovery')">← Discovery</button>
+  <div id="pf-body"></div>
+</div>
 <div id="v-research" class="view">
-  <div class="ph"><h1>Research <em>library</em></h1><p>Poses, articles, memes, audio — tagged and findable.</p></div>
+  <div class="ph"><h1>Research <em>library</em></h1><p>Every block — poses, memes, SFX, articles, notes. One place.</p></div>
   <div class="tb">
-    <input type="text" id="res-search" placeholder="Search..." oninput="debouncedLoadResearch()">
-    <select id="res-type" onchange="loadResearch()" style="width:160px">
+    <input type="text" id="res-search" placeholder="Search blocks..." oninput="debouncedLoad('loadResearch')">
+    <select id="res-type" onchange="loadResearch()" style="width:150px">
       <option value="">All types</option>
-      <option value="article">Article / URL</option>
-      <option value="pose">Pose idea</option>
-      <option value="meme">Meme</option>
-      <option value="audio">Audio / SFX</option>
-      <option value="transcript">Transcript / Notes</option>
-      <option value="image">Image</option>
-      <option value="pdf">PDF</option>
+      <option value="pose">Pose</option><option value="meme">Meme</option>
+      <option value="sfx">SFX / Audio</option><option value="image">Image</option>
+      <option value="url">URL / Article</option><option value="conversation">Conversation</option>
+      <option value="note">Note</option><option value="pdf">PDF</option>
     </select>
-    <button class="btn btn-dark" onclick="openNewResearch()">+ Add Item</button>
+    <select id="res-funnel" onchange="loadResearch()" style="width:130px">
+      <option value="">All stages</option>
+      <option value="tof">TOF</option><option value="mof">MOF</option><option value="bof">BOF</option>
+    </select>
+    <button class="btn btn-dark btn-sm" onclick="openAddBlock()">+ Add Block</button>
   </div>
-  <div id="res-grid" class="res-grid"><div class="empty"><div class="e">📚</div><p>Loading...</p></div></div>
+  <div id="research-grid" class="block-grid"></div>
 </div>
-
-<!-- POSTS -->
-<!-- DRIVE MEDIA -->
-<div id="v-media" class="view">
-  <div class="ph"><h1>Drive <em>media</em></h1><p>Browse your Meme, SFX, and Music folders from Google Drive.</p></div>
-  <div class="media-tabs">
-    <button class="media-tab on" data-folder="Meme" onclick="loadMediaFolder('Meme')">😂 Memes</button>
-    <button class="media-tab" data-folder="SFX" onclick="loadMediaFolder('SFX')">🔊 SFX</button>
-    <button class="media-tab" data-folder="Music" onclick="loadMediaFolder('Music')">🎵 Music</button>
-    <button class="media-tab" data-folder="Tik Tok Scripts" onclick="loadMediaFolder('Tik Tok Scripts')">📝 TikTok Scripts</button>
-  </div>
-  <div id="media-info" style="font-size:13px;color:var(--muted);margin-bottom:12px"></div>
-  <div id="media-grid" class="media-grid-wrap">
-    <div style="font-size:13px;color:var(--muted);padding:8px">Select a folder above to browse.</div>
-  </div>
-</div>
-
-<div id="v-posts" class="view">
-  <div class="ph"><h1>Content <em>schedule</em></h1><p>Idea to posted — plan every piece of content.</p></div>
+<div id="v-calendar" class="view">
+  <div class="ph"><h1>Content <em>calendar</em></h1><p>Idea to posted — assemble posts from your research blocks.</p></div>
   <div class="tb">
-    <select id="post-plat" onchange="loadPosts()" style="width:150px">
+    <select id="cal-plat" onchange="loadCalendar()" style="width:140px">
       <option value="">All platforms</option>
-      <option value="Instagram">Instagram</option>
-      <option value="TikTok">TikTok</option>
-      <option value="LinkedIn">LinkedIn</option>
+      <option>Instagram</option><option>TikTok</option><option>LinkedIn</option>
     </select>
-    <button class="btn btn-dark" onclick="openNewPost()">+ New Post</button>
+    <button class="btn btn-dark btn-sm" onclick="openNewPost()">+ New Post</button>
   </div>
-  <div class="pipeline">
-    <div class="pipe-col"><h3>💡 Idea</h3><div id="col-idea"></div></div>
-    <div class="pipe-col"><h3>✏️ Draft</h3><div id="col-draft"></div></div>
-    <div class="pipe-col"><h3>✅ Ready</h3><div id="col-ready"></div></div>
-    <div class="pipe-col"><h3>🚀 Posted</h3><div id="col-posted"></div></div>
+  <div class="kanban">
+    <div class="kcol"><div class="kcol-head">💡 Idea</div><div id="k-idea"></div></div>
+    <div class="kcol"><div class="kcol-head">✏️ Draft</div><div id="k-draft"></div></div>
+    <div class="kcol"><div class="kcol-head">✅ Ready</div><div id="k-ready"></div></div>
+    <div class="kcol"><div class="kcol-head">🚀 Posted</div><div id="k-posted"></div></div>
   </div>
 </div>
-
-</div><!-- /main -->
-
-<!-- ═══ MODALS ═══ -->
-
-<!-- New Client -->
-<div class="modal-bg off" id="m-newclient">
-<div class="modal">
-  <div class="mh"><h2>New Client</h2><button class="mx" onclick="closeModal('m-newclient')">✕</button></div>
+<div id="v-post-builder" class="view">
+  <button class="back-btn" onclick="showView('calendar')">← Calendar</button>
+  <div id="pb-body"></div>
+</div>
+</div>
+<!-- MODALS -->
+<div class="mbg off" id="m-client"><div class="modal">
+  <div class="mh"><h2>New Client</h2><button class="mx" onclick="closeM('m-client')">✕</button></div>
   <div class="mb">
-    <div class="row2">
-      <div><label>Name *</label><input type="text" id="nc-name" placeholder="First name or full name"></div>
+    <div class="g2">
+      <div><label>Name *</label><input id="mc-name"></div>
       <div><label>Platform</label>
-        <select id="nc-platform">
-          <option>Instagram</option><option>Facebook</option><option>TikTok</option>
-          <option>Referral</option><option>Website</option><option>Other</option>
-        </select>
+        <select id="mc-platform"><option>Instagram</option><option>Facebook</option><option>Referral</option><option>Website</option><option>Other</option></select>
       </div>
     </div>
-    <div class="row2">
+    <div class="g2">
       <div><label>Session Type</label>
-        <select id="nc-stype">
-          <option>Professional Headshots</option><option>Personal / Confidence</option>
-          <option>Family / Legacy</option><option>Graduate</option><option>Creative</option><option>Other</option>
-        </select>
+        <select id="mc-stype"><option>Professional Headshots</option><option>Personal / Confidence</option><option>Family / Legacy</option><option>Graduate</option><option>Creative</option></select>
       </div>
-      <div><label>Session Date</label><input type="text" id="nc-date" placeholder="e.g. Saturday Feb 28, 2026"></div>
+      <div><label>Session Date</label><input id="mc-date" placeholder="e.g. March 8"></div>
     </div>
-    <div class="row2">
-      <div><label>Offer / Package</label><input type="text" id="nc-offer" placeholder="e.g. Signature $175"></div>
+    <div class="g2">
+      <div><label>Offer / Package</label><input id="mc-offer" placeholder="e.g. Signature $175"></div>
       <div><label>Status</label>
-        <select id="nc-status">
-          <option value="lead">Lead</option><option value="booked">Booked</option>
-          <option value="shot">Shot</option><option value="delivered">Delivered</option>
-        </select>
+        <select id="mc-status"><option value="lead">Lead</option><option value="booked">Booked</option><option value="shot">Shot</option><option value="delivered">Delivered</option></select>
       </div>
     </div>
-    <label>First Contact Date</label>
-    <input type="text" id="nc-firstcontact" placeholder="e.g. February 22, 2026">
-    <label>Thread ID / DM Reference</label>
-    <input type="text" id="nc-thread" placeholder="Optional">
-    <div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn btn-ghost" onclick="closeModal('m-newclient')">Cancel</button>
-      <button class="btn btn-dark" onclick="createClient()">Create Client File →</button>
+    <label>First Contact</label><input id="mc-contact" placeholder="e.g. March 1">
+    <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeM('m-client')">Cancel</button>
+      <button class="btn btn-dark" onclick="saveClient()">Create Client File →</button>
     </div>
   </div>
-</div>
-</div>
+</div></div>
 
-<!-- Analyze Conversation -->
-<div class="modal-bg off" id="m-analyze">
-<div class="modal">
-  <div class="mh"><h2 id="m-analyze-title">Analyze Conversation</h2><button class="mx" onclick="closeModal('m-analyze')">✕</button></div>
+<div class="mbg off" id="m-prospect"><div class="modal">
+  <div class="mh"><h2>New Discovery Target</h2><button class="mx" onclick="closeM('m-prospect')">✕</button></div>
+  <div class="mb">
+    <div class="g2">
+      <div><label>Name / Brand *</label><input id="mp-name"></div>
+      <div><label>Handle</label><input id="mp-handle" placeholder="@handle"></div>
+    </div>
+    <div class="g2">
+      <div><label>Platform</label>
+        <select id="mp-platform"><option>Instagram</option><option>TikTok</option><option>LinkedIn</option><option>Facebook</option></select>
+      </div>
+      <div><label>Category</label>
+        <select id="mp-category"><option value="">— select —</option><option value="founder">Founder</option><option value="artist">Artist / Creator</option><option value="realtor">Realtor</option><option value="fitness">Fitness</option><option value="brand">Local Brand</option><option value="professional">Professional</option><option value="collab">Collab Idea</option></select>
+      </div>
+    </div>
+    <label>Why them?</label>
+    <textarea id="mp-why" placeholder="What makes this person worth reaching out to?"></textarea>
+    <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeM('m-prospect')">Cancel</button>
+      <button class="btn btn-dark" onclick="saveProspect()">Add to Discovery →</button>
+    </div>
+  </div>
+</div></div>
+
+<div class="mbg off" id="m-addblock"><div class="modal">
+  <div class="mh"><h2>Add Block</h2><button class="mx" onclick="closeM('m-addblock')">✕</button></div>
   <div class="mb">
     <div class="tabs">
-      <button class="tab on" onclick="switchTab('at','text',this)">Paste Text</button>
-      <button class="tab" onclick="switchTab('at','img',this)">Screenshot</button>
+      <button class="tab on" onclick="switchTab('abt','url',this)">🔗 URL</button>
+      <button class="tab" onclick="switchTab('abt','upload',this)">📁 Upload</button>
+      <button class="tab" onclick="switchTab('abt','drive',this)">☁️ Drive</button>
+      <button class="tab" onclick="switchTab('abt','text',this)">✏️ Text</button>
     </div>
-    <div id="at-text" class="tc on">
-      <label>Paste the full DM conversation</label>
-      <textarea id="az-text" style="min-height:200px" placeholder="Paste everything — the whole thread..."></textarea>
+    <div id="abt-url" class="tc on">
+      <label>URL *</label><input id="ab-url" type="url" placeholder="https://...">
+      <div class="g2">
+        <div><label>Type</label><select id="ab-url-type"><option value="url">Article</option><option value="video">Video</option><option value="image">Image</option></select></div>
+        <div><label>Category</label><input id="ab-url-cat" placeholder="e.g. marketing"></div>
+      </div>
+      <div class="g2">
+        <div><label>Funnel Stage</label><select id="ab-url-funnel"><option value="">—</option><option value="tof">TOF</option><option value="mof">MOF</option><option value="bof">BOF</option></select></div>
+        <div><label>Tags</label><input id="ab-url-tags" placeholder="comma separated"></div>
+      </div>
       <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn btn-ghost" onclick="closeModal('m-analyze')">Cancel</button>
+        <button class="btn btn-ghost" onclick="closeM('m-addblock')">Cancel</button>
+        <button class="btn btn-dark" id="ab-url-btn" onclick="ingestUrl()">Save Block →</button>
+      </div>
+    </div>
+    <div id="abt-upload" class="tc">
+      <div style="border:2px dashed var(--border);border-radius:var(--r);padding:20px;text-align:center;color:var(--muted);cursor:pointer" onclick="document.getElementById('ab-file').click()">
+        <div style="font-size:28px;margin-bottom:5px">📁</div>
+        <p style="font-size:13px">Drop file or <span style="color:var(--accent)">browse</span></p>
+        <input type="file" id="ab-file" style="display:none" onchange="handleAbFile(this)">
+      </div>
+      <div id="ab-file-info" style="font-size:12px;color:var(--muted);margin:6px 0;display:none"></div>
+      <div class="g3">
+        <div><label>Type</label><select id="ab-up-type"><option value="image">Image</option><option value="meme">Meme</option><option value="pose">Pose</option><option value="sfx">SFX</option><option value="pdf">PDF</option></select></div>
+        <div><label>Category</label><input id="ab-up-cat"></div>
+        <div><label>Funnel</label><select id="ab-up-funnel"><option value="">—</option><option value="tof">TOF</option><option value="mof">MOF</option><option value="bof">BOF</option></select></div>
+      </div>
+      <label>Title</label><input id="ab-up-title">
+      <label>Tags</label><input id="ab-up-tags" placeholder="comma separated">
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeM('m-addblock')">Cancel</button>
+        <button class="btn btn-dark" id="ab-up-btn" onclick="uploadBlock()">Upload →</button>
+      </div>
+    </div>
+    <div id="abt-drive" class="tc">
+      <div class="g2" style="margin-bottom:8px">
+        <div><label>Folder</label>
+          <select id="ab-drive-folder" onchange="loadDriveFolder()">
+            <option value="Pose">Pose</option><option value="Meme">Meme</option>
+            <option value="SFX">SFX</option><option value="Music">Music</option>
+            <option value="Phixo Knowledge">Phixo Knowledge</option>
+            <option value="Tik Tok Scripts">Tik Tok Scripts</option>
+          </select>
+        </div>
+        <div><label>Assign Type</label><select id="ab-drive-type"><option value="pose">Pose</option><option value="meme">Meme</option><option value="sfx">SFX</option><option value="image">Image</option><option value="pdf">PDF</option></select></div>
+      </div>
+      <div class="g2" style="margin-bottom:8px">
+        <div><label>Category</label><input id="ab-drive-cat"></div>
+        <div><label>Tags</label><input id="ab-drive-tags" placeholder="comma separated"></div>
+      </div>
+      <div id="ab-drive-grid" class="drive-grid" style="margin-bottom:10px">
+        <div style="font-size:12px;color:var(--muted);padding:8px">Select a folder to browse.</div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
+        <span id="ab-drive-count" style="font-size:12px;color:var(--muted);margin-right:auto">0 selected</span>
+        <button class="btn btn-ghost" onclick="closeM('m-addblock')">Cancel</button>
+        <button class="btn btn-dark" id="ab-drive-btn" onclick="saveBlocksFromDrive()" disabled>Add Selected →</button>
+      </div>
+    </div>
+    <div id="abt-text" class="tc">
+      <div class="g2">
+        <div><label>Type</label><select id="ab-txt-type"><option value="note">Note</option><option value="conversation">Conversation</option><option value="transcript">Transcript</option></select></div>
+        <div><label>Category</label><input id="ab-txt-cat"></div>
+      </div>
+      <label>Title</label><input id="ab-txt-title">
+      <label>Content *</label><textarea id="ab-txt-content" style="min-height:120px"></textarea>
+      <div class="g2">
+        <div><label>Funnel</label><select id="ab-txt-funnel"><option value="">—</option><option value="tof">TOF</option><option value="mof">MOF</option><option value="bof">BOF</option></select></div>
+        <div><label>Tags</label><input id="ab-txt-tags" placeholder="comma separated"></div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeM('m-addblock')">Cancel</button>
+        <button class="btn btn-dark" onclick="saveTextBlock()">Save Block →</button>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<div class="mbg off" id="m-block-detail"><div class="modal">
+  <div class="mh"><h2 id="bd-title">Block</h2><button class="mx" onclick="closeM('m-block-detail')">✕</button></div>
+  <div class="mb" id="bd-body"></div>
+</div></div>
+
+<div class="mbg off" id="m-block-picker"><div class="modal wide">
+  <div class="mh"><h2 id="bkp-title">Pick Blocks</h2><button class="mx" onclick="closeM('m-block-picker')">✕</button></div>
+  <div class="mb">
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input type="text" id="bkp-search" placeholder="Search..." oninput="loadPickerBlocks()" style="flex:1">
+      <select id="bkp-type" onchange="loadPickerBlocks()" style="width:140px">
+        <option value="">All types</option>
+        <option value="pose">Pose</option><option value="meme">Meme</option>
+        <option value="sfx">SFX</option><option value="image">Image</option>
+        <option value="url">URL</option><option value="note">Note</option>
+        <option value="conversation">Conversation</option>
+      </select>
+      <span id="bkp-sel-count" style="font-size:12px;color:var(--muted);align-self:center">0 selected</span>
+    </div>
+    <div id="bkp-grid" class="bpm-grid"></div>
+    <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeM('m-block-picker')">Cancel</button>
+      <button class="btn btn-dark" id="bkp-attach" onclick="confirmPickerAttach()" disabled>Attach →</button>
+    </div>
+  </div>
+</div></div>
+
+<div class="mbg off" id="m-analyze"><div class="modal">
+  <div class="mh"><h2>Analyze Conversation</h2><button class="mx" onclick="closeM('m-analyze')">✕</button></div>
+  <div class="mb">
+    <div class="tabs">
+      <button class="tab on" onclick="switchTab('az','text',this)">Paste Text</button>
+      <button class="tab" onclick="switchTab('az','img',this)">Screenshot</button>
+    </div>
+    <div id="az-text" class="tc on">
+      <label>Full DM conversation</label>
+      <textarea id="az-conv" style="min-height:200px" placeholder="Paste the entire thread..."></textarea>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeM('m-analyze')">Cancel</button>
         <button class="btn btn-dark" id="az-btn" onclick="analyzeConversation()">Analyze with Claude →</button>
       </div>
     </div>
-    <div id="at-img" class="tc">
-      <div style="border:2px dashed var(--border);border-radius:var(--r);padding:24px;text-align:center;color:var(--muted);margin-bottom:12px">
-        <div style="font-size:30px;margin-bottom:6px">📷</div>
-        <p style="font-size:13px">Drop screenshot or <label for="az-file" style="color:var(--accent);cursor:pointer">browse</label></p>
+    <div id="az-img" class="tc">
+      <div style="border:2px dashed var(--border);border-radius:var(--r);padding:24px;text-align:center;color:var(--muted);cursor:pointer" onclick="document.getElementById('az-file').click()">
+        <div style="font-size:28px;margin-bottom:5px">📷</div>
+        <p style="font-size:13px">Drop screenshot or <span style="color:var(--accent)">browse</span></p>
         <input type="file" id="az-file" accept="image/*" style="display:none" onchange="handleAzFile(this)">
       </div>
-      <div id="az-preview" style="display:none;margin-bottom:12px"><img id="az-img" style="max-width:100%;border-radius:8px;max-height:180px;object-fit:contain"></div>
-      <div style="display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn btn-ghost" onclick="closeModal('m-analyze')">Cancel</button>
-        <button class="btn btn-dark" id="az-img-btn" onclick="analyzeScreenshot()">Analyze Screenshot →</button>
+      <div id="az-preview" style="display:none;margin:10px 0"><img id="az-img-prev" style="max-width:100%;border-radius:8px;max-height:160px;object-fit:contain"></div>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeM('m-analyze')">Cancel</button>
+        <button class="btn btn-dark" id="az-img-btn" onclick="analyzeImage()">Analyze Screenshot →</button>
       </div>
     </div>
   </div>
-</div>
-</div>
+</div></div>
 
-<!-- Edit Field -->
-<div class="modal-bg off" id="m-editfield">
-<div class="modal" style="max-width:480px">
-  <div class="mh"><h2 id="ef-title">Edit</h2><button class="mx" onclick="closeModal('m-editfield')">✕</button></div>
+<div class="mbg off" id="m-editfield"><div class="modal" style="max-width:440px">
+  <div class="mh"><h2 id="ef-label">Edit</h2><button class="mx" onclick="closeM('m-editfield')">✕</button></div>
   <div class="mb">
-    <textarea id="ef-val" style="min-height:130px"></textarea>
-    <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
-      <button class="btn btn-ghost" onclick="closeModal('m-editfield')">Cancel</button>
-      <button class="btn btn-dark" onclick="saveFieldEdit()">Save</button>
+    <textarea id="ef-val" style="min-height:100px"></textarea>
+    <div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeM('m-editfield')">Cancel</button>
+      <button class="btn btn-dark" onclick="confirmEditField()">Save</button>
     </div>
   </div>
-</div>
-</div>
+</div></div>
 
-<!-- Pose Picker -->
-<div class="modal-bg off" id="m-poses">
-<div class="modal wide">
-  <div class="mh"><h2>Add Poses from Drive</h2><button class="mx" onclick="closeModal('m-poses')">✕</button></div>
+<div class="mbg off" id="m-hooks"><div class="modal">
+  <div class="mh"><h2>Hook Library</h2><button class="mx" onclick="closeM('m-hooks')">✕</button></div>
   <div class="mb">
-    <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Browsing your <strong>Phixo Poses</strong> folder in Google Drive. Select poses to attach to this client.</p>
-    <div style="display:flex;gap:8px;align-items:center;margin-bottom:16px">
-      <input type="text" id="pose-search" placeholder="Filter by filename..." oninput="filterPoses()" style="width:240px">
-      <span id="pose-sel-count" style="font-size:13px;color:var(--muted)">0 selected</span>
-      <button class="btn btn-dark btn-sm" onclick="attachSelectedPoses()" id="pose-attach-btn" disabled>Attach to Client →</button>
-    </div>
-    <div id="pose-grid" class="pose-grid"><div class="empty" style="padding:30px"><div class="e" style="font-size:30px">📷</div><p>Loading poses from Drive...</p></div></div>
-    <div id="pose-msg" style="font-size:13px;color:var(--muted);margin-top:10px;display:none"></div>
-  </div>
-</div>
-</div>
-
-<!-- New Research -->
-<div class="modal-bg off" id="m-research">
-<div class="modal">
-  <div class="mh"><h2>Add to Research Library</h2><button class="mx" onclick="closeModal('m-research')">✕</button></div>
-  <div class="mb">
-    <div class="tabs">
-      <button class="tab on" onclick="switchTab('rt','url',this)">URL / Article</button>
-      <button class="tab" onclick="switchTab('rt','upload',this)">Upload File</button>
-    </div>
-    <div id="rt-url" class="tc on">
-      <label>Title *</label><input type="text" id="nr-title" placeholder="Give it a clear name">
-      <label>Type</label>
-      <select id="nr-type">
-        <option value="article">Article / URL</option><option value="pose">Pose idea</option>
-        <option value="transcript">Transcript / Notes</option><option value="audio">Audio / SFX</option>
-        <option value="meme">Meme</option><option value="image">Image</option><option value="pdf">PDF</option>
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input type="text" id="hook-search" placeholder="Search hooks..." oninput="loadHooks()" style="flex:1">
+      <select id="hook-cat" onchange="loadHooks()" style="width:140px">
+        <option value="">All categories</option>
+        <option value="story">Story</option><option value="contrarian">Contrarian</option>
+        <option value="mistake">Mistake</option><option value="educational">Educational</option>
+        <option value="curiosity">Curiosity</option><option value="if-then">If-Then</option>
+        <option value="before-after">Before/After</option><option value="question">Question</option>
+        <option value="number-list">Number List</option>
       </select>
-      <label>Source URL</label><input type="url" id="nr-url" placeholder="https://...">
-      <label>Tags (comma separated)</label><input type="text" id="nr-tags" placeholder="posing, lighting, hooks, tiktok">
-      <label>Why it matters / summary</label>
-      <textarea id="nr-why" placeholder="Why you saved this. What it's useful for."></textarea>
-      <label>Recommended use</label>
-      <input type="text" id="nr-use" placeholder="e.g. hook style for nervous client reels">
-      <label>Platform</label>
-      <select id="nr-plat">
-        <option value="">Any</option><option>Instagram</option><option>TikTok</option><option>LinkedIn</option>
-      </select>
-      <div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn btn-ghost" onclick="closeModal('m-research')">Cancel</button>
-        <button class="btn btn-dark" onclick="saveResearchUrl()">Save to Library →</button>
-      </div>
+      <button class="btn btn-ghost btn-sm" onclick="ingestHooksPdf()" id="hooks-ingest-btn">↻ PDF</button>
     </div>
-    <div id="rt-upload" class="tc">
-      <div style="border:2px dashed var(--border);border-radius:var(--r);padding:24px;text-align:center;color:var(--muted);margin-bottom:12px">
-        <div style="font-size:30px;margin-bottom:6px">📁</div>
-        <p style="font-size:13px">Drop file here or <label for="nr-file" style="color:var(--accent);cursor:pointer">browse</label></p>
-        <p style="font-size:11px;margin-top:4px">Images, audio, PDFs — uploaded to Phixo Research in Drive</p>
-        <input type="file" id="nr-file" style="display:none" onchange="handleResearchFile(this)">
-      </div>
-      <div id="nr-file-name" style="font-size:12px;color:var(--muted);margin-bottom:8px;display:none"></div>
-      <label>Title</label><input type="text" id="nru-title">
-      <label>Type</label>
-      <select id="nru-type">
-        <option value="image">Image</option><option value="meme">Meme</option>
-        <option value="audio">Audio / SFX</option><option value="pose">Pose idea</option><option value="pdf">PDF</option>
-      </select>
-      <label>Tags</label><input type="text" id="nru-tags" placeholder="posing, lighting, hooks">
-      <label>Why it matters</label><textarea id="nru-why"></textarea>
-      <div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn btn-ghost" onclick="closeModal('m-research')">Cancel</button>
-        <button class="btn btn-dark" id="nru-btn" onclick="uploadResearch()">Upload to Drive →</button>
-      </div>
+    <div id="hooks-list" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:8px"></div>
+    <div style="margin-top:10px;display:flex;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeM('m-hooks')">Close</button>
     </div>
   </div>
-</div>
-</div>
-
-<!-- Research Detail -->
-<div class="modal-bg off" id="m-resdetail">
-<div class="modal">
-  <div class="mh"><h2 id="rd-title"></h2><button class="mx" onclick="closeModal('m-resdetail')">✕</button></div>
-  <div class="mb" id="rd-body"></div>
-</div>
-</div>
-
-<!-- New / Edit Post -->
-<div class="modal-bg off" id="m-post">
-<div class="modal" style="max-width:980px">
-  <div class="mh"><h2 id="pm-title">New Post Brief</h2><button class="mx" onclick="closeModal('m-post')">✕</button></div>
-  <div class="mb" style="display:grid;grid-template-columns:1fr 320px;gap:24px;align-items:start">
-
-    <!-- LEFT: Brief fields -->
-    <div>
-      <div class="row3">
-        <div><label>Platform</label>
-          <select id="np-plat"><option>Instagram</option><option>TikTok</option><option>LinkedIn</option></select>
-        </div>
-        <div><label>Status</label>
-          <select id="np-status">
-            <option value="idea">Idea</option><option value="draft">Draft</option>
-            <option value="ready">Ready</option><option value="posted">Posted</option>
-          </select>
-        </div>
-        <div><label>Post Date</label><input type="text" id="np-date" placeholder="e.g. March 3"></div>
-      </div>
-      <label>Hook *</label>
-      <input type="text" id="np-hook" placeholder="The first line — what stops the scroll">
-      <label>Caption draft</label>
-      <textarea id="np-caption" placeholder="Full caption or rough notes..."></textarea>
-      <label>Shot list / B-roll notes</label>
-      <textarea id="np-shots" style="min-height:60px" placeholder="What needs to be filmed or set up"></textarea>
-      <label>CTA</label>
-      <input type="text" id="np-cta" placeholder="e.g. Book a session — link in bio">
-      <label>Notes</label>
-      <textarea id="np-notes" style="min-height:60px" placeholder="Audio ideas, vibe, references, anything else"></textarea>
-      <label style="margin-top:16px">Attach from Library</label>
-      <p style="font-size:12px;color:var(--muted);margin-bottom:8px">Click items to attach to this brief.</p>
-      <div id="np-res-grid" class="res-pick-grid"></div>
-      <div id="np-attached" class="attached-list" style="margin-top:8px"></div>
-      <div style="margin-top:20px;display:flex;gap:8px;justify-content:flex-end">
-        <button class="btn btn-ghost" onclick="closeModal('m-post')">Cancel</button>
-        <button class="btn btn-dark" id="np-save" onclick="savePost()">Save Post →</button>
-      </div>
-    </div>
-
-    <!-- RIGHT: AI Assistant -->
-    <div style="position:sticky;top:0">
-      <div style="background:var(--nav);border-radius:var(--r);overflow:hidden">
-        <div style="padding:14px 16px;border-bottom:1px solid #2a2a1a">
-          <div style="font-size:11px;text-transform:uppercase;letter-spacing:1.2px;color:#665;margin-bottom:3px">Post Assistant</div>
-          <div style="font-size:12px;color:#888;line-height:1.4">Uses your Phixo Knowledge folder. Helps you think — doesn't write for you.</div>
-        </div>
-        <div id="assist-msgs" style="height:300px;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px">
-          <div class="assist-msg assist-ai">What kind of post are you thinking about? Even a rough idea is enough to start.</div>
-        </div>
-        <div style="padding:10px 12px;border-top:1px solid #2a2a1a;display:flex;gap:8px">
-          <input type="text" id="assist-input" placeholder="Reply here..." onkeydown="if(event.key==='Enter')sendAssist()"
-            style="flex:1;background:#1e1e10;border-color:#333320;color:#ccc;font-size:13px;padding:8px 10px">
-          <button class="btn btn-accent btn-sm" onclick="sendAssist()" id="assist-send">→</button>
-        </div>
-        <div style="padding:6px 12px 12px;display:flex;gap:5px;flex-wrap:wrap">
-          <button class="assist-quick" onclick="quickAssist('Help me find a hook angle')">Hook ideas</button>
-          <button class="assist-quick" onclick="quickAssist('What should the caption focus on?')">Caption angle</button>
-          <button class="assist-quick" onclick="quickAssist('What shot list do I need?')">Shot list</button>
-          <button class="assist-quick" onclick="quickAssist('What CTA makes sense?')">CTA</button>
-        </div>
-      </div>
-    </div>
-
-  </div>
-</div>
-</div>
+</div></div>
 
 <div class="toast" id="toast"></div>
-
 <script>
-// ═════════════════════════════════════════════════
-// STATE
-// ═════════════════════════════════════════════════
-let CID = null;          // current client id
-let PID = null;          // current post id
-let efKey = null;        // field being edited
-let azFile = null;       // screenshot file
-let resFile = null;      // research upload file
-let poseFiles = [];      // all pose files from Drive
-let selPoses = new Set(); // selected pose file ids
-let postResIds = new Set(); // research ids attached to current post
-let allResearch = [];    // cached research items
+// ═══ STATE ═══
+let CID=null,PROID=null,POST_ID=null,ef_key=null,ef_entity=null;
+let ab_file=null,az_file=null,driveFiles=[];
+let ab_driveSelIds=new Set(),picker_sel=new Set();
+let pickerEntity=null,pickerEntityId=null;
+let assistHistory=[],postModules=[],allBlocks=[];
+let dragSrcIdx=null;
 
-// ═════════════════════════════════════════════════
-// UTILITIES
-// ═════════════════════════════════════════════════
-function toast(msg, type='') {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.className = 'toast on ' + type;
-  clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove('on'), 2800);
+// ═══ UTILS ═══
+function toast(msg,type=''){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.className='toast on '+type;
+  clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on'),2800);
 }
+const dtimers={};
+function debouncedLoad(fn){clearTimeout(dtimers[fn]);dtimers[fn]=setTimeout(()=>window[fn](),280);}
 
-function debounce(fn, ms) {
-  let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); };
+async function api(method,url,body){
+  const opts={method,headers:{}};
+  if(body instanceof FormData){opts.body=body;}
+  else if(body){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(body);}
+  const r=await fetch(url,opts);
+  if(!r.ok){const e=await r.json().catch(()=>({error:'Failed'}));throw new Error(e.error||'Failed');}
+  return r.json();
 }
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function typeIcon(t){return{pose:'🧍',meme:'😂',sfx:'🎵',audio:'🎵',image:'🖼️',url:'📄',video:'🎬',conversation:'💬',note:'📝',pdf:'📋',transcript:'📝'}[t]||'📁';}
+function funnelBadge(f){if(!f)return'';const l={tof:'TOF',mof:'MOF',bof:'BOF'};return`<span class="funnel-label fl-${f}">${l[f]||f}</span>`;}
+function statusClass(s){return{lead:'t-lead',booked:'t-booked',shot:'t-shot',delivered:'t-delivered',watching:'t-watching','outreach-ready':'t-outreach',contacted:'t-contacted','not-a-fit':'t-notfit'}[s]||'t-lead';}
+function tempClass(t){if(!t)return't-lead';const l=t.toLowerCase();return l.startsWith('hot')?'t-hot':l.startsWith('warm')?'t-warm':l.startsWith('cold')?'t-cold':'t-lead';}
 
-const debouncedLoadClients = debounce(loadClients, 280);
-const debouncedLoadResearch = debounce(loadResearch, 280);
-
-async function api(method, url, body) {
-  const opts = { method, headers: {} };
-  if (body instanceof FormData) { opts.body = body; }
-  else if (body) { opts.headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(body); }
-  const res = await fetch(url, opts);
-  if (!res.ok) { const e = await res.json().catch(()=>({error:'Request failed'})); throw new Error(e.error||'Failed'); }
-  return res.json();
-}
-
-function esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-
-function showView(name, navEl) {
+function showView(name,navEl){
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
-  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
-  const v = document.getElementById('v-'+name);
-  if (v) v.classList.add('on');
-  if (navEl) navEl.classList.add('active');
-  if (name==='clients') loadClients();
-  if (name==='research') loadResearch();
-  if (name==='posts') loadPosts();
-  if (name==='media') loadMediaFolder('Meme');
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
+  const v=document.getElementById('v-'+name);
+  if(v)v.classList.add('on');
+  if(navEl)navEl.classList.add('on');
+  else{const nb=document.querySelector(`.nb[data-view="${name}"]`);if(nb)nb.classList.add('on');}
+  if(name==='pipeline')loadPipeline();
+  if(name==='discovery')loadDiscovery();
+  if(name==='research')loadResearch();
+  if(name==='calendar')loadCalendar();
 }
-
-function closeModal(id) { document.getElementById(id).classList.add('off'); }
-function openModal(id) { document.getElementById(id).classList.remove('off'); }
-
-function switchTab(group, tab, btn) {
-  const container = btn.closest('.modal,.card');
-  container.querySelectorAll('.tc').forEach(c=>c.classList.remove('on'));
-  const tc = document.getElementById(group+'-'+tab);
-  if (tc) tc.classList.add('on');
+function closeM(id){document.getElementById(id).classList.add('off');}
+function openModal(id){document.getElementById(id).classList.remove('off');}
+function switchTab(group,tab,btn){
+  const modal=btn.closest('.modal,.mbg');
+  modal.querySelectorAll('.tc').forEach(c=>c.classList.remove('on'));
+  const tc=document.getElementById(group+'-'+tab);
+  if(tc)tc.classList.add('on');
   btn.closest('.tabs').querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
   btn.classList.add('on');
 }
+document.querySelectorAll('.mbg').forEach(bg=>bg.addEventListener('click',e=>{if(e.target===bg)bg.classList.add('off');}));
 
-function tempClass(t) {
-  if (!t) return 't-lead';
-  const l = t.toLowerCase();
-  if (l.startsWith('hot')) return 't-hot';
-  if (l.startsWith('warm')) return 't-warm';
-  if (l.startsWith('cold')) return 't-cold';
-  return 't-lead';
-}
-
-function statusClass(s) {
-  return {lead:'t-lead',booked:'t-booked',shot:'t-shot',delivered:'t-delivered'}[s]||'t-lead';
-}
-
-function typeIcon(type) {
-  return {article:'📄',pose:'🧍',meme:'😂',audio:'🎵',transcript:'📝',image:'🖼️',pdf:'📋'}[type]||'📁';
-}
-
-// ═════════════════════════════════════════════════
-// CLIENTS — LIST
-// ═════════════════════════════════════════════════
-async function loadClients() {
-  const search = document.getElementById('cl-search').value;
-  const status = document.getElementById('cl-status').value;
-  const p = new URLSearchParams();
-  if (search) p.set('search', search);
-  if (status) p.set('status', status);
-  const clients = await api('GET', '/api/clients?'+p);
-  const grid = document.getElementById('cl-grid');
-  if (!clients.length) {
-    grid.innerHTML = '<div class="empty"><div class="e">👤</div><p>No clients yet — create your first one</p></div>';
-    return;
-  }
-  grid.innerHTML = clients.map(c => `
-    <div class="cl-card" onclick="openClientFile(${c.id})">
+// ═══ PIPELINE ═══
+async function loadPipeline(){
+  const p=new URLSearchParams();
+  const s=document.getElementById('pl-search').value;
+  const st=document.getElementById('pl-status').value;
+  if(s)p.set('search',s);if(st)p.set('status',st);
+  const clients=await api('GET','/api/clients?'+p);
+  const grid=document.getElementById('pipeline-grid');
+  if(!clients.length){grid.innerHTML='<div class="empty"><div class="ei">👤</div><p>No clients yet</p></div>';return;}
+  grid.innerHTML=clients.map(c=>`
+    <div class="card" onclick="openClientFile(${c.id})">
       <h3>${esc(c.name)}</h3>
-      <div class="meta">${esc(c.platform||'')}${c.session_type?' · '+esc(c.session_type):''}${c.session_date?' · '+esc(c.session_date):''}</div>
+      <div class="meta">${esc(c.platform||'')}${c.session_type?` · ${esc(c.session_type)}`:''}${c.session_date?` · ${esc(c.session_date)}`:''}</div>
       <div class="foot">
         <span class="tag ${statusClass(c.status)}">${c.status}</span>
         ${c.lead_temperature?`<span class="tag ${tempClass(c.lead_temperature)}">${esc(c.lead_temperature.split(' ')[0])}</span>`:''}
@@ -683,79 +589,57 @@ async function loadClients() {
       </div>
     </div>`).join('');
 }
-
-// ═════════════════════════════════════════════════
-// CLIENTS — NEW
-// ═════════════════════════════════════════════════
-function openNewClient() {
-  ['nc-name','nc-date','nc-offer','nc-firstcontact','nc-thread'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('nc-status').value = 'lead';
-  openModal('m-newclient');
+function openNewClient(){
+  ['mc-name','mc-date','mc-offer','mc-contact'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('mc-status').value='lead';
+  openModal('m-client');
 }
-
-async function createClient() {
-  const name = document.getElementById('nc-name').value.trim();
-  if (!name) { toast('Name is required','err'); return; }
-  try {
-    const c = await api('POST','/api/clients',{
-      name, platform: document.getElementById('nc-platform').value,
-      session_type: document.getElementById('nc-stype').value,
-      session_date: document.getElementById('nc-date').value,
-      offer: document.getElementById('nc-offer').value,
-      first_contact: document.getElementById('nc-firstcontact').value,
-      status: document.getElementById('nc-status').value,
-      thread_id: document.getElementById('nc-thread').value
+async function saveClient(){
+  const name=document.getElementById('mc-name').value.trim();
+  if(!name){toast('Name required','err');return;}
+  try{
+    const c=await api('POST','/api/clients',{
+      name,platform:document.getElementById('mc-platform').value,
+      session_type:document.getElementById('mc-stype').value,
+      session_date:document.getElementById('mc-date').value,
+      offer:document.getElementById('mc-offer').value,
+      first_contact:document.getElementById('mc-contact').value,
+      status:document.getElementById('mc-status').value
     });
-    closeModal('m-newclient');
-    toast('Client created','ok');
-    openClientFile(c.id);
-  } catch(err) { toast(err.message,'err'); }
+    closeM('m-client');toast('Client created','ok');openClientFile(c.id);
+  }catch(err){toast(err.message,'err');}
 }
 
-// ═════════════════════════════════════════════════
-// CLIENTS — FILE VIEW (Evelyn format)
-// ═════════════════════════════════════════════════
-async function openClientFile(id) {
-  CID = id;
-  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+// ═══ CLIENT FILE ═══
+async function openClientFile(id){
+  CID=id;
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
   document.getElementById('v-client-file').classList.add('on');
-  const c = await api('GET','/api/clients/'+id);
-  renderCF(c);
+  const c=await api('GET','/api/clients/'+id);
+  renderClientFile(c);
 }
-
-function renderCF(c) {
-  // Build the header exactly like Evelyn:
-  // Phixo — Client File
-  // [Name]
-  // Platform | Session Type | Session Date
-  const metaParts = [c.platform, c.session_type, c.session_date].filter(Boolean);
-
-  // Poses strip
-  const posesHtml = (c.poses||[]).map(p => `
-    <div class="pose-thumb">
-      <img src="/api/drive/file/${p.drive_file_id}" alt="${esc(p.file_name)}" title="${esc(p.file_name)}"
-           onerror="this.src='data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' width=\'100\' height=\'100\'><rect fill=\'%23eee\' width=\'100\' height=\'100\'/><text x=\'50\' y=\'55\' text-anchor=\'middle\' font-size=\'28\'>🧍</text></svg>'">
-      <button class="rm" onclick="removePose(${p.id},event)" title="Remove">✕</button>
-    </div>`).join('');
-
-  function row(label, key, val, multiline) {
-    const display = val
-      ? `<span class="cf-val edit" onclick="editField('${key}','${esc(val)}','${label}')">${multiline ? esc(val) : esc(val)}</span>`
-      : `<span class="cf-val edit muted" onclick="editField('${key}','','${label}')">— click to add</span>`;
-    return `<div class="cf-row"><div class="cf-key">${label}</div><div>${display}</div></div>`;
+function renderClientFile(c){
+  const metaParts=[c.platform,c.session_type,c.session_date].filter(Boolean);
+  const poses=(c.blocks||[]).filter(b=>b.type==='pose');
+  const otherBlocks=(c.blocks||[]).filter(b=>b.type!=='pose');
+  function row(label,key,val){
+    return `<div class="cf-row"><div class="cf-key">${label}</div><div>
+      ${val
+        ?`<span class="cf-val editable" onclick="editField('${key}','${esc(val)}','${label}','client')">${esc(val)}</span>`
+        :`<span class="cf-val editable empty" onclick="editField('${key}','','${label}','client')">— click to add</span>`
+      }</div></div>`;
   }
-
-  document.getElementById('cf-body').innerHTML = `
+  document.getElementById('cf-body').innerHTML=`
     <div class="cf-header">
       <div class="cf-brand">Phixo — Client File</div>
       <div class="cf-name">${esc(c.name)}</div>
       <div class="cf-meta">${metaParts.map(esc).join('  |  ')}</div>
     </div>
-
     <div class="cf-actions">
       <button class="btn btn-dark btn-sm" onclick="openAnalyze()">📋 Analyze Conversation</button>
-      <select onchange="updateStatus(this.value)" style="padding:6px 11px;font-size:13px;border-radius:7px;border:1px solid var(--border);background:var(--bg)">
+      <button class="btn btn-ghost btn-sm" onclick="openBlockPicker('client',${c.id},['pose'],'Add Poses')">🧍 Add Poses</button>
+      <button class="btn btn-ghost btn-sm" onclick="openBlockPicker('client',${c.id},null,'Attach Blocks')">＋ Attach</button>
+      <select onchange="updateClientStatus(this.value)" style="padding:5px 10px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--bg)">
         <option value="lead" ${c.status==='lead'?'selected':''}>Lead</option>
         <option value="booked" ${c.status==='booked'?'selected':''}>Booked</option>
         <option value="shot" ${c.status==='shot'?'selected':''}>Shot</option>
@@ -763,44 +647,27 @@ function renderCF(c) {
       </select>
       <button class="btn btn-danger btn-sm" onclick="deleteClient(${c.id})">Delete</button>
     </div>
-
-    <!-- CLIENT INFO -->
-    <div class="cf-section">
+    <div class="cf-sec">
       <div class="cf-sh open" onclick="toggleSec(this)"><h3>Client Info</h3><span class="arr">▾</span></div>
-      <div class="cf-sb">
-        ${row('Name','name',c.name)}
-        ${row('Platform','platform',c.platform)}
-        ${row('Thread ID','thread_id',c.thread_id)}
-        ${row('Session Type','session_type',c.session_type)}
-        ${row('Session Date','session_date',c.session_date)}
-        ${row('Offer','offer',c.offer)}
-        ${row('First Contact','first_contact',c.first_contact)}
-      </div>
+      <div class="cf-bd">${row('Name','name',c.name)}${row('Platform','platform',c.platform)}${row('Session Type','session_type',c.session_type)}${row('Session Date','session_date',c.session_date)}${row('Offer','offer',c.offer)}${row('First Contact','first_contact',c.first_contact)}</div>
     </div>
-
-    <!-- MESSAGE ANALYSIS -->
-    <div class="cf-section">
+    <div class="cf-sec">
       <div class="cf-sh open" onclick="toggleSec(this)"><h3>Message Analysis</h3><span class="arr">▾</span></div>
-      <div class="cf-sb">
-        <div class="cf-row">
-          <div class="cf-key">Lead Temperature</div>
-          <div>
-            ${c.lead_temperature
-              ? `<span class="temp-badge ${tempClass(c.lead_temperature)}">${esc(c.lead_temperature)}</span>`
-              : `<span class="cf-val edit muted" onclick="editField('lead_temperature','','Lead Temperature')">— click to add</span>`}
-          </div>
-        </div>
+      <div class="cf-bd">
+        <div class="cf-row"><div class="cf-key">Lead Temperature</div><div>
+          ${c.lead_temperature
+            ?`<span class="temp-badge ${tempClass(c.lead_temperature)}">${esc(c.lead_temperature)}</span>`
+            :`<span class="cf-val editable empty" onclick="editField('lead_temperature','','Lead Temperature','client')">— click to add</span>`}
+        </div></div>
         ${row('What They Want','what_they_want',c.what_they_want)}
         ${row('Emotional Read','emotional_read',c.emotional_read)}
         ${row('Red Flags','red_flags',c.red_flags)}
         ${row('Opportunity','opportunity',c.opportunity)}
       </div>
     </div>
-
-    <!-- SESSION BRIEFING -->
-    <div class="cf-section">
-      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Session Briefing</h3><span class="arr">▾</span></div>
-      <div class="cf-sb">
+    <div class="cf-sec">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Session Briefing — How to Connect with ${esc(c.name)}</h3><span class="arr">▾</span></div>
+      <div class="cf-bd">
         ${row('How to Open','how_to_open',c.how_to_open)}
         ${row('Things to Avoid','things_to_avoid',c.things_to_avoid)}
         ${row('Key Question','key_question',c.key_question)}
@@ -811,635 +678,716 @@ function renderCF(c) {
         ${row('Lighting Setup','lighting_setup',c.lighting_setup)}
       </div>
     </div>
-
-    <!-- POSES -->
-    <div class="cf-section">
+    <div class="cf-sec">
       <div class="cf-sh open" onclick="toggleSec(this)"><h3>Pose Selection</h3><span class="arr">▾</span></div>
-      <div class="cf-sb" style="padding-top:14px">
-        <div class="pose-strip" id="pose-strip">
-          ${posesHtml}
-          <button class="pose-add-btn" onclick="openPosePicker()">
-            <span style="font-size:22px">＋</span>
-            <span>Add Poses</span>
+      <div class="cf-bd" style="padding-top:12px">
+        <div class="block-strip">
+          ${poses.map(p=>`
+            <div class="strip-thumb" title="${esc(p.file_name||p.title)}">
+              ${p.drive_file_id
+                ?`<img src="/api/drive/file/${p.drive_file_id}" loading="lazy" onerror="this.parentElement.innerHTML='<span style=font-size:28px>🧍</span>'">`
+                :`<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:28px">🧍</div>`}
+              <button class="rm" onclick="detachBlock(${p.attachment_id},'client')">✕</button>
+            </div>`).join('')}
+          <button class="strip-add" onclick="openBlockPicker('client',${c.id},['pose'],'Add Poses')">
+            <span class="ico">＋</span><span>Add Poses</span>
           </button>
         </div>
-        ${!(c.poses||[]).length ? '<p style="font-size:12px;color:var(--muted);margin-top:10px">No poses attached yet. Click + to browse your Phixo Poses folder in Drive.</p>' : ''}
       </div>
     </div>
-
-    <!-- CONVERSATION LOG -->
-    <div class="cf-section">
+    <div class="cf-sec">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Attached Blocks</h3><span class="arr">▾</span></div>
+      <div class="cf-bd" style="padding-top:12px">
+        <div class="block-strip">
+          ${otherBlocks.map(b=>`
+            <div class="strip-thumb" title="${esc(b.title)}" style="cursor:pointer" onclick="openBlockDetail(${b.id})">
+              ${b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('image/')
+                ?`<img src="/api/drive/file/${b.drive_file_id}" loading="lazy">`
+                :`<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:24px">${typeIcon(b.type)}</div>`}
+              <button class="rm" onclick="event.stopPropagation();detachBlock(${b.attachment_id},'client')">✕</button>
+            </div>`).join('')}
+          <button class="strip-add" onclick="openBlockPicker('client',${c.id},null,'Attach Blocks')">
+            <span class="ico">＋</span><span>Attach</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="cf-sec">
       <div class="cf-sh open" onclick="toggleSec(this)"><h3>Conversation Log</h3><span class="arr">▾</span></div>
-      <div class="cf-sb" style="padding-top:14px">
+      <div class="cf-bd" style="padding-top:12px">
         ${c.conversation_log
-          ? `<div class="conv-block">${esc(c.conversation_log)}</div>`
-          : `<p style="font-size:13px;color:var(--muted)">No conversation yet — use Analyze Conversation above.</p>`}
+          ?`<div class="conv-block">${esc(c.conversation_log)}</div>`
+          :`<p style="font-size:13px;color:var(--muted)">No conversation yet — use Analyze Conversation above.</p>`}
       </div>
     </div>
-
-    <!-- DRAFT REPLY -->
-    <div class="cf-section">
+    <div class="cf-sec">
       <div class="cf-sh open" onclick="toggleSec(this)"><h3>Draft Reply / Final Sent</h3><span class="arr">▾</span></div>
-      <div class="cf-sb" style="padding-top:14px">
+      <div class="cf-bd" style="padding-top:12px">
         ${c.draft_reply
-          ? `<div style="margin-bottom:14px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:8px">Draft Reply — Ready to Edit</div>
-            <div class="draft-block">${esc(c.draft_reply)}</div></div>`
-          : ''}
-        ${row('Final Version Sent','final_reply',c.final_reply)}
+          ?`<div class="draft-block">${esc(c.draft_reply)}</div><div style="margin-top:8px">${row('Final Version Sent','final_reply',c.final_reply)}</div>`
+          :row('Draft / Final Reply','draft_reply',c.draft_reply)}
       </div>
     </div>
-
-    <!-- NOTES -->
-    <div class="cf-section">
-      <div class="cf-sh" onclick="toggleSec(this)"><h3>Notes</h3><span class="arr">▸</span></div>
-      <div class="cf-sb hide">
-        ${row('Notes','notes',c.notes)}
-      </div>
-    </div>
-
-    <div style="font-size:11px;color:var(--muted);text-align:right;margin-top:14px">
-      Last updated: ${new Date(c.updated_at).toLocaleString('en-CA')}  |  Phixo Studio — West Island Montreal
+    <div style="font-size:11px;color:var(--muted);text-align:right;margin-top:12px">
+      Last updated: ${new Date(c.updated_at).toLocaleString('en-CA')} | Phixo Studio — West Island Montreal
     </div>`;
 }
-
-function toggleSec(header) {
-  const body = header.nextElementSibling;
-  const arr = header.querySelector('.arr');
-  const hidden = body.classList.toggle('hide');
-  header.classList.toggle('open', !hidden);
-  arr.textContent = hidden ? '▸' : '▾';
+function toggleSec(h){
+  const body=h.nextElementSibling;
+  body.classList.toggle('hide');
+  h.classList.toggle('open',!body.classList.contains('hide'));
+  h.querySelector('.arr').textContent=body.classList.contains('hide')?'▸':'▾';
 }
-
-// ─── Edit a field inline ──────────────────────────────────
-function editField(key, current, label) {
-  efKey = key;
-  document.getElementById('ef-title').textContent = 'Edit: ' + label;
-  document.getElementById('ef-val').value = current;
+function editField(key,current,label,entity){
+  ef_key=key;ef_entity=entity;
+  document.getElementById('ef-label').textContent='Edit: '+label;
+  document.getElementById('ef-val').value=current;
   openModal('m-editfield');
-  setTimeout(()=>document.getElementById('ef-val').focus(),80);
+  setTimeout(()=>document.getElementById('ef-val').focus(),60);
+}
+async function confirmEditField(){
+  const val=document.getElementById('ef-val').value;
+  try{
+    if(ef_entity==='client'){const c=await api('PATCH','/api/clients/'+CID,{[ef_key]:val});closeM('m-editfield');toast('Saved','ok');renderClientFile(c);}
+    else if(ef_entity==='prospect'){const p=await api('PATCH','/api/prospects/'+PROID,{[ef_key]:val});closeM('m-editfield');toast('Saved','ok');renderProspectFile(p);}
+  }catch(err){toast(err.message,'err');}
+}
+async function updateClientStatus(s){
+  try{await api('PATCH','/api/clients/'+CID,{status:s});toast('Updated','ok');}
+  catch(err){toast(err.message,'err');}
+}
+async function deleteClient(id){
+  if(!confirm('Delete this client file?'))return;
+  try{await api('DELETE','/api/clients/'+id);toast('Deleted');showView('pipeline');}
+  catch(err){toast(err.message,'err');}
 }
 
-async function saveFieldEdit() {
-  const val = document.getElementById('ef-val').value;
-  try {
-    const c = await api('PATCH','/api/clients/'+CID,{[efKey]:val});
-    closeModal('m-editfield');
-    toast('Saved','ok');
-    renderCF(c);
-  } catch(err) { toast(err.message,'err'); }
-}
-
-async function updateStatus(status) {
-  try {
-    await api('PATCH','/api/clients/'+CID,{status});
-    toast('Status updated','ok');
-  } catch(err) { toast(err.message,'err'); }
-}
-
-async function deleteClient(id) {
-  if (!confirm('Delete this client file? Cannot be undone.')) return;
-  try {
-    await api('DELETE','/api/clients/'+id);
-    toast('Deleted');
-    showView('clients');
-    loadClients();
-  } catch(err) { toast(err.message,'err'); }
-}
-
-// ─── Analyze ─────────────────────────────────────────────
-function openAnalyze() {
-  document.getElementById('az-text').value = '';
-  azFile = null;
-  document.getElementById('az-preview').style.display = 'none';
+// ═══ ANALYZE ═══
+function openAnalyze(){
+  document.getElementById('az-conv').value='';az_file=null;
+  document.getElementById('az-preview').style.display='none';
   openModal('m-analyze');
 }
-
-async function analyzeConversation() {
-  const conv = document.getElementById('az-text').value.trim();
-  if (!conv) { toast('Paste a conversation first','err'); return; }
-  const btn = document.getElementById('az-btn');
-  btn.disabled = true; btn.textContent = 'Analyzing...';
-  try {
-    const result = await api('POST','/api/clients/'+CID+'/analyze',{conversation:conv});
-    closeModal('m-analyze');
-    toast('Analysis complete','ok');
-    renderCF(result.client);
-  } catch(err) { toast(err.message,'err'); }
-  finally { btn.disabled = false; btn.textContent = 'Analyze with Claude →'; }
+async function analyzeConversation(){
+  const conv=document.getElementById('az-conv').value.trim();
+  if(!conv){toast('Paste a conversation','err');return;}
+  const btn=document.getElementById('az-btn');
+  btn.disabled=true;btn.textContent='Analyzing...';
+  try{
+    const r=await api('POST','/api/clients/'+CID+'/analyze',{conversation:conv});
+    closeM('m-analyze');toast('Analysis complete','ok');renderClientFile(r.client);
+  }catch(err){toast(err.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Analyze with Claude →';}
+}
+function handleAzFile(input){
+  az_file=input.files[0];
+  if(az_file){const r=new FileReader();r.onload=e=>{document.getElementById('az-img-prev').src=e.target.result;document.getElementById('az-preview').style.display='block';};r.readAsDataURL(az_file);}
+}
+async function analyzeImage(){
+  if(!az_file){toast('Select a screenshot','err');return;}
+  const btn=document.getElementById('az-img-btn');
+  btn.disabled=true;btn.textContent='Analyzing...';
+  try{
+    const fd=new FormData();fd.append('screenshot',az_file);
+    const res=await fetch('/api/clients/'+CID+'/analyze-image',{method:'POST',body:fd});
+    if(!res.ok)throw new Error((await res.json()).error);
+    const r=await res.json();
+    closeM('m-analyze');toast('Screenshot analyzed','ok');renderClientFile(r.client);
+  }catch(err){toast(err.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Analyze Screenshot →';}
 }
 
-function handleAzFile(input) {
-  azFile = input.files[0];
-  if (azFile) {
-    const r = new FileReader();
-    r.onload = e => { document.getElementById('az-img').src = e.target.result; document.getElementById('az-preview').style.display='block'; };
-    r.readAsDataURL(azFile);
-  }
-}
-
-async function analyzeScreenshot() {
-  if (!azFile) { toast('Select a screenshot first','err'); return; }
-  const btn = document.getElementById('az-img-btn');
-  btn.disabled = true; btn.textContent = 'Analyzing...';
-  try {
-    const fd = new FormData();
-    fd.append('screenshot', azFile);
-    const res = await fetch('/api/clients/'+CID+'/analyze-image',{method:'POST',body:fd});
-    if (!res.ok) throw new Error((await res.json()).error);
-    const result = await res.json();
-    closeModal('m-analyze');
-    toast('Screenshot analyzed','ok');
-    renderCF(result.client);
-  } catch(err) { toast(err.message,'err'); }
-  finally { btn.disabled = false; btn.textContent = 'Analyze Screenshot →'; }
-}
-
-// ═════════════════════════════════════════════════
-// POSES
-// ═════════════════════════════════════════════════
-async function openPosePicker() {
-  selPoses.clear();
-  document.getElementById('pose-sel-count').textContent = '0 selected';
-  document.getElementById('pose-attach-btn').disabled = true;
-  document.getElementById('pose-search').value = '';
-  openModal('m-poses');
-  await loadPosesFromDrive();
-}
-
-async function loadPosesFromDrive() {
-  const grid = document.getElementById('pose-grid');
-  const msg = document.getElementById('pose-msg');
-  grid.innerHTML = '<div class="empty" style="padding:30px;grid-column:1/-1"><div class="e" style="font-size:30px">⏳</div><p>Loading from Drive...</p></div>';
-  msg.style.display = 'none';
-  try {
-    const data = await api('GET','/api/drive/poses');
-    poseFiles = data.files || [];
-    if (data.message) {
-      grid.innerHTML = '<div style="grid-column:1/-1;padding:8px"></div>';
-      msg.textContent = data.message;
-      msg.style.display = 'block';
-      return;
-    }
-    renderPoseGrid(poseFiles);
-  } catch(err) {
-    grid.innerHTML = `<div style="grid-column:1/-1;font-size:13px;color:var(--danger);padding:8px">${esc(err.message)}</div>`;
-  }
-}
-
-function renderPoseGrid(files) {
-  const grid = document.getElementById('pose-grid');
-  if (!files.length) {
-    grid.innerHTML = '<div style="grid-column:1/-1;font-size:13px;color:var(--muted);padding:8px">No images found in Phixo Poses folder.</div>';
-    return;
-  }
-  grid.innerHTML = files.map(f => {
-    const sel = selPoses.has(f.id);
-    return `<div class="pose-pick ${sel?'sel':''}" onclick="togglePoseSel('${f.id}')" data-id="${f.id}">
-      ${f.thumbnailLink
-        ? `<img src="${esc(f.thumbnailLink)}" alt="${esc(f.name)}" loading="lazy">`
-        : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:36px">🧍</div>`}
-      <div class="chk">✓</div>
-      <div class="fname">${esc(f.name)}</div>
-    </div>`;
-  }).join('');
-}
-
-function filterPoses() {
-  const q = document.getElementById('pose-search').value.toLowerCase();
-  const filtered = q ? poseFiles.filter(f=>f.name.toLowerCase().includes(q)) : poseFiles;
-  renderPoseGrid(filtered);
-}
-
-function togglePoseSel(fileId) {
-  if (selPoses.has(fileId)) selPoses.delete(fileId);
-  else selPoses.add(fileId);
-  // Update UI
-  const el = document.querySelector(`.pose-pick[data-id="${fileId}"]`);
-  if (el) el.classList.toggle('sel', selPoses.has(fileId));
-  const count = selPoses.size;
-  document.getElementById('pose-sel-count').textContent = count + ' selected';
-  document.getElementById('pose-attach-btn').disabled = count === 0;
-}
-
-async function attachSelectedPoses() {
-  if (!selPoses.size) return;
-  const btn = document.getElementById('pose-attach-btn');
-  btn.disabled = true; btn.textContent = 'Attaching...';
-  try {
-    for (const fileId of selPoses) {
-      const file = poseFiles.find(f=>f.id===fileId);
-      await api('POST','/api/clients/'+CID+'/poses',{
-        drive_file_id: fileId,
-        file_name: file ? file.name : fileId,
-        thumbnail_url: file ? file.thumbnailLink : null
-      });
-    }
-    closeModal('m-poses');
-    toast(selPoses.size+' pose'+(selPoses.size>1?'s':'')+' attached','ok');
-    // Reload client to refresh poses
-    const c = await api('GET','/api/clients/'+CID);
-    renderCF(c);
-  } catch(err) { toast(err.message,'err'); }
-  finally { btn.disabled = false; btn.textContent = 'Attach to Client →'; }
-}
-
-async function removePose(poseId, evt) {
-  evt.stopPropagation();
-  try {
-    await api('DELETE','/api/clients/'+CID+'/poses/'+poseId);
-    toast('Pose removed');
-    const c = await api('GET','/api/clients/'+CID);
-    renderCF(c);
-  } catch(err) { toast(err.message,'err'); }
-}
-
-// ═════════════════════════════════════════════════
-// RESEARCH
-// ═════════════════════════════════════════════════
-async function loadResearch() {
-  const search = document.getElementById('res-search').value;
-  const type = document.getElementById('res-type').value;
-  const p = new URLSearchParams();
-  if (search) p.set('search',search);
-  if (type) p.set('type',type);
-  allResearch = await api('GET','/api/research?'+p);
-  const grid = document.getElementById('res-grid');
-  if (!allResearch.length) {
-    grid.innerHTML = '<div class="empty"><div class="e">📚</div><p>Nothing saved yet — add your first item</p></div>';
-    return;
-  }
-  grid.innerHTML = allResearch.map(r => `
-    <div class="res-card" onclick="openResDetail(${r.id})">
-      <div class="res-thumb">
-        ${r.drive_file_id && r.file_mime && r.file_mime.startsWith('image/')
-          ? `<img src="/api/drive/file/${r.drive_file_id}" loading="lazy" onerror="this.parentElement.innerHTML='<span class=res-icon>${typeIcon(r.type)}</span>'">`
-          : `<span class="res-icon">${typeIcon(r.type)}</span>`}
-      </div>
-      <div class="res-info">
-        <div class="res-type">${r.type}</div>
-        <h4>${esc(r.title)}</h4>
-        ${r.tags&&r.tags.length?`<div class="res-tags">${r.tags.map(t=>`<span>${esc(t)}</span>`).join('')}</div>`:''}
+// ═══ DISCOVERY ═══
+async function loadDiscovery(){
+  const p=new URLSearchParams();
+  const s=document.getElementById('disc-search').value;
+  const st=document.getElementById('disc-status').value;
+  if(s)p.set('search',s);if(st)p.set('status',st);
+  const prospects=await api('GET','/api/prospects?'+p);
+  const grid=document.getElementById('discovery-grid');
+  if(!prospects.length){grid.innerHTML='<div class="empty"><div class="ei">🔭</div><p>No targets yet</p></div>';return;}
+  grid.innerHTML=prospects.map(p=>`
+    <div class="card" onclick="openProspectFile(${p.id})">
+      <h3>${esc(p.name)}${p.handle?` <span style="font-weight:400;color:var(--muted)">@${esc(p.handle)}</span>`:''}</h3>
+      <div class="meta">${esc(p.platform||'')}${p.category?` · ${esc(p.category)}`:''}</div>
+      <div class="foot">
+        <span class="tag ${statusClass(p.status)}">${p.status}</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--muted)">${new Date(p.created_at).toLocaleDateString('en-CA')}</span>
       </div>
     </div>`).join('');
 }
-
-function openNewResearch() {
-  ['nr-title','nr-url','nr-tags','nr-why','nr-use','nru-title','nru-tags','nru-why'].forEach(id=>document.getElementById(id).value='');
-  resFile = null;
-  document.getElementById('nr-file-name').style.display = 'none';
-  openModal('m-research');
+function openNewProspect(){
+  ['mp-name','mp-handle','mp-why'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('mp-category').value='';
+  openModal('m-prospect');
 }
-
-async function saveResearchUrl() {
-  const title = document.getElementById('nr-title').value.trim();
-  if (!title) { toast('Title is required','err'); return; }
-  try {
-    const tags = document.getElementById('nr-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
-    await api('POST','/api/research',{
-      title, type: document.getElementById('nr-type').value,
-      tags, source_url: document.getElementById('nr-url').value,
-      summary: document.getElementById('nr-why').value,
-      why_it_matters: document.getElementById('nr-why').value,
-      recommended_use: document.getElementById('nr-use').value,
-      platform: document.getElementById('nr-plat').value
+async function saveProspect(){
+  const name=document.getElementById('mp-name').value.trim();
+  if(!name){toast('Name required','err');return;}
+  try{
+    const p=await api('POST','/api/prospects',{
+      name,handle:document.getElementById('mp-handle').value,
+      platform:document.getElementById('mp-platform').value,
+      category:document.getElementById('mp-category').value,
+      why_them:document.getElementById('mp-why').value
     });
-    closeModal('m-research');
-    toast('Saved to library','ok');
-    loadResearch();
-  } catch(err) { toast(err.message,'err'); }
+    closeM('m-prospect');toast('Added to Discovery','ok');openProspectFile(p.id);
+  }catch(err){toast(err.message,'err');}
 }
-
-function handleResearchFile(input) {
-  resFile = input.files[0];
-  if (resFile) {
-    document.getElementById('nru-title').value = resFile.name.replace(/\.[^.]+$/,'');
-    document.getElementById('nr-file-name').textContent = resFile.name + ' (' + (resFile.size/1024).toFixed(0)+' KB)';
-    document.getElementById('nr-file-name').style.display = 'block';
+async function openProspectFile(id){
+  PROID=id;
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.getElementById('v-prospect-file').classList.add('on');
+  const p=await api('GET','/api/prospects/'+id);
+  renderProspectFile(p);
+}
+function renderProspectFile(p){
+  function row(label,key,val){
+    return `<div class="cf-row"><div class="cf-key">${label}</div><div>
+      ${val?`<span class="cf-val editable" onclick="editField('${key}','${esc(val)}','${label}','prospect')">${esc(val)}</span>`
+           :`<span class="cf-val editable empty" onclick="editField('${key}','','${label}','prospect')">— click to add</span>`}
+    </div></div>`;
   }
-}
-
-async function uploadResearch() {
-  if (!resFile) { toast('Select a file first','err'); return; }
-  const btn = document.getElementById('nru-btn');
-  btn.disabled = true; btn.textContent = 'Uploading...';
-  try {
-    const fd = new FormData();
-    fd.append('file', resFile);
-    fd.append('title', document.getElementById('nru-title').value || resFile.name);
-    fd.append('type', document.getElementById('nru-type').value);
-    fd.append('tags', document.getElementById('nru-tags').value);
-    fd.append('why_it_matters', document.getElementById('nru-why').value);
-    const res = await fetch('/api/research/upload',{method:'POST',body:fd});
-    if (!res.ok) throw new Error((await res.json()).error);
-    closeModal('m-research');
-    toast('Uploaded to Drive','ok');
-    loadResearch();
-  } catch(err) { toast(err.message,'err'); }
-  finally { btn.disabled = false; btn.textContent = 'Upload to Drive →'; }
-}
-
-async function openResDetail(id) {
-  const item = await api('GET','/api/research/'+id);
-  document.getElementById('rd-title').textContent = item.title;
-  document.getElementById('rd-body').innerHTML = `
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
-      <span class="tag t-lead">${item.type}</span>
-      ${item.platform?`<span class="tag t-lead">${esc(item.platform)}</span>`:''}
-      ${(item.tags||[]).map(t=>`<span class="tag t-lead">${esc(t)}</span>`).join('')}
+  document.getElementById('pf-body').innerHTML=`
+    <div class="cf-header" style="background:#1a1a40">
+      <div class="cf-brand">Phixo — Discovery Target</div>
+      <div class="cf-name">${esc(p.name)}</div>
+      <div class="cf-meta">${[p.handle&&('@'+p.handle),p.platform,p.category].filter(Boolean).map(esc).join('  |  ')}</div>
     </div>
-    ${item.drive_file_id&&item.file_mime&&item.file_mime.startsWith('image/')
-      ?`<img src="/api/drive/file/${item.drive_file_id}" style="max-width:100%;border-radius:8px;margin-bottom:14px">`:'' }
-    ${item.source_url?`<div style="margin-bottom:10px"><a href="${esc(item.source_url)}" target="_blank" style="color:var(--accent);font-size:14px">↗ Open source</a></div>`:''}
-    ${item.why_it_matters||item.summary
-      ?`<div style="background:var(--bg);padding:14px;border-radius:8px;font-size:14px;line-height:1.6;margin-bottom:10px">${esc(item.why_it_matters||item.summary)}</div>`:'' }
-    ${item.recommended_use?`<div style="font-size:13px;color:var(--muted)"><strong>Use for:</strong> ${esc(item.recommended_use)}</div>`:''}
-    <div style="margin-top:20px;display:flex;gap:8px">
-      <button class="btn btn-danger btn-sm" onclick="deleteResearch(${item.id})">Delete</button>
-    </div>`;
-  openModal('m-resdetail');
-}
-
-async function deleteResearch(id) {
-  if (!confirm('Delete this research item?')) return;
-  try {
-    await api('DELETE','/api/research/'+id);
-    closeModal('m-resdetail');
-    toast('Deleted','ok');
-    loadResearch();
-  } catch(err) { toast(err.message,'err'); }
-}
-
-// ═════════════════════════════════════════════════
-// POSTS
-// ═════════════════════════════════════════════════
-async function loadPosts() {
-  const platform = document.getElementById('post-plat').value;
-  const p = new URLSearchParams();
-  if (platform) p.set('platform',platform);
-  const posts = await api('GET','/api/posts?'+p);
-  ['idea','draft','ready','posted'].forEach(status => {
-    const col = document.getElementById('col-'+status);
-    const items = posts.filter(p=>p.status===status);
-    col.innerHTML = items.length ? items.map(p=>`
-      <div class="post-card" onclick="openEditPost(${p.id})">
-        <div class="post-plat">${p.platform||''}</div>
-        <div class="post-hook">${esc(p.hook||'Untitled')}</div>
-        ${p.post_date?`<div class="post-date">📅 ${esc(p.post_date)}</div>`:''}
-      </div>`).join('')
-      : '<div style="font-size:12px;color:var(--muted);text-align:center;padding:10px">—</div>';
-  });
-}
-
-async function openNewPost() {
-  PID = null;
-  postResIds.clear();
-  document.getElementById('pm-title').textContent = 'New Post Brief';
-  ['np-hook','np-caption','np-shots','np-cta','np-date','np-notes'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('np-plat').value = 'Instagram';
-  document.getElementById('np-status').value = 'idea';
-  document.getElementById('np-save').textContent = 'Save Post →';
-  document.getElementById('np-attached').innerHTML = '';
-  await renderResearchPicker([]);
-  resetAssistant();
-  openModal('m-post');
-}
-
-async function openEditPost(id) {
-  PID = id;
-  const post = await api('GET','/api/posts/'+id);
-  postResIds = new Set((post.research_items||[]).map(r=>r.id));
-  document.getElementById('pm-title').textContent = 'Edit Post Brief';
-  document.getElementById('np-plat').value = post.platform||'Instagram';
-  document.getElementById('np-status').value = post.status||'idea';
-  document.getElementById('np-hook').value = post.hook||'';
-  document.getElementById('np-caption').value = post.caption||'';
-  document.getElementById('np-shots').value = post.shot_list||'';
-  document.getElementById('np-cta').value = post.cta||'';
-  document.getElementById('np-date').value = post.post_date||'';
-  document.getElementById('np-notes').value = post.notes||'';
-  document.getElementById('np-save').textContent = 'Update Post →';
-  await renderResearchPicker(post.research_items||[]);
-  renderAttachedList();
-  openModal('m-post');
-}
-
-async function renderResearchPicker(attachedItems) {
-  // Load all research if not cached
-  if (!allResearch.length) {
-    try { allResearch = await api('GET','/api/research'); } catch(e) { allResearch = []; }
-  }
-  const grid = document.getElementById('np-res-grid');
-  if (!allResearch.length) {
-    grid.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:8px">No research items yet — add some in the library first.</div>';
-    return;
-  }
-  grid.innerHTML = allResearch.map(r => {
-    const sel = postResIds.has(r.id);
-    return `<div class="res-pick-card ${sel?'sel':''}" onclick="togglePostRes(${r.id})" data-rid="${r.id}">
-      <div class="rp-icon">
-        ${r.drive_file_id&&r.file_mime&&r.file_mime.startsWith('image/')
-          ?`<img src="/api/drive/file/${r.drive_file_id}" style="width:100%;height:100%;object-fit:cover" loading="lazy">`
-          :`${typeIcon(r.type)}`}
+    <div class="cf-actions">
+      <button class="btn btn-ghost btn-sm" onclick="openBlockPicker('prospect',${p.id},null,'Attach Research')">＋ Attach Blocks</button>
+      <select onchange="updateProspectStatus(this.value)" style="padding:5px 10px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--bg)">
+        <option value="watching" ${p.status==='watching'?'selected':''}>Watching</option>
+        <option value="outreach-ready" ${p.status==='outreach-ready'?'selected':''}>Outreach Ready</option>
+        <option value="contacted" ${p.status==='contacted'?'selected':''}>Contacted</option>
+        <option value="not-a-fit" ${p.status==='not-a-fit'?'selected':''}>Not a Fit</option>
+      </select>
+      <button class="btn btn-accent btn-sm" onclick="convertProspect(${p.id})">→ Convert to Client</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteProspect(${p.id})">Delete</button>
+    </div>
+    <div class="cf-sec">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Target Info</h3><span class="arr">▾</span></div>
+      <div class="cf-bd">${row('Name','name',p.name)}${row('Handle','handle',p.handle)}${row('Platform','platform',p.platform)}${row('Category','category',p.category)}${row('Why Them','why_them',p.why_them)}${row('Notes','notes',p.notes)}</div>
+    </div>
+    <div class="cf-sec">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Attached Blocks</h3><span class="arr">▾</span></div>
+      <div class="cf-bd" style="padding-top:12px">
+        <div class="block-strip">
+          ${(p.blocks||[]).map(b=>`
+            <div class="strip-thumb" onclick="openBlockDetail(${b.id})" style="cursor:pointer" title="${esc(b.title)}">
+              ${b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('image/')
+                ?`<img src="/api/drive/file/${b.drive_file_id}" loading="lazy">`
+                :`<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:24px">${typeIcon(b.type)}</div>`}
+              <button class="rm" onclick="event.stopPropagation();detachBlock(${b.attachment_id},'prospect')">✕</button>
+            </div>`).join('')}
+          <button class="strip-add" onclick="openBlockPicker('prospect',${p.id},null,'Attach Blocks')">
+            <span class="ico">＋</span><span>Attach</span>
+          </button>
+        </div>
       </div>
-      <div class="rp-name">${esc(r.title)}</div>
+    </div>`;
+}
+async function updateProspectStatus(s){
+  try{await api('PATCH','/api/prospects/'+PROID,{status:s});toast('Updated','ok');}
+  catch(err){toast(err.message,'err');}
+}
+async function convertProspect(id){
+  if(!confirm('Convert to Client in Pipeline?'))return;
+  try{const r=await api('POST','/api/prospects/'+id+'/convert');toast('Converted','ok');openClientFile(r.client.id);}
+  catch(err){toast(err.message,'err');}
+}
+async function deleteProspect(id){
+  if(!confirm('Delete this target?'))return;
+  try{await api('DELETE','/api/prospects/'+id);toast('Deleted');showView('discovery');}
+  catch(err){toast(err.message,'err');}
+}
+
+// ═══ RESEARCH ═══
+async function loadResearch(){
+  const p=new URLSearchParams();
+  const s=document.getElementById('res-search').value;
+  const t=document.getElementById('res-type').value;
+  const f=document.getElementById('res-funnel').value;
+  if(s)p.set('search',s);if(t)p.set('type',t);if(f)p.set('funnel_stage',f);
+  const blocks=await api('GET','/api/blocks?'+p);
+  const grid=document.getElementById('research-grid');
+  if(!blocks.length){grid.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="ei">📚</div><p>No blocks yet</p></div>';return;}
+  grid.innerHTML=blocks.map(b=>{
+    const hasImg=b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('image/');
+    return`<div class="block-card" onclick="openBlockDetail(${b.id})">
+      <div class="block-thumb">
+        ${hasImg?`<img src="/api/drive/file/${b.drive_file_id}" loading="lazy">`:
+          b.thumbnail_url?`<img src="${esc(b.thumbnail_url)}" loading="lazy">`:
+          `<span style="font-size:36px">${typeIcon(b.type)}</span>`}
+        <span class="type-badge">${b.type}</span>
+      </div>
+      <div class="block-body">
+        ${b.funnel_stage?`<div style="margin-bottom:4px">${funnelBadge(b.funnel_stage)}</div>`:''}
+        <div class="block-title">${esc(b.title)}</div>
+        ${b.content_payload?`<div class="block-meta">${esc(b.content_payload.substring(0,80))}${b.content_payload.length>80?'…':''}</div>`:''}
+        ${b.tags&&b.tags.length?`<div class="block-tags">${b.tags.slice(0,3).map(t=>`<span>${esc(t)}</span>`).join('')}</div>`:''}
+      </div>
     </div>`;
   }).join('');
 }
-
-function togglePostRes(id) {
-  if (postResIds.has(id)) postResIds.delete(id);
-  else postResIds.add(id);
-  const el = document.querySelector(`.res-pick-card[data-rid="${id}"]`);
-  if (el) el.classList.toggle('sel', postResIds.has(id));
-  renderAttachedList();
+function openAddBlock(){
+  ['ab-url','ab-url-cat','ab-url-tags','ab-up-title','ab-up-cat','ab-up-tags','ab-txt-title','ab-txt-content','ab-txt-cat','ab-txt-tags','ab-drive-cat','ab-drive-tags'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['ab-url-funnel','ab-up-funnel','ab-txt-funnel'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ab_driveSelIds.clear();ab_file=null;
+  document.getElementById('ab-file-info').style.display='none';
+  openModal('m-addblock');
 }
-
-function renderAttachedList() {
-  const container = document.getElementById('np-attached');
-  const items = allResearch.filter(r=>postResIds.has(r.id));
-  container.innerHTML = items.map(r=>`
-    <div class="attached-item">
-      <span>${typeIcon(r.type)}</span>
-      <span>${esc(r.title)}</span>
-      <button class="rm-a" onclick="togglePostRes(${r.id})">✕</button>
-    </div>`).join('');
+async function ingestUrl(){
+  const url=document.getElementById('ab-url').value.trim();
+  if(!url){toast('URL required','err');return;}
+  const btn=document.getElementById('ab-url-btn');btn.disabled=true;btn.textContent='Saving...';
+  try{
+    await api('POST','/api/blocks/ingest-url',{url,type:document.getElementById('ab-url-type').value,category:document.getElementById('ab-url-cat').value,funnel_stage:document.getElementById('ab-url-funnel').value,tags:document.getElementById('ab-url-tags').value});
+    closeM('m-addblock');toast('Block saved','ok');loadResearch();
+  }catch(err){toast(err.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Save Block →';}
 }
-
-async function savePost() {
-  const hook = document.getElementById('np-hook').value.trim();
-  if (!hook) { toast('Hook is required','err'); return; }
-  const btn = document.getElementById('np-save');
-  btn.disabled = true;
-  try {
-    const data = {
-      platform: document.getElementById('np-plat').value,
-      status: document.getElementById('np-status').value,
-      hook,
-      caption: document.getElementById('np-caption').value,
-      shot_list: document.getElementById('np-shots').value,
-      cta: document.getElementById('np-cta').value,
-      post_date: document.getElementById('np-date').value,
-      notes: document.getElementById('np-notes').value
-    };
-    let post;
-    if (PID) {
-      post = await api('PATCH','/api/posts/'+PID, data);
-    } else {
-      post = await api('POST','/api/posts', data);
-      PID = post.id;
+function handleAbFile(input){
+  ab_file=input.files[0];
+  if(ab_file){document.getElementById('ab-up-title').value=ab_file.name.replace(/\.[^.]+$/,'');document.getElementById('ab-file-info').textContent=ab_file.name+' ('+Math.round(ab_file.size/1024)+' KB)';document.getElementById('ab-file-info').style.display='block';}
+}
+async function uploadBlock(){
+  if(!ab_file){toast('Select a file','err');return;}
+  const btn=document.getElementById('ab-up-btn');btn.disabled=true;btn.textContent='Uploading...';
+  try{
+    const fd=new FormData();fd.append('file',ab_file);fd.append('type',document.getElementById('ab-up-type').value);fd.append('title',document.getElementById('ab-up-title').value||ab_file.name);fd.append('category',document.getElementById('ab-up-cat').value);fd.append('funnel_stage',document.getElementById('ab-up-funnel').value);fd.append('tags',document.getElementById('ab-up-tags').value);
+    const res=await fetch('/api/blocks/upload',{method:'POST',body:fd});
+    if(!res.ok)throw new Error((await res.json()).error);
+    closeM('m-addblock');toast('Uploaded','ok');loadResearch();
+  }catch(err){toast(err.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Upload →';}
+}
+async function saveTextBlock(){
+  const content=document.getElementById('ab-txt-content').value.trim();
+  if(!content){toast('Content required','err');return;}
+  try{
+    const title=document.getElementById('ab-txt-title').value.trim()||content.substring(0,40);
+    await api('POST','/api/blocks',{type:document.getElementById('ab-txt-type').value,title,category:document.getElementById('ab-txt-cat').value,content_payload:content,funnel_stage:document.getElementById('ab-txt-funnel').value,tags:document.getElementById('ab-txt-tags').value.split(',').map(t=>t.trim()).filter(Boolean)});
+    closeM('m-addblock');toast('Block saved','ok');loadResearch();
+  }catch(err){toast(err.message,'err');}
+}
+async function loadDriveFolder(){
+  const folder=document.getElementById('ab-drive-folder').value;
+  const grid=document.getElementById('ab-drive-grid');
+  ab_driveSelIds.clear();updateDriveCount();
+  grid.innerHTML='<div style="font-size:12px;color:var(--muted);padding:8px">Loading...</div>';
+  try{
+    const data=await api('GET','/api/drive/browse?folder='+encodeURIComponent(folder));
+    if(!data.files.length){grid.innerHTML=`<div style="font-size:12px;color:var(--muted);padding:8px">${esc(data.message||'No files found.')}</div>`;return;}
+    driveFiles=data.files;
+    grid.innerHTML=data.files.map(f=>`
+      <div class="drive-card" data-id="${f.id}" onclick="toggleDriveSel('${f.id}',this)">
+        ${f.thumbnailLink?`<img src="${esc(f.thumbnailLink)}" loading="lazy">`:`<div class="drive-icon">${typeIcon(document.getElementById('ab-drive-type').value)}</div>`}
+        <span class="drive-check">✓</span>
+        <div class="dname">${esc(f.name)}</div>
+      </div>`).join('');
+  }catch(err){grid.innerHTML=`<div style="font-size:12px;color:red;padding:8px">${esc(err.message)}</div>`;}
+}
+function toggleDriveSel(id,el){
+  if(ab_driveSelIds.has(id))ab_driveSelIds.delete(id);else ab_driveSelIds.add(id);
+  el.classList.toggle('sel',ab_driveSelIds.has(id));updateDriveCount();
+}
+function updateDriveCount(){
+  const c=ab_driveSelIds.size;
+  document.getElementById('ab-drive-count').textContent=c+' selected';
+  document.getElementById('ab-drive-btn').disabled=c===0;
+}
+async function saveBlocksFromDrive(){
+  if(!ab_driveSelIds.size)return;
+  const type=document.getElementById('ab-drive-type').value;
+  const category=document.getElementById('ab-drive-cat').value;
+  const tags=document.getElementById('ab-drive-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
+  const btn=document.getElementById('ab-drive-btn');btn.disabled=true;btn.textContent='Saving...';
+  try{
+    for(const id of ab_driveSelIds){
+      const f=driveFiles.find(x=>x.id===id);
+      await api('POST','/api/blocks/from-drive',{drive_file_id:id,file_name:f?f.name:id,file_mime:f?f.mimeType:'',thumbnail_url:f?f.thumbnailLink:'',type,title:f?f.name:id,category,tags});
     }
-    // Sync research attachments
-    // Get current attached
-    const current = await api('GET','/api/posts/'+PID);
-    const currentIds = new Set((current.research_items||[]).map(r=>r.id));
-    // Add new
-    for (const id of postResIds) {
-      if (!currentIds.has(id)) await api('POST','/api/posts/'+PID+'/research/'+id);
+    closeM('m-addblock');toast(ab_driveSelIds.size+' block(s) added','ok');loadResearch();
+  }catch(err){toast(err.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Add Selected →';}
+}
+async function openBlockDetail(id){
+  const b=await api('GET','/api/blocks/'+id);
+  document.getElementById('bd-title').textContent=b.title;
+  const hasImg=b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('image/');
+  document.getElementById('bd-body').innerHTML=`
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+      <span class="tag t-lead">${b.type}</span>
+      ${b.category?`<span class="tag t-lead">${esc(b.category)}</span>`:''}
+      ${b.funnel_stage?funnelBadge(b.funnel_stage):''}
+      ${(b.tags||[]).map(t=>`<span class="tag t-lead">${esc(t)}</span>`).join('')}
+    </div>
+    ${hasImg?`<img src="/api/drive/file/${b.drive_file_id}" style="max-width:100%;border-radius:8px;margin-bottom:12px;max-height:300px;object-fit:contain">`:'' }
+    ${b.source_url?`<div style="margin-bottom:10px"><a href="${esc(b.source_url)}" target="_blank" style="color:var(--accent);font-size:13px">↗ Open source</a></div>`:''}
+    ${b.content_payload?`<div style="white-space:pre-wrap;font-size:13px;line-height:1.6;background:var(--bg);padding:12px;border-radius:8px;max-height:300px;overflow-y:auto;margin-bottom:12px">${esc(b.content_payload)}</div>`:''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-danger btn-sm" onclick="deleteBlock(${b.id})">Delete Block</button>
+    </div>`;
+  openModal('m-block-detail');
+}
+async function deleteBlock(id){
+  if(!confirm('Delete this block?'))return;
+  try{await api('DELETE','/api/blocks/'+id);closeM('m-block-detail');toast('Deleted','ok');loadResearch();}
+  catch(err){toast(err.message,'err');}
+}
+
+// ═══ BLOCK PICKER ═══
+function openBlockPicker(entityType,entityId,typeFilter,title){
+  pickerEntity=entityType;pickerEntityId=entityId;picker_sel.clear();
+  document.getElementById('bkp-title').textContent=title||'Pick Blocks';
+  document.getElementById('bkp-search').value='';
+  document.getElementById('bkp-type').value=typeFilter&&typeFilter.length===1?typeFilter[0]:'';
+  document.getElementById('bkp-sel-count').textContent='0 selected';
+  document.getElementById('bkp-attach').disabled=true;
+  loadPickerBlocks();openModal('m-block-picker');
+}
+async function loadPickerBlocks(){
+  const p=new URLSearchParams();
+  const s=document.getElementById('bkp-search').value;
+  const t=document.getElementById('bkp-type').value;
+  if(s)p.set('search',s);if(t)p.set('type',t);
+  const blocks=await api('GET','/api/blocks?'+p);
+  const grid=document.getElementById('bkp-grid');
+  if(!blocks.length){grid.innerHTML='<div style="font-size:13px;color:var(--muted);padding:12px;text-align:center">No blocks found</div>';return;}
+  grid.innerHTML=blocks.map(b=>{
+    const hasImg=b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('image/');
+    return`<div class="bpm-card ${picker_sel.has(b.id)?'sel':''}" onclick="togglePickerSel(${b.id},this)">
+      <div class="bpm-thumb">${hasImg?`<img src="/api/drive/file/${b.drive_file_id}" loading="lazy">`:`<span>${typeIcon(b.type)}</span>`}</div>
+      <div class="bpm-label">${esc(b.title)}</div>
+    </div>`;
+  }).join('');
+}
+function togglePickerSel(id,el){
+  if(picker_sel.has(id))picker_sel.delete(id);else picker_sel.add(id);
+  el.classList.toggle('sel',picker_sel.has(id));
+  const c=picker_sel.size;
+  document.getElementById('bkp-sel-count').textContent=c+' selected';
+  document.getElementById('bkp-attach').disabled=c===0;
+}
+async function confirmPickerAttach(){
+  const btn=document.getElementById('bkp-attach');btn.disabled=true;btn.textContent='Attaching...';
+  try{
+    for(const blockId of picker_sel){
+      await api('POST','/api/attachments',{block_id:blockId,entity_type:pickerEntity,entity_id:pickerEntityId});
     }
-    // Remove old
-    for (const id of currentIds) {
-      if (!postResIds.has(id)) await api('DELETE','/api/posts/'+PID+'/research/'+id);
-    }
-    closeModal('m-post');
-    toast(PID ? 'Post updated' : 'Post saved','ok');
-    loadPosts();
-  } catch(err) { toast(err.message,'err'); }
-  finally { btn.disabled = false; }
+    closeM('m-block-picker');toast(picker_sel.size+' block(s) attached','ok');
+    if(pickerEntity==='client'){const c=await api('GET','/api/clients/'+pickerEntityId);renderClientFile(c);}
+    else if(pickerEntity==='prospect'){const p=await api('GET','/api/prospects/'+pickerEntityId);renderProspectFile(p);}
+    else if(pickerEntity==='post'){await refreshPostModules();}
+  }catch(err){toast(err.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Attach →';}
+}
+async function detachBlock(attachmentId,entity){
+  try{
+    await api('DELETE','/api/attachments/'+attachmentId);toast('Removed','ok');
+    if(entity==='client'){const c=await api('GET','/api/clients/'+CID);renderClientFile(c);}
+    else if(entity==='prospect'){const p=await api('GET','/api/prospects/'+PROID);renderProspectFile(p);}
+  }catch(err){toast(err.message,'err');}
 }
 
-// ═════════════════════════════════════════════════
-// ═════════════════════════════════════════════════
-// POST ASSISTANT
-// ═════════════════════════════════════════════════
-let assistHistory = [];
-
-function resetAssistant() {
-  assistHistory = [];
-  const msgs = document.getElementById('assist-msgs');
-  if (msgs) {
-    msgs.innerHTML = '<div class="assist-msg assist-ai">What kind of post are you thinking about? Even a rough idea is enough to start.</div>';
-  }
-}
-
-function getCurrentBrief() {
-  return {
-    platform: document.getElementById('np-plat')?.value,
-    hook: document.getElementById('np-hook')?.value,
-    caption: document.getElementById('np-caption')?.value,
-    shot_list: document.getElementById('np-shots')?.value,
-    notes: document.getElementById('np-notes')?.value
-  };
-}
-
-function addAssistMsg(text, role) {
-  const msgs = document.getElementById('assist-msgs');
-  if (!msgs) return;
-  const div = document.createElement('div');
-  div.className = 'assist-msg ' + (role === 'user' ? 'assist-user' : 'assist-ai');
-  div.textContent = text;
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-}
-
-async function sendAssist() {
-  const input = document.getElementById('assist-input');
-  const btn = document.getElementById('assist-send');
-  const msg = input.value.trim();
-  if (!msg) return;
-  input.value = '';
-  btn.disabled = true;
-  btn.textContent = '...';
-
-  addAssistMsg(msg, 'user');
-  assistHistory.push({ role: 'user', content: msg });
-
-  try {
-    const result = await api('POST', '/api/assist/post', {
-      message: msg,
-      history: assistHistory.slice(0, -1), // don't double-send last msg
-      current_brief: getCurrentBrief()
-    });
-    addAssistMsg(result.reply, 'ai');
-    assistHistory.push({ role: 'assistant', content: result.reply });
-  } catch(err) {
-    addAssistMsg('Could not reach assistant — ' + err.message, 'ai');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '→';
-    input.focus();
-  }
-}
-
-function quickAssist(msg) {
-  const input = document.getElementById('assist-input');
-  input.value = msg;
-  sendAssist();
-}
-
-// ═════════════════════════════════════════════════
-// DRIVE MEDIA BROWSER (Meme, SFX, Music)
-// ═════════════════════════════════════════════════
-let activeMediaFolder = null;
-
-async function loadMediaFolder(folderName) {
-  activeMediaFolder = folderName;
-  // Update tab UI
-  document.querySelectorAll('.media-tab').forEach(t => {
-    t.classList.toggle('on', t.dataset.folder === folderName);
+// ═══ CALENDAR ═══
+async function loadCalendar(){
+  const p=new URLSearchParams();
+  const plat=document.getElementById('cal-plat').value;
+  if(plat)p.set('platform',plat);
+  const posts=await api('GET','/api/posts?'+p);
+  ['idea','draft','ready','posted'].forEach(status=>{
+    const col=document.getElementById('k-'+status);
+    const items=posts.filter(p=>p.status===status);
+    col.innerHTML=items.length?items.map(p=>`
+      <div class="kcard" onclick="openPostBuilder(${p.id})">
+        <div class="plat">${p.platform||''}${p.funnel_stage?` · ${p.funnel_stage.toUpperCase()}`:''}</div>
+        <div class="goal">${esc(p.post_goal||'Untitled post')}</div>
+        ${p.post_date?`<div class="kdate">📅 ${esc(p.post_date)}</div>`:''}
+      </div>`).join('')
+      :'<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">—</div>';
   });
-  const grid = document.getElementById('media-grid');
-  const info = document.getElementById('media-info');
-  grid.innerHTML = '<div style="font-size:12px;color:var(--muted);padding:12px">Loading from Drive...</div>';
-  info.textContent = '';
-  try {
-    const data = await api('GET', '/api/drive/browse?folder=' + encodeURIComponent(folderName));
-    if (data.message) {
-      grid.innerHTML = '';
-      info.textContent = data.message;
-      return;
-    }
-    if (!data.files.length) {
-      grid.innerHTML = '';
-      info.textContent = 'No files in ' + folderName + ' yet.';
-      return;
-    }
-    renderMediaGrid(data.files, folderName);
-  } catch(err) {
-    grid.innerHTML = '<div style="font-size:12px;color:var(--danger);padding:8px">' + esc(err.message) + '</div>';
-  }
+}
+async function openNewPost(){
+  const p=await api('POST','/api/posts',{platform:'Instagram',status:'idea'});
+  openPostBuilder(p.id);
 }
 
-function renderMediaGrid(files, folderName) {
-  const grid = document.getElementById('media-grid');
-  const isImage = f => f.mimeType && f.mimeType.startsWith('image/');
-  const isAudio = f => f.mimeType && (f.mimeType.startsWith('audio/') || f.name.match(/\.(mp3|wav|aac|m4a|ogg)$/i));
-
-  grid.innerHTML = files.map(f => `
-    <div class="media-card" onclick="openMediaFile('${f.id}','${esc(f.name)}','${esc(f.mimeType||'')}')">
-      <div class="media-thumb">
-        ${isImage(f) && f.thumbnailLink
-          ? `<img src="${esc(f.thumbnailLink)}" loading="lazy">`
-          : `<span class="media-icon">${isAudio(f) ? '🎵' : folderName === 'Meme' ? '😂' : '📁'}</span>`}
+// ═══ POST BUILDER ═══
+async function openPostBuilder(id){
+  POST_ID=id;
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.getElementById('v-post-builder').classList.add('on');
+  const post=await api('GET','/api/posts/'+id);
+  postModules=post.modules||[];
+  allBlocks=await api('GET','/api/blocks');
+  assistHistory=[];
+  renderPostBuilder(post);
+}
+async function refreshPostModules(){
+  const post=await api('GET','/api/posts/'+POST_ID);
+  postModules=post.modules||[];
+  renderPostStack();
+}
+function renderPostBuilder(post){
+  document.getElementById('pb-body').innerHTML=`
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px">
+      <div class="g4" style="gap:10px">
+        <div><label>Platform</label>
+          <select onchange="updatePost('platform',this.value)">
+            <option ${post.platform==='Instagram'?'selected':''}>Instagram</option>
+            <option ${post.platform==='TikTok'?'selected':''}>TikTok</option>
+            <option ${post.platform==='LinkedIn'?'selected':''}>LinkedIn</option>
+          </select>
+        </div>
+        <div><label>Funnel Stage</label>
+          <select onchange="updatePost('funnel_stage',this.value)">
+            <option value="">—</option>
+            <option value="tof" ${post.funnel_stage==='tof'?'selected':''}>TOF — Awareness</option>
+            <option value="mof" ${post.funnel_stage==='mof'?'selected':''}>MOF — Trust</option>
+            <option value="bof" ${post.funnel_stage==='bof'?'selected':''}>BOF — Convert</option>
+          </select>
+        </div>
+        <div><label>Post Goal</label>
+          <input value="${esc(post.post_goal||'')}" placeholder="educate / trust / convert" onchange="updatePost('post_goal',this.value)">
+        </div>
+        <div><label>Status</label>
+          <select onchange="updatePost('status',this.value)">
+            <option value="idea" ${post.status==='idea'?'selected':''}>Idea</option>
+            <option value="draft" ${post.status==='draft'?'selected':''}>Draft</option>
+            <option value="ready" ${post.status==='ready'?'selected':''}>Ready</option>
+            <option value="posted" ${post.status==='posted'?'selected':''}>Posted</option>
+          </select>
+        </div>
       </div>
-      <div class="media-name">${esc(f.name)}</div>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="openHooks()">📌 Hooks</button>
+        <button class="btn btn-danger btn-sm" onclick="deletePost(${post.id})">Delete</button>
+      </div>
+    </div>
+    <div class="pb-layout">
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted)">Post Stack</div>
+          <div style="display:flex;gap:5px">
+            <button class="btn btn-ghost btn-xs" onclick="addTextModule('hook')">+ Hook</button>
+            <button class="btn btn-ghost btn-xs" onclick="addTextModule('context')">+ Context</button>
+            <button class="btn btn-ghost btn-xs" onclick="addTextModule('bullets')">+ Bullets</button>
+            <button class="btn btn-ghost btn-xs" onclick="addTextModule('cta')">+ CTA</button>
+          </div>
+        </div>
+        <div id="pb-stack" class="pb-stack"></div>
+        ${!postModules.length?`<div class="empty" style="padding:30px"><div class="ei">📝</div><p style="font-size:13px">Start with a Hook — or use the Hooks library</p></div>`:''}
+      </div>
+      <div class="pb-sidebar">
+        <div class="pbs-inner">
+          <div class="pbs-head">Research Library</div>
+          <div class="pbs-f">
+            <input type="text" id="pbs-search" placeholder="Search blocks..." oninput="filterPbsBlocks()">
+            <select id="pbs-type" onchange="filterPbsBlocks()">
+              <option value="">All types</option>
+              <option value="pose">Pose</option><option value="meme">Meme</option>
+              <option value="sfx">SFX</option><option value="image">Image</option>
+              <option value="url">URL</option><option value="note">Note</option>
+            </select>
+          </div>
+          <div id="pbs-blocks" class="pbs-blocks"></div>
+        </div>
+        <div class="assist-panel">
+          <div class="assist-head">
+            <div class="at">Post Assistant</div>
+            <div class="as">Asks questions. Uses your library. Helps you think.</div>
+          </div>
+          <div id="assist-msgs" class="assist-msgs">
+            <div class="am am-ai">What are you building? Give me a rough idea and we'll figure out the angle.</div>
+          </div>
+          <div class="assist-ir">
+            <input type="text" id="assist-input" placeholder="Reply..." onkeydown="if(event.key==='Enter')sendAssist()">
+            <button class="btn btn-accent btn-sm" onclick="sendAssist()" id="assist-btn">→</button>
+          </div>
+          <div class="assist-qr">
+            <button class="aq" onclick="quickAssist('Hook angle ideas')">Hooks</button>
+            <button class="aq" onclick="quickAssist('What should this post focus on?')">Focus</button>
+            <button class="aq" onclick="quickAssist('Shot list for this post')">Shot list</button>
+            <button class="aq" onclick="quickAssist('Best CTA')">CTA</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  renderPostStack();
+  filterPbsBlocks();
+}
+
+function renderPostStack(){
+  const stack=document.getElementById('pb-stack');
+  if(!stack)return;
+  stack.innerHTML=postModules.map((m,i)=>renderModule(m,i)).join('');
+  // drag and drop
+  stack.querySelectorAll('.module').forEach(el=>{
+    el.draggable=true;
+    el.addEventListener('dragstart',()=>{dragSrcIdx=parseInt(el.dataset.idx);el.classList.add('dragging');});
+    el.addEventListener('dragend',()=>el.classList.remove('dragging'));
+    el.addEventListener('dragover',e=>e.preventDefault());
+    el.addEventListener('drop',e=>{
+      e.preventDefault();
+      const toIdx=parseInt(el.dataset.idx);
+      if(dragSrcIdx!==null&&dragSrcIdx!==toIdx){
+        postModules.splice(toIdx,0,postModules.splice(dragSrcIdx,1)[0]);
+        saveModuleOrder();renderPostStack();
+      }
+    });
+  });
+}
+function renderModule(m,i){
+  const textTypes=['hook','context','bullets','cta','proof','notes'];
+  const isText=textTypes.includes(m.module_type);
+  const icons={hook:'🪝',context:'💬',bullets:'📋',cta:'🔗',proof:'✅',notes:'📝',meme:'😂',sfx:'🎵',image:'🖼️',pose:'🧍',url:'📄',video:'🎬',screenshot:'📷'};
+  const ico=icons[m.module_type]||'📁';
+  const hasImg=m.drive_file_id&&m.file_mime&&m.file_mime.startsWith('image/');
+  return`<div class="module" data-idx="${i}" data-mid="${m.id}">
+    <div class="module-head">
+      <span class="drag">⠿</span>
+      <span style="margin-right:4px">${ico}</span>
+      <span class="mtype">${m.module_type}</span>
+      <div class="module-actions">
+        <button class="btn btn-danger btn-xs" onclick="removeModule(${m.id})">✕</button>
+      </div>
+    </div>
+    <div class="module-body">
+      ${!isText&&m.block_id?`
+        <div style="display:flex;align-items:start;gap:10px">
+          <div style="width:56px;height:56px;border-radius:6px;overflow:hidden;flex-shrink:0;background:var(--bg);display:flex;align-items:center;justify-content:center">
+            ${hasImg?`<img src="/api/drive/file/${m.drive_file_id}" style="width:100%;height:100%;object-fit:cover">`:`<span style="font-size:22px">${ico}</span>`}
+          </div>
+          <div>
+            <div style="font-size:13px;font-weight:600">${esc(m.block_title||m.module_type)}</div>
+            ${m.content_payload?`<div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(m.content_payload.substring(0,70))}</div>`:''}
+          </div>
+        </div>`
+      :`<textarea style="min-height:50px" placeholder="${m.module_type==='hook'?'The line that stops the scroll':m.module_type==='bullets'?'Value points — one per line':m.module_type==='cta'?'Call to action':''}" onchange="updateModuleContent(${m.id},this.value)">${esc(m.content||'')}</textarea>`}
+    </div>
+  </div>`;
+}
+async function addTextModule(type){
+  try{const m=await api('POST','/api/posts/'+POST_ID+'/modules',{module_type:type});postModules.push(m);renderPostStack();}
+  catch(err){toast(err.message,'err');}
+}
+async function removeModule(mid){
+  try{await api('DELETE','/api/posts/'+POST_ID+'/modules/'+mid);postModules=postModules.filter(m=>m.id!==mid);renderPostStack();}
+  catch(err){toast(err.message,'err');}
+}
+async function updateModuleContent(mid,val){
+  try{await api('PATCH','/api/posts/'+POST_ID+'/modules/'+mid,{content:val});}
+  catch(err){toast(err.message,'err');}
+}
+async function saveModuleOrder(){
+  try{const order=postModules.map((m,i)=>({id:m.id,position:i}));await api('POST','/api/posts/'+POST_ID+'/modules/reorder',{order});}
+  catch(err){/*silent*/}
+}
+function filterPbsBlocks(){
+  const s=(document.getElementById('pbs-search')?.value||'').toLowerCase();
+  const t=document.getElementById('pbs-type')?.value||'';
+  let filtered=allBlocks.filter(b=>{
+    if(t&&b.type!==t)return false;
+    if(s&&!b.title.toLowerCase().includes(s)&&!(b.content_payload||'').toLowerCase().includes(s))return false;
+    return true;
+  }).slice(0,40);
+  const el=document.getElementById('pbs-blocks');
+  if(!el)return;
+  if(!filtered.length){el.innerHTML='<div class="pbs-empty">No blocks found</div>';return;}
+  el.innerHTML=filtered.map(b=>`
+    <div class="pbs-block" onclick="addBlockAsModule(${b.id})">
+      <span class="pi">${typeIcon(b.type)}</span>
+      <div>
+        <div class="pt">${esc(b.title)}</div>
+        <div class="pm">${b.type}${b.funnel_stage?' · '+b.funnel_stage.toUpperCase():''}</div>
+      </div>
     </div>`).join('');
 }
-
-function openMediaFile(fileId, name, mimeType) {
-  // Open in new tab for audio/other, inline for images
-  window.open('/api/drive/file/' + fileId, '_blank');
+async function addBlockAsModule(blockId){
+  try{
+    const b=allBlocks.find(x=>x.id===blockId)||await api('GET','/api/blocks/'+blockId);
+    const m=await api('POST','/api/posts/'+POST_ID+'/modules',{module_type:b.type||'image',block_id:blockId});
+    m.block_title=b.title;m.block_type=b.type;m.drive_file_id=b.drive_file_id;m.file_mime=b.file_mime;m.content_payload=b.content_payload;
+    postModules.push(m);renderPostStack();toast('Added to stack','ok');
+  }catch(err){toast(err.message,'err');}
+}
+async function updatePost(field,val){
+  try{await api('PATCH','/api/posts/'+POST_ID,{[field]:val});}
+  catch(err){toast(err.message,'err');}
+}
+async function deletePost(id){
+  if(!confirm('Delete this post?'))return;
+  try{await api('DELETE','/api/posts/'+id);showView('calendar');}
+  catch(err){toast(err.message,'err');}
 }
 
-// MODAL BACKDROP CLOSE
-// ═════════════════════════════════════════════════
-document.querySelectorAll('.modal-bg').forEach(bg => {
-  bg.addEventListener('click', e => { if (e.target===bg) bg.classList.add('off'); });
-});
+// ═══ HOOKS ═══
+async function openHooks(){loadHooks();openModal('m-hooks');}
+async function loadHooks(){
+  const p=new URLSearchParams();
+  const s=document.getElementById('hook-search').value;
+  const c=document.getElementById('hook-cat').value;
+  if(s)p.set('search',s);if(c)p.set('category',c);
+  const hooks=await api('GET','/api/hooks?'+p);
+  const list=document.getElementById('hooks-list');
+  if(!hooks.length){
+    list.innerHTML=`<div style="padding:20px;text-align:center;font-size:13px;color:var(--muted)">No hooks yet.<br><button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="ingestHooksPdf()">Parse Hooks PDF from Drive</button></div>`;
+    return;
+  }
+  list.innerHTML=hooks.map(h=>`
+    <div class="hook-item" onclick="useHook(${JSON.stringify(h.text)})">
+      <div class="hook-cat">${h.category||'general'}</div>
+      ${esc(h.text)}
+    </div>`).join('');
+}
+async function ingestHooksPdf(){
+  const btn=document.getElementById('hooks-ingest-btn');
+  btn.disabled=true;btn.textContent='Parsing...';
+  try{
+    const r=await api('POST','/api/hooks/ingest-pdf');
+    toast(r.count+' hooks imported from '+r.file,'ok');loadHooks();
+  }catch(err){toast(err.message,'err');}
+  finally{btn.disabled=false;btn.textContent='↻ PDF';}
+}
+async function useHook(text){
+  let hookMod=postModules.find(m=>m.module_type==='hook');
+  if(!hookMod){
+    hookMod=await api('POST','/api/posts/'+POST_ID+'/modules',{module_type:'hook',content:text});
+    postModules.unshift(hookMod);
+  }else{
+    await api('PATCH','/api/posts/'+POST_ID+'/modules/'+hookMod.id,{content:text});
+    hookMod.content=text;
+  }
+  closeM('m-hooks');renderPostStack();toast('Hook set','ok');
+}
 
-// ═════════════════════════════════════════════════
-// INIT
-// ═════════════════════════════════════════════════
-loadClients();
+// ═══ AI ASSISTANT ═══
+async function sendAssist(){
+  const input=document.getElementById('assist-input');
+  const btn=document.getElementById('assist-btn');
+  const msg=input.value.trim();if(!msg)return;
+  input.value='';btn.disabled=true;btn.textContent='...';
+  addAssistMsg(msg,'user');
+  assistHistory.push({role:'user',content:msg});
+  const post_context={modules:postModules.map(m=>({type:m.module_type,content:m.content||m.block_title||''}))};
+  try{
+    const r=await api('POST','/api/assist/post',{message:msg,history:assistHistory.slice(0,-1),post_context});
+    addAssistMsg(r.reply,'ai');assistHistory.push({role:'assistant',content:r.reply});
+  }catch(err){addAssistMsg('Could not reach assistant.','ai');}
+  finally{btn.disabled=false;btn.textContent='→';input.focus();}
+}
+function quickAssist(msg){document.getElementById('assist-input').value=msg;sendAssist();}
+function addAssistMsg(text,role){
+  const msgs=document.getElementById('assist-msgs');if(!msgs)return;
+  const d=document.createElement('div');
+  d.className='am am-'+(role==='user'?'user':'ai');
+  d.textContent=text;msgs.appendChild(d);msgs.scrollTop=msgs.scrollHeight;
+}
+
+// ═══ INIT ═══
+loadPipeline();
 </script>
 </body>
 </html>
