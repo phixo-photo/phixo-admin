@@ -256,7 +256,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
       <option value="note">Note</option><option value="pdf">PDF</option>
     </select>
     <select id="res-funnel" onchange="loadResearch()" style="width:130px">
-      <option value="">All stages</option>
+      <option value="" selected>All stages</option>
       <option value="tof">TOF</option><option value="mof">MOF</option><option value="bof">BOF</option>
     </select>
     <button class="btn btn-dark btn-sm" onclick="openAddBlock()">+ Add Block</button>
@@ -577,7 +577,16 @@ function showView(name,navEl){
   else{const nb=document.querySelector(`.nb[data-view="${name}"]`);if(nb)nb.classList.add('on');}
   if(name==='pipeline')loadPipeline();
   if(name==='discovery')loadDiscovery();
-  if(name==='research')loadResearch();
+  if(name==='research'){
+    // Always reset filters on nav
+    const rf=document.getElementById('res-funnel');
+    const rt=document.getElementById('res-type');
+    const rs=document.getElementById('res-search');
+    if(rf){rf.value='';rf.selectedIndex=0;}
+    if(rt){rt.value='';rt.selectedIndex=0;}
+    if(rs)rs.value='';
+    loadResearch();
+  }
   if(name==='calendar')loadCalendar();
 }
 function closeM(id){document.getElementById(id).classList.add('off');}
@@ -1471,29 +1480,38 @@ async function syncDrive(){
   btn.disabled=true;btn.textContent='Syncing...';
   try{
     const r=await api('POST','/api/drive/sync');
+    console.log('Sync results:',JSON.stringify(r.results));
+    const folderSummary=r.results.map(x=>x.folder+': '+(x.new||0)+' new').join(' | ');
     const msg=r.imported>0
-      ?r.imported+' new block'+(r.imported!==1?'s':'')+' imported from Drive'
-      :'Already up to date — '+r.skipped+' blocks in library';
+      ?r.imported+' new block'+(r.imported!==1?'s':'')+' imported'
+      :'Up to date ('+r.skipped+' already in library)';
     toast(msg,'ok');
-    if(r.imported>0)loadResearch();
-    // Show per-folder breakdown briefly
-    console.log('Sync results:',r.results);
-  }catch(err){toast(err.message,'err');}
+    console.log(folderSummary);
+    loadResearch();
+  }catch(err){
+    console.error('Sync error:',err);
+    toast('Sync failed: '+err.message,'err');
+  }
   finally{btn.disabled=false;btn.textContent='↻ Sync Drive';}
 }
 
-// Auto-sync on first load of Research view
+// Auto-sync on first Research visit
 let _syncedOnce=false;
 const _origLoadResearch=loadResearch;
 async function loadResearch(){
   await _origLoadResearch();
   if(!_syncedOnce){
     _syncedOnce=true;
-    // Quietly sync in background on first visit
     try{
       const r=await api('POST','/api/drive/sync');
-      if(r.imported>0){toast(r.imported+' new blocks synced from Drive','ok');await _origLoadResearch();}
-    }catch(e){/* silent if DB not ready */}
+      console.log('Auto-sync:',r);
+      if(r.imported>0){
+        toast(r.imported+' new blocks synced from Drive','ok');
+        await _origLoadResearch();
+      }
+    }catch(e){
+      console.warn('Auto-sync skipped:',e.message);
+    }
   }
 }
 
