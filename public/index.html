@@ -260,6 +260,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
       <option value="tof">TOF</option><option value="mof">MOF</option><option value="bof">BOF</option>
     </select>
     <button class="btn btn-dark btn-sm" onclick="openAddBlock()">+ Add Block</button>
+    <button class="btn btn-ghost btn-sm" id="sync-btn" onclick="syncDrive()" title="Scan all Drive folders and import any new files">↻ Sync Drive</button>
   </div>
   <div id="research-grid" class="block-grid"></div>
 </div>
@@ -706,8 +707,8 @@ function renderClientFile(c){
         <div class="block-strip">
           ${poses.map(p=>`
             <div class="strip-thumb" title="${esc(p.file_name||p.title)}">
-              ${p.drive_file_id
-                ?`<img src="/api/drive/file/${p.drive_file_id}" loading="lazy" onerror="this.parentElement.innerHTML='<span style=font-size:28px>🧍</span>'">`
+              ${p.drive_file_id||p.thumbnail_url
+                ?`<img src="${p.thumbnail_url?esc(p.thumbnail_url):`/api/drive/file/${p.drive_file_id}`}" loading="lazy" onerror="this.src='/api/drive/file/${p.drive_file_id}';this.onerror=null">`
                 :`<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:28px">🧍</div>`}
               <button class="rm" onclick="detachBlock(${p.attachment_id},'client')">✕</button>
             </div>`).join('')}
@@ -936,11 +937,17 @@ async function loadResearch(){
   if(!blocks.length){grid.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="ei">📚</div><p>No blocks yet</p></div>';return;}
   grid.innerHTML=blocks.map(b=>{
     const hasImg=b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('image/');
+    // Use thumbnail_url (Google CDN) for cards - faster, no auth roundtrip
+    // Fall back to proxy only if no thumbnail available
+    const thumbSrc = b.thumbnail_url 
+      ? esc(b.thumbnail_url)
+      : (hasImg ? `/api/drive/file/${b.drive_file_id}` : null);
     return`<div class="block-card" onclick="openBlockDetail(${b.id})">
       <div class="block-thumb">
-        ${hasImg?`<img src="/api/drive/file/${b.drive_file_id}" loading="lazy">`:
-          b.thumbnail_url?`<img src="${esc(b.thumbnail_url)}" loading="lazy">`:
-          `<span style="font-size:36px">${typeIcon(b.type)}</span>`}
+        ${thumbSrc
+          ? `<img src="${thumbSrc}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">`
+          : ``}
+        <span style="font-size:36px;display:${thumbSrc?'none':'block'}">${typeIcon(b.type)}</span>
         <span class="type-badge">${b.type}</span>
       </div>
       <div class="block-body">
@@ -1085,7 +1092,11 @@ async function openBlockDetail(id){
       ${b.funnel_stage?funnelBadge(b.funnel_stage):''}
       ${(b.tags||[]).map(t=>`<span class="tag t-lead">${esc(t)}</span>`).join('')}
     </div>
-    ${hasImg?`<img src="/api/drive/file/${b.drive_file_id}" style="max-width:100%;border-radius:8px;margin-bottom:12px;max-height:300px;object-fit:contain">`:'' }
+    ${hasImg||b.thumbnail_url?`<img 
+      src="${b.drive_file_id?`/api/drive/file/${b.drive_file_id}`:esc(b.thumbnail_url||'')}"
+      style="max-width:100%;border-radius:8px;margin-bottom:12px;max-height:360px;object-fit:contain;display:block"
+      onerror="${b.thumbnail_url?`this.src='${esc(b.thumbnail_url)}'`:`this.style.display='none'`}"
+    >`:'' }
     ${b.source_url?`<div style="margin-bottom:10px"><a href="${esc(b.source_url)}" target="_blank" style="color:var(--accent);font-size:13px">↗ Open source</a></div>`:''}
     ${b.content_payload?`<div style="white-space:pre-wrap;font-size:13px;line-height:1.6;background:var(--bg);padding:12px;border-radius:8px;max-height:300px;overflow-y:auto;margin-bottom:12px">${esc(b.content_payload)}</div>`:''}
     <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -1120,7 +1131,13 @@ async function loadPickerBlocks(){
   grid.innerHTML=blocks.map(b=>{
     const hasImg=b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('image/');
     return`<div class="bpm-card ${picker_sel.has(b.id)?'sel':''}" onclick="togglePickerSel(${b.id},this)">
-      <div class="bpm-thumb">${hasImg?`<img src="/api/drive/file/${b.drive_file_id}" loading="lazy">`:`<span>${typeIcon(b.type)}</span>`}</div>
+      <div class="bpm-thumb">${
+        b.thumbnail_url
+          ? `<img src="${esc(b.thumbnail_url)}" loading="lazy" onerror="this.src='/api/drive/file/${b.drive_file_id}';this.onerror=null">`
+          : hasImg 
+            ? `<img src="/api/drive/file/${b.drive_file_id}" loading="lazy">`
+            : `<span>${typeIcon(b.type)}</span>`
+      }</div>
       <div class="bpm-label">${esc(b.title)}</div>
     </div>`;
   }).join('');
@@ -1449,6 +1466,37 @@ function addAssistMsg(text,role){
 }
 
 // ═══ INIT ═══
+async function syncDrive(){
+  const btn=document.getElementById('sync-btn');
+  btn.disabled=true;btn.textContent='Syncing...';
+  try{
+    const r=await api('POST','/api/drive/sync');
+    const msg=r.imported>0
+      ?r.imported+' new block'+(r.imported!==1?'s':'')+' imported from Drive'
+      :'Already up to date — '+r.skipped+' blocks in library';
+    toast(msg,'ok');
+    if(r.imported>0)loadResearch();
+    // Show per-folder breakdown briefly
+    console.log('Sync results:',r.results);
+  }catch(err){toast(err.message,'err');}
+  finally{btn.disabled=false;btn.textContent='↻ Sync Drive';}
+}
+
+// Auto-sync on first load of Research view
+let _syncedOnce=false;
+const _origLoadResearch=loadResearch;
+async function loadResearch(){
+  await _origLoadResearch();
+  if(!_syncedOnce){
+    _syncedOnce=true;
+    // Quietly sync in background on first visit
+    try{
+      const r=await api('POST','/api/drive/sync');
+      if(r.imported>0){toast(r.imported+' new blocks synced from Drive','ok');await _origLoadResearch();}
+    }catch(e){/* silent if DB not ready */}
+  }
+}
+
 loadPipeline();
 </script>
 </body>
