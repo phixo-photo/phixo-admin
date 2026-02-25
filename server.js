@@ -384,26 +384,12 @@ app.get('/api/debug', async (req, res) => {
   out.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ? 'set' : 'MISSING';
   out.env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ? 'set' : 'MISSING';
   out.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY ? 'set' : 'MISSING (needed for Whisper)';
-  // Check yt-dlp
-  const { exec: ex2 } = require('child_process');
-  const { promisify: prom2 } = require('util');
-  const path2 = require('path');
-  const execA2 = prom2(ex2);
-  const projectBin = path2.join(process.cwd(), 'bin', 'yt-dlp');
   out.cwd = process.cwd();
-  out.ytdlp = { found: false, tried: [] };
-  for (const p of [projectBin, '/usr/local/bin/yt-dlp', '/usr/bin/yt-dlp', 'yt-dlp']) {
-    try {
-      const r = await execA2(`"${p}" --version 2>/dev/null`);
-      out.ytdlp = { found: true, path: p, version: r.stdout.trim() };
-      break;
-    } catch(e) { out.ytdlp.tried.push(p); }
-  }
-  try { await execA2('ffmpeg -version 2>/dev/null'); out.ffmpeg = 'available'; } catch(e) { out.ffmpeg = 'NOT FOUND'; }
-  // Check if bin/yt-dlp file exists at all
-  const fs2 = require('fs');
-  out.binExists = fs2.existsSync(projectBin);
-  out.binContents = fs2.existsSync(path2.join(process.cwd(), 'bin')) ? fs2.readdirSync(path2.join(process.cwd(), 'bin')) : 'no bin dir';
+  out.ytdlp = global.YTDLP_PATH ? { found: true, path: global.YTDLP_PATH } : { found: false };
+  out.ffmpeg = global.FFMPEG_PATH ? { found: true, path: global.FFMPEG_PATH } : { found: false };
+  const fs3 = require('fs'), path3 = require('path');
+  const binDir3 = path3.join(process.cwd(), 'bin');
+  out.binContents = fs3.existsSync(binDir3) ? fs3.readdirSync(binDir3) : 'no bin dir';
   try {
     await pool.query('SELECT 1');
     out.db.connected = true;
@@ -1010,15 +996,10 @@ app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
     // ── Step 1: Download video ──────────────────────────────────────────────
     send('download', 'Downloading video from ' + platform + '...');
     // Find yt-dlp binary (may be in various locations depending on install method)
-    // yt-dlp installed into ./bin/ by nixpacks build
-    const path2 = require('path');
-    const projectBin = path2.join(process.cwd(), 'bin', 'yt-dlp');
-    const ytdlpPaths = [projectBin, '/usr/local/bin/yt-dlp', '/usr/bin/yt-dlp', 'yt-dlp'];
-    let ytdlpCmd = null;
-    for (const p of ytdlpPaths) {
-      try { await execAsync(`"${p}" --version 2>/dev/null`); ytdlpCmd = `"${p}"`; break; } catch(e) {}
-    }
-    if (!ytdlpCmd) throw new Error(`yt-dlp binary not found. Tried: ${ytdlpPaths.join(', ')}. Check Railway build logs for the 'bin/yt-dlp --version' line.`);
+    // Wait for yt-dlp to be ready (downloads on first boot)
+    await _toolSetup;
+    if (!global.YTDLP_PATH) throw new Error('yt-dlp is still downloading or failed to install. Wait 30 seconds and try again.');
+    const ytdlpCmd = `"${global.YTDLP_PATH}"`;
     console.log('Using yt-dlp:', ytdlpCmd);
 
     try {
@@ -1042,15 +1023,16 @@ app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
 
     // ── Step 2: Extract audio ────────────────────────────────────────────────
     send('audio', 'Extracting audio...');
-    await execAsync(`ffmpeg -i "${videoPath}" -vn -acodec libmp3lame -q:a 4 "${audioPath}" -y 2>/dev/null`);
+    await execAsync(`"${global.FFMPEG_PATH || 'ffmpeg'}" -i "${videoPath}" -vn -acodec libmp3lame -q:a 4 "${audioPath}" -y 2>/dev/null`);
 
     // ── Step 3: Screenshots ──────────────────────────────────────────────────
     send('screenshots', 'Capturing frames...');
     let frames = [];
+    const ffmpegBin = global.FFMPEG_PATH || 'ffmpeg';
     try {
       const interval = Math.max(Math.floor((duration || 60) / 7), 3);
       await execAsync(
-        `ffmpeg -i "${videoPath}" -vf "fps=1/${interval},scale=640:-2" -frames:v 8 "${screenshotsDir}/frame_%03d.jpg" -y 2>/dev/null`,
+        `"${ffmpegBin}" -i "${videoPath}" -vf "fps=1/${interval},scale=640:-2" -frames:v 8 "${screenshotsDir}/frame_%03d.jpg" -y 2>/dev/null`,
         { timeout: 60000 }
       );
       frames = fs.readdirSync(screenshotsDir).filter(f => f.endsWith('.jpg')).sort();
@@ -1111,7 +1093,7 @@ app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
     if (audioBuffer.length > maxWhisperBytes) {
       // Re-encode at lower quality to fit
       const smallAudio = path.join(tmpDir, 'audio_small.mp3');
-      await execAsync(`ffmpeg -i "${audioPath}" -acodec libmp3lame -q:a 9 -ar 16000 "${smallAudio}" -y 2>/dev/null`);
+      await execAsync(`"${global.FFMPEG_PATH || 'ffmpeg'}" -i "${audioPath}" -acodec libmp3lame -q:a 9 -ar 16000 "${smallAudio}" -y 2>/dev/null`);
       audioBuffer = fs.readFileSync(smallAudio);
     }
 
@@ -1353,28 +1335,76 @@ RULES:
 // ═══════════════════════════════════════════════════
 // START
 // ═══════════════════════════════════════════════════
-// ── Ensure yt-dlp is available ──────────────────────────────────────────────
-(async () => {
-  const { exec } = require('child_process');
-  const { promisify } = require('util');
+// ── Tool Setup ──────────────────────────────────────────────────────────────
+const _toolSetup = (async () => {
+  const fs2 = require('fs');
   const path2 = require('path');
+  const https2 = require('https');
+  const { promisify } = require('util');
+  const { exec } = require('child_process');
   const execAsync = promisify(exec);
-  const projectBin = path2.join(process.cwd(), 'bin', 'yt-dlp');
-  const candidates = [projectBin, '/usr/local/bin/yt-dlp', 'yt-dlp'];
-  let found = false;
-  for (const p of candidates) {
-    try {
-      const r = await execAsync(`"${p}" --version 2>/dev/null`);
-      console.log(`yt-dlp: available at ${p} (${r.stdout.trim()})`);
-      found = true; break;
-    } catch(e) {}
-  }
-  if (!found) console.warn(`yt-dlp: NOT FOUND. Tried: ${candidates.join(', ')}`);
+
+  // ffmpeg via ffmpeg-static npm package
+  let FFMPEG_PATH = null;
   try {
-    await execAsync('ffmpeg -version 2>/dev/null');
-    console.log('ffmpeg: available');
+    FFMPEG_PATH = require('ffmpeg-static');
+    await execAsync(`"${FFMPEG_PATH}" -version 2>/dev/null`);
+    console.log('ffmpeg: available via ffmpeg-static at', FFMPEG_PATH);
   } catch(e) {
-    console.warn('ffmpeg: NOT FOUND');
+    console.warn('ffmpeg-static not available:', e.message);
+    FFMPEG_PATH = null;
+  }
+  global.FFMPEG_PATH = FFMPEG_PATH;
+
+  // yt-dlp: download binary on first boot if not present
+  const binDir = path2.join(process.cwd(), 'bin');
+  const ytdlpPath = path2.join(binDir, 'yt-dlp');
+  if (!fs2.existsSync(binDir)) fs2.mkdirSync(binDir, { recursive: true });
+
+  const checkYtdlp = async (p) => {
+    try { const r = await execAsync(`"${p}" --version 2>/dev/null`); return r.stdout.trim(); }
+    catch(e) { return null; }
+  };
+
+  // Check if already downloaded
+  let ytdlpVer = await checkYtdlp(ytdlpPath);
+  if (ytdlpVer) {
+    console.log('yt-dlp: ready at', ytdlpPath, '(' + ytdlpVer + ')');
+    global.YTDLP_PATH = ytdlpPath;
+    return;
+  }
+
+  // Download from GitHub releases
+  console.log('yt-dlp: downloading binary...');
+  const downloadBinary = (url, dest) => new Promise((resolve, reject) => {
+    const follow = (u) => {
+      https2.get(u, { headers: { 'User-Agent': 'phixo-admin' } }, (res) => {
+        if (res.statusCode === 301 || res.statusCode === 302) return follow(res.headers.location);
+        if (res.statusCode !== 200) return reject(new Error('HTTP ' + res.statusCode));
+        const f = fs2.createWriteStream(dest);
+        res.pipe(f);
+        f.on('finish', () => f.close(resolve));
+        f.on('error', reject);
+      }).on('error', reject);
+    };
+    follow(url);
+  });
+
+  try {
+    await downloadBinary(
+      'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp',
+      ytdlpPath
+    );
+    fs2.chmodSync(ytdlpPath, '755');
+    ytdlpVer = await checkYtdlp(ytdlpPath);
+    if (ytdlpVer) {
+      console.log('yt-dlp: downloaded and ready (' + ytdlpVer + ')');
+      global.YTDLP_PATH = ytdlpPath;
+    } else {
+      console.warn('yt-dlp: downloaded but failed to execute');
+    }
+  } catch(e) {
+    console.warn('yt-dlp: download failed:', e.message);
   }
 })();
 
