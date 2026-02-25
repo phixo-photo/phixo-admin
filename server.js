@@ -944,6 +944,243 @@ app.get('/api/drive/browse', requireAuth, async (req, res) => {
 });
 
 
+
+// ─── Video Ingest ─────────────────────────────────────────────────────────────
+// Downloads video via yt-dlp, extracts audio + screenshots, transcribes + summarizes
+app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
+  const { url, funnel_stage, category, tags } = req.body;
+  if (!url) return res.status(400).json({ error: 'URL required' });
+
+  const fs = require('fs');
+  const { execSync, exec } = require('child_process');
+  const { promisify } = require('util');
+  const execAsync = promisify(exec);
+  const path = require('path');
+  const os = require('os');
+
+  // Detect platform
+  const platform = url.includes('tiktok.com') ? 'TikTok'
+    : url.includes('instagram.com') ? 'Instagram'
+    : url.includes('youtube.com') || url.includes('youtu.be') ? 'YouTube'
+    : url.includes('twitter.com') || url.includes('x.com') ? 'Twitter/X'
+    : 'Video';
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'phixo-'));
+  const videoPath = path.join(tmpDir, 'video.mp4');
+  const audioPath = path.join(tmpDir, 'audio.mp3');
+  const screenshotsDir = path.join(tmpDir, 'screenshots');
+  fs.mkdirSync(screenshotsDir, { recursive: true });
+
+  let title = platform + ' Video';
+  let transcript = '';
+  let summary = '';
+  let summaryPoints = [];
+  let screenshotDriveIds = [];
+  let thumbnailUrl = '';
+  let duration = 0;
+
+  try {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    const send = (step, msg) => {
+      res.write(`data: ${JSON.stringify({ step, msg })}\n\n`);
+    };
+
+    // ── Step 1: Download video ──────────────────────────────────────────────
+    send('download', 'Downloading video from ' + platform + '...');
+    try {
+      await execAsync(
+        `yt-dlp -f "best[height<=720]/best" --no-playlist -o "${videoPath}" --no-check-certificate "${url}"`,
+        { timeout: 120000 }
+      );
+    } catch(dlErr) {
+      // Try with cookies workaround for Instagram
+      await execAsync(
+        `yt-dlp -f "best" --no-playlist -o "${videoPath}" --extractor-args "instagram:api_version=v1" "${url}"`,
+        { timeout: 120000 }
+      );
+    }
+
+    if (!fs.existsSync(videoPath)) throw new Error('Video download failed — yt-dlp could not retrieve this URL');
+
+    // Get title and duration from yt-dlp metadata
+    try {
+      const meta = await execAsync(`yt-dlp --get-title --get-duration "${url}" 2>/dev/null || true`);
+      const lines = meta.stdout.trim().split('\n').filter(Boolean);
+      if (lines[0]) title = lines[0].substring(0, 100);
+      if (lines[1]) {
+        const parts = lines[1].split(':').map(Number);
+        duration = parts.length === 2 ? parts[0]*60+parts[1] : parts.length === 3 ? parts[0]*3600+parts[1]*60+parts[2] : parseInt(parts[0])||0;
+      }
+    } catch(e) {}
+
+    // ── Step 2: Extract audio ────────────────────────────────────────────────
+    send('audio', 'Extracting audio...');
+    await execAsync(`ffmpeg -i "${videoPath}" -vn -acodec libmp3lame -q:a 4 "${audioPath}" -y 2>/dev/null`);
+
+    // ── Step 3: Screenshots ──────────────────────────────────────────────────
+    send('screenshots', 'Capturing frames...');
+    const interval = Math.max(Math.floor((duration || 60) / 7), 3);
+    await execAsync(
+      `ffmpeg -i "${videoPath}" -vf "fps=1/${interval},scale=640:-2" -frames:v 8 "${screenshotsDir}/frame_%03d.jpg" -y 2>/dev/null`
+    );
+    const frames = fs.readdirSync(screenshotsDir).filter(f => f.endsWith('.jpg')).sort();
+
+    // ── Step 4: Upload screenshots to Drive ──────────────────────────────────
+    send('uploading', `Uploading ${frames.length} screenshots to Drive...`);
+    const drive = getDrive(req);
+
+    // Find/create "Video Screenshots" folder in Drive
+    let shotFolderId;
+    const folderSearch = await drive.files.list({
+      q: `name='Video Screenshots' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: 'files(id)'
+    });
+    if (folderSearch.data.files.length) {
+      shotFolderId = folderSearch.data.files[0].id;
+    } else {
+      const created = await drive.files.create({
+        requestBody: { name: 'Video Screenshots', mimeType: 'application/vnd.google-apps.folder' },
+        fields: 'id'
+      });
+      shotFolderId = created.data.id;
+    }
+
+    // Upload each frame
+    const { Readable } = require('stream');
+    for (let i = 0; i < frames.length; i++) {
+      const framePath = path.join(screenshotsDir, frames[i]);
+      const frameData = fs.readFileSync(framePath);
+      const uploaded = await drive.files.create({
+        requestBody: {
+          name: `${title.substring(0,40)}_frame_${i+1}.jpg`,
+          parents: [shotFolderId],
+          mimeType: 'image/jpeg'
+        },
+        media: { mimeType: 'image/jpeg', body: Readable.from(frameData) },
+        fields: 'id,thumbnailLink'
+      });
+      screenshotDriveIds.push({
+        id: uploaded.data.id,
+        thumb: uploaded.data.thumbnailLink || '',
+        label: `Frame ${i+1} (~${(i * interval)}s)`
+      });
+      if (i === 0) thumbnailUrl = uploaded.data.thumbnailLink || '';
+    }
+
+    // ── Step 5: Transcribe with Whisper ──────────────────────────────────────
+    send('transcribe', 'Transcribing audio with Whisper...');
+    const audioStat = fs.statSync(audioPath);
+    const maxWhisperBytes = 24 * 1024 * 1024; // 24MB limit
+
+    if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not set — add it in Railway Variables');
+
+    let audioBuffer = fs.readFileSync(audioPath);
+    if (audioBuffer.length > maxWhisperBytes) {
+      // Re-encode at lower quality to fit
+      const smallAudio = path.join(tmpDir, 'audio_small.mp3');
+      await execAsync(`ffmpeg -i "${audioPath}" -acodec libmp3lame -q:a 9 -ar 16000 "${smallAudio}" -y 2>/dev/null`);
+      audioBuffer = fs.readFileSync(smallAudio);
+    }
+
+    const whisperForm = new FormData();
+    const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
+    whisperForm.append('file', audioBlob, 'audio.mp3');
+    whisperForm.append('model', 'whisper-1');
+    whisperForm.append('response_format', 'text');
+
+    const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` },
+      body: whisperForm
+    });
+    if (!whisperRes.ok) throw new Error('Whisper API error: ' + await whisperRes.text());
+    transcript = (await whisperRes.text()).trim();
+
+    // ── Step 6: Summarize with Claude ────────────────────────────────────────
+    send('summarize', 'Extracting key points with Claude...');
+    const claudeRes = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 800,
+      messages: [{
+        role: 'user',
+        content: `You're analyzing a ${platform} video transcript for a portrait photographer named Ian. Extract the key content.
+
+TRANSCRIPT:
+${transcript.substring(0, 6000)}
+
+Return ONLY a JSON object with these fields (no markdown, no extra text):
+{
+  "title": "short descriptive title for this content (max 60 chars)",
+  "platform_category": "educational/behind-the-scenes/marketing/posing/lighting/client-work/gear/motivation",
+  "key_points": ["point 1", "point 2", "point 3", "point 4", "point 5"],
+  "one_liner": "one sentence summary of what this video is actually about",
+  "relevance": "why this is useful for Ian's photography business (1-2 sentences)"
+}`
+      }]
+    });
+
+    try {
+      const parsed = JSON.parse(claudeRes.content[0].text);
+      title = parsed.title || title;
+      summaryPoints = parsed.key_points || [];
+      summary = parsed.one_liner || '';
+      // Store full structured metadata
+      summary = JSON.stringify({
+        one_liner: parsed.one_liner || '',
+        platform_category: parsed.platform_category || '',
+        key_points: parsed.key_points || [],
+        relevance: parsed.relevance || ''
+      });
+    } catch(e) {
+      summary = claudeRes.content[0].text;
+    }
+
+    // ── Step 7: Save block to DB ──────────────────────────────────────────────
+    send('saving', 'Saving to library...');
+    const metadata = {
+      platform,
+      platform_category: JSON.parse(summary).platform_category || '',
+      duration,
+      screenshot_frames: screenshotDriveIds,
+      one_liner: JSON.parse(summary).one_liner || '',
+      key_points: JSON.parse(summary).key_points || [],
+      relevance: JSON.parse(summary).relevance || ''
+    };
+
+    const result = await pool.query(
+      `INSERT INTO blocks (type, title, category, tags, funnel_stage, source, source_url, thumbnail_url, content_payload, metadata)
+       VALUES ($1, $2, $3, $4, $5, 'url', $6, $7, $8, $9) RETURNING *`,
+      [
+        'video',
+        title,
+        category || metadata.platform_category || platform.toLowerCase(),
+        tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [],
+        funnel_stage || '',
+        url,
+        thumbnailUrl,
+        transcript,
+        JSON.stringify(metadata)
+      ]
+    );
+
+    send('done', 'Block created');
+    res.write(`data: ${JSON.stringify({ done: true, block: result.rows[0] })}\n\n`);
+    res.end();
+
+  } catch (err) {
+    console.error('Video ingest error:', err);
+    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+    res.end();
+  } finally {
+    // Cleanup temp files
+    try {
+      const { execSync } = require('child_process');
+      execSync(`rm -rf "${tmpDir}"`);
+    } catch(e) {}
+  }
+});
+
 // ─── Sync Drive folders → auto-import new blocks ─────
 app.post('/api/drive/sync', requireAuth, async (req, res) => {
   try {
