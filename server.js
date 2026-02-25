@@ -279,7 +279,22 @@ app.patch('/api/blocks/:id', requireAuth, async (req, res) => {
 });
 
 app.delete('/api/blocks/:id', requireAuth, async (req, res) => {
-  try { await pool.query('DELETE FROM blocks WHERE id=$1', [req.params.id]); res.json({ ok: true }); }
+  try {
+    // Get block first to find Drive file
+    const b = await pool.query('SELECT drive_file_id, type FROM blocks WHERE id=$1', [req.params.id]);
+    if (b.rows.length && b.rows[0].drive_file_id) {
+      const fileId = b.rows[0].drive_file_id;
+      // Don't delete Drive thumbnails saved separately — only the actual block file
+      try {
+        const drive = getDrive(req);
+        await drive.files.delete({ fileId });
+        console.log(`Deleted Drive file: ${fileId}`);
+      } catch(e) {
+        console.warn(`Drive delete failed for ${fileId}: ${e.message}`);
+        // Continue — still delete from DB even if Drive fails
+      }
+    }
+    await pool.query('DELETE FROM blocks WHERE id=$1', [req.params.id]); res.json({ ok: true }); }
   catch (err) { res.status(500).json({ error: err.message }); }
 });
 
@@ -331,7 +346,8 @@ app.post('/api/blocks/upload', requireAuth, upload.single('file'), async (req, r
     // Extract video thumbnail frame using ffmpeg
     let thumbnailUrl = uploaded.data.thumbnailLink || null;
     let thumbDriveId = null;
-    if (isVideo && global.FFMPEG_PATH) {
+    const skipThumb = ['meme'].includes(type);
+    if (isVideo && global.FFMPEG_PATH && !skipThumb) {
       try {
         const thumbPath = tmpFile + '_thumb.jpg';
         await require('util').promisify(require('child_process').exec)(
@@ -1373,26 +1389,27 @@ app.get('/api/drive/file/:fileId', requireAuth, async (req, res) => {
     const drive = getDrive(req);
     const meta = await drive.files.get({
       fileId: req.params.fileId,
-      fields: 'mimeType,name,size,webContentLink'
+      fields: 'mimeType,name,size'
     });
     const mimeType = meta.data.mimeType || 'application/octet-stream';
     const fileSize = parseInt(meta.data.size || '0');
-    const isVideo = mimeType.startsWith('video/');
-
-    // For video files: redirect to Drive's direct CDN URL so the browser
-    // can handle range requests natively (enables seeking, proper playback)
-    if (isVideo && meta.data.webContentLink) {
-      const directUrl = meta.data.webContentLink
-        .replace('&export=download', '')
-        .replace('export=download&', '')
-        .replace('?export=download', '');
-      return res.redirect(302, directUrl);
-    }
 
     res.setHeader('Content-Type', mimeType);
-    res.setHeader('Cache-Control', 'private, max-age=7200');
-    res.setHeader('X-File-Name', encodeURIComponent(meta.data.name || 'file'));
-    if (fileSize) res.setHeader('Content-Length', fileSize);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+    res.setHeader('Accept-Ranges', 'bytes');
+
+    const range = req.headers.range;
+    if (range && fileSize) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+      const chunkSize = (end - start) + 1;
+      res.status(206);
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+      res.setHeader('Content-Length', chunkSize);
+    } else if (fileSize) {
+      res.setHeader('Content-Length', fileSize);
+    }
 
     const fileRes = await drive.files.get(
       { fileId: req.params.fileId, alt: 'media' },
