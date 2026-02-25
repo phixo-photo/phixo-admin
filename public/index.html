@@ -107,6 +107,20 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .strip-add{width:90px;height:90px;border-radius:8px;border:2px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:11px;gap:3px;background:none;font-family:inherit;flex-shrink:0;transition:all .12s}
 .strip-add:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
 .strip-add .ico{font-size:20px}
+/* Pose grid */
+.pose-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;padding:4px 0}
+.pose-tile{position:relative;border-radius:12px;overflow:hidden;background:var(--surface-2);aspect-ratio:3/4;cursor:pointer;border:2px solid transparent;transition:all .15s;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.pose-tile:hover{border-color:var(--accent);transform:translateY(-2px)}
+.pose-tile img{width:100%;height:100%;object-fit:cover}
+.pose-tile .rm{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .1s}
+.pose-tile:hover .rm{opacity:1}
+.pose-tile-add{aspect-ratio:3/4;border-radius:10px;border:2px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:12px;gap:6px;background:none;font-family:inherit;transition:all .12s;min-height:120px}
+.pose-tile-add:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+/* Lightbox */
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out}
+.lightbox img{max-width:90vw;max-height:90vh;object-fit:contain;border-radius:8px}
+.lightbox-close{position:absolute;top:20px;right:24px;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;opacity:.7}
+.lightbox-close:hover{opacity:1}
 .kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .kcol{background:var(--bg);border-radius:var(--r);padding:12px}
 .kcol-head{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:10px}
@@ -208,7 +222,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .shot-frame{flex-shrink:0;width:120px}
 .shot-frame img{width:120px;height:80px;object-fit:contain;background:#111;border-radius:7px;display:block}
 .shot-label{font-size:10px;color:var(--muted);text-align:center;margin-top:3px}
-.transcript-block{background:var(--bg);border-radius:8px;padding:14px 16px;font-size:12px;line-height:1.8;color:#444;max-height:260px;overflow-y:auto;white-space:pre-wrap;border:1px solid var(--border)}
+.transcript-block{background:var(--bg);border-radius:8px;padding:14px 16px;font-size:13px;line-height:1.9;color:var(--text);max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;border:1px solid var(--border);font-family:inherit}
 .vb-source{font-size:11px;color:var(--muted);margin-top:10px}
 .vb-source a{color:var(--accent)}
 .progress-card{background:var(--nav);border-radius:12px;padding:28px;text-align:center;min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
@@ -219,6 +233,18 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--nav);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .25s;pointer-events:none}
 .toast.on{opacity:1}.toast.ok{background:#2a7a2a}.toast.err{background:var(--hot)}
+
+/* Knowledge base */
+.kb-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px}
+.kb-answer{background:var(--surface-2);border-radius:8px;padding:14px;font-size:13px;line-height:1.7;white-space:pre-wrap;margin-top:12px;max-height:400px;overflow-y:auto}
+.kb-sources{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.kb-source-chip{background:var(--accent-light);color:var(--accent);border-radius:20px;padding:3px 10px;font-size:11px;cursor:pointer}
+.kb-source-chip:hover{background:var(--accent);color:#fff}
+.block-video-player{width:100%;border-radius:8px;margin-bottom:12px;max-height:380px;background:#000}
+.script-content{background:var(--surface-2);border-radius:8px;padding:14px;font-size:12.5px;line-height:1.8;white-space:pre-wrap;font-family:'SF Mono',Consolas,monospace;max-height:380px;overflow-y:auto;margin-bottom:10px}
+.summarize-btn{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit}
+.summarize-btn:hover{opacity:.85}
+.summarize-btn:disabled{opacity:.5;cursor:default}
 </style>
 </head>
 <body>
@@ -240,6 +266,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
     <a href="/auth/logout">Sign out</a>
   </div>
 </nav>
+<button id="ask-fab" onclick="openAskLibrary()" title="Ask your library" style="position:fixed;bottom:24px;right:24px;z-index:200;background:var(--accent);color:#fff;border:none;border-radius:50%;width:52px;height:52px;font-size:22px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;transition:transform .15s" onmouseenter="this.style.transform='scale(1.1)'" onmouseleave="this.style.transform='scale(1)'">🧠</button>
 <div id="main">
 <div id="v-pipeline" class="view on">
   <div class="ph"><h1>Client <em>pipeline</em></h1><p>Active leads, bookings, and deliveries.</p></div>
@@ -427,7 +454,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
       </div>
       <div id="ab-file-info" style="font-size:12px;color:var(--muted);margin:6px 0;display:none"></div>
       <div class="g3">
-        <div><label>Type</label><select id="ab-up-type"><option value="image">Image</option><option value="meme">Meme</option><option value="pose">Pose</option><option value="sfx">SFX</option><option value="pdf">PDF</option></select></div>
+        <div><label>Type</label><select id="ab-up-type"><option value="image">Image</option><option value="video">Video</option><option value="meme">Meme</option><option value="pose">Pose</option><option value="sfx">SFX</option><option value="pdf">PDF</option></select></div>
         <div><label>Category</label><input id="ab-up-cat"></div>
         <div><label>Funnel</label><select id="ab-up-funnel"><option value="">—</option><option value="tof">TOF</option><option value="mof">MOF</option><option value="bof">BOF</option></select></div>
       </div>
@@ -632,6 +659,62 @@ function showView(name,navEl){
   if(navEl)navEl.classList.add('on');
   else{const nb=document.querySelector(`.nb[data-view="${name}"]`);if(nb)nb.classList.add('on');}
   if(name==='pipeline')loadPipeline();
+
+// ── Ask Library ──────────────────────────────────────────────────────────────
+function openAskLibrary(){
+  document.getElementById('ask-input').value='';
+  openModal('m-ask-library');
+  setTimeout(()=>document.getElementById('ask-input').focus(),100);
+}
+
+async function askLibrary(){
+  const q = document.getElementById('ask-input').value.trim();
+  if(!q) return;
+  const btn = document.getElementById('ask-btn');
+  const status = document.getElementById('ask-status');
+  const history = document.getElementById('ask-history');
+  btn.disabled=true; btn.textContent='Thinking...';
+  status.style.display='block'; status.textContent='Reading your library...';
+  history.style.display='flex';
+
+  // Add user message
+  const userMsg = document.createElement('div');
+  userMsg.style.cssText='align-self:flex-end;background:var(--accent);color:#fff;border-radius:12px 12px 2px 12px;padding:10px 14px;font-size:13px;max-width:85%;line-height:1.6';
+  userMsg.textContent=q;
+  history.appendChild(userMsg);
+  history.scrollTop=history.scrollHeight;
+  document.getElementById('ask-input').value='';
+
+  try {
+    const r = await api('POST','/api/library/ask',{question:q});
+    
+    // Add AI answer
+    const aiMsg = document.createElement('div');
+    aiMsg.style.cssText='align-self:flex-start;background:var(--surface-2);border-radius:2px 12px 12px 12px;padding:12px 14px;font-size:13px;max-width:90%;line-height:1.7;white-space:pre-wrap;border:1px solid var(--border)';
+    aiMsg.textContent=r.answer;
+
+    if(r.sources && r.sources.length){
+      const srcs = document.createElement('div');
+      srcs.style.cssText='margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:6px';
+      srcs.innerHTML='<span style="font-size:10px;color:var(--muted);width:100%;font-weight:600;letter-spacing:.4px;text-transform:uppercase">Sources</span>' +
+        r.sources.map(s=>`<button onclick="openBlockDetail(${s.id});closeM('m-ask-library')" style="background:var(--surface-3);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;cursor:pointer;color:var(--text)">${esc(s.title)}</button>`).join('');
+      aiMsg.appendChild(srcs);
+    }
+
+    const meta = document.createElement('div');
+    meta.style.cssText='font-size:10px;color:var(--muted);margin-top:6px';
+    meta.textContent=`↑ Based on ${r.block_count} blocks in your library`;
+    aiMsg.appendChild(meta);
+
+    history.appendChild(aiMsg);
+    history.scrollTop=history.scrollHeight;
+    status.style.display='none';
+  } catch(err){
+    toast(err.message,'err');
+    status.style.display='none';
+  }
+  btn.disabled=false; btn.textContent='Ask →';
+}
   if(name==='discovery')loadDiscovery();
   if(name==='research'){
     // Always reset filters on nav
@@ -769,16 +852,14 @@ function renderClientFile(c){
     <div class="cf-sec">
       <div class="cf-sh open" onclick="toggleSec(this)"><h3>Pose Selection</h3><span class="arr">▾</span></div>
       <div class="cf-bd" style="padding-top:12px">
-        <div class="block-strip">
+        <div class="pose-grid">
           ${poses.map(p=>`
-            <div class="strip-thumb" title="${esc(p.file_name||p.title)}">
-              ${p.drive_file_id||p.thumbnail_url
-                ?`<img src="${p.thumbnail_url?esc(p.thumbnail_url):`/api/drive/file/${p.drive_file_id}`}" loading="lazy" onerror="this.src='/api/drive/file/${p.drive_file_id}';this.onerror=null">`
-                :`<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:28px">🧍</div>`}
-              <button class="rm" onclick="detachBlock(${p.attachment_id},'client')">✕</button>
+            <div class="pose-tile" onclick="openLightbox('${p.drive_file_id?`/api/drive/file/${p.drive_file_id}`:esc(p.thumbnail_url||'')}','${esc(p.file_name||p.title)}')" title="${esc(p.file_name||p.title)}">
+              <img src="${p.thumbnail_url?esc(p.thumbnail_url):`/api/drive/file/${p.drive_file_id}`}" loading="lazy" onerror="this.src='/api/drive/file/${p.drive_file_id}';this.onerror=null">
+              <button class="rm" onclick="event.stopPropagation();detachBlock(${p.attachment_id},'client')">✕</button>
             </div>`).join('')}
-          <button class="strip-add" onclick="openBlockPicker('client',${c.id},['pose'],'Add Poses')">
-            <span class="ico">＋</span><span>Add Poses</span>
+          <button class="pose-tile-add" onclick="openBlockPicker('client',${c.id},['pose'],'Add Poses')">
+            <span style="font-size:28px">＋</span><span>Add Pose</span>
           </button>
         </div>
       </div>
@@ -1062,7 +1143,18 @@ async function ingestUrl(){
 }
 function handleAbFile(input){
   ab_file=input.files[0];
-  if(ab_file){document.getElementById('ab-up-title').value=ab_file.name.replace(/\.[^.]+$/,'');document.getElementById('ab-file-info').textContent=ab_file.name+' ('+Math.round(ab_file.size/1024)+' KB)';document.getElementById('ab-file-info').style.display='block';}
+  if(ab_file){
+    document.getElementById('ab-up-title').value=ab_file.name.replace(/\.[^.]+$/,'');
+    document.getElementById('ab-file-info').textContent=ab_file.name+' ('+Math.round(ab_file.size/1024)+' KB)';
+    document.getElementById('ab-file-info').style.display='block';
+    // Auto-detect type
+    const ext = ab_file.name.split('.').pop().toLowerCase();
+    const mime = ab_file.type || '';
+    const typeEl = document.getElementById('ab-up-type');
+    if(mime.startsWith('video/') || ['mp4','mov','webm','mkv'].includes(ext)) typeEl.value='video';
+    else if(mime.startsWith('image/') || ['jpg','jpeg','png','gif','webp'].includes(ext)) typeEl.value='image';
+    else if(ext==='pdf') typeEl.value='pdf';
+  }
 }
 async function uploadBlock(){
   if(!ab_file){toast('Select a file','err');return;}
@@ -1723,6 +1815,11 @@ function renderVideoBlock(b){
 
 function renderGenericBlock(b){
   const hasImg = b.drive_file_id && b.file_mime && b.file_mime.startsWith('image/');
+  const hasVideo = b.drive_file_id && b.file_mime && b.file_mime.startsWith('video/');
+  const isNote = ['note','conversation','transcript'].includes(b.type);
+  const isPdf = b.type === 'pdf';
+  const needsSummarize = (isNote || isPdf) && b.content_payload && b.content_payload.length > 100;
+
   document.getElementById('bd-body').innerHTML = `
     <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
       <span class="tag t-lead">${b.type}</span>
@@ -1730,16 +1827,114 @@ function renderGenericBlock(b){
       ${b.funnel_stage?funnelBadge(b.funnel_stage):''}
       ${(b.tags||[]).map(t=>`<span class="tag t-lead">${esc(t)}</span>`).join('')}
     </div>
-    ${hasImg?`<img src="/api/drive/file/${b.drive_file_id}" style="max-width:100%;border-radius:8px;margin-bottom:12px;max-height:400px;object-fit:contain;width:100%">`:'' }
-    ${b.thumbnail_url&&!hasImg?`<img src="${esc(b.thumbnail_url)}" style="max-width:100%;border-radius:8px;margin-bottom:12px;max-height:240px;object-fit:contain">`:'' }
+    ${hasVideo?`
+      <video controls style="width:100%;border-radius:10px;margin-bottom:12px;background:#000;max-height:420px" preload="metadata">
+        <source src="/api/drive/file/${b.drive_file_id}" type="${esc(b.file_mime)}">
+      </video>`:''
+    }
+    ${hasImg?`<img src="/api/drive/file/${b.drive_file_id}" style="max-width:100%;border-radius:8px;margin-bottom:12px;max-height:420px;object-fit:contain;width:100%">`:'' }
+    ${b.thumbnail_url&&!hasImg&&!hasVideo?`<img src="${esc(b.thumbnail_url)}" style="max-width:100%;border-radius:8px;margin-bottom:12px;max-height:240px;object-fit:contain">`:'' }
     ${b.source_url?`<div style="margin-bottom:10px"><a href="${esc(b.source_url)}" target="_blank" style="color:var(--accent);font-size:13px">↗ Open source</a></div>`:''}
-    ${b.content_payload?`<div class="transcript-block" style="max-height:320px">${esc(b.content_payload)}</div>`:''}
+    ${needsSummarize?`
+      <div id="blk-summary-${b.id}" style="margin-bottom:12px">
+        <button class="btn btn-ghost btn-sm" onclick="summarizeBlock(${b.id})">✨ Summarize with AI</button>
+      </div>`:''
+    }
+    ${b.content_payload?`
+      <div style="margin-bottom:6px;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Content</div>
+      <div class="transcript-block">${esc(b.content_payload)}</div>`:''
+    }
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+      ${b.drive_file_id?`<button class="btn btn-ghost btn-sm" onclick="window.open('/api/drive/file/${b.drive_file_id}','_blank')">↗ Open file</button>`:''}
       <button class="btn btn-danger btn-sm" onclick="deleteBlock(${b.id})">Delete Block</button>
     </div>`;
 }
 
+async function summarizeBlock(id){
+  const btn = document.querySelector(`#blk-summary-${id} button`);
+  btn.disabled=true; btn.textContent='Summarizing...';
+  try {
+    const r = await api('POST', `/api/blocks/${id}/summarize`);
+    document.getElementById(`blk-summary-${id}`).innerHTML = `
+      <div style="background:var(--surface-2);border-radius:10px;padding:14px;border-left:3px solid var(--accent)">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">AI Summary</div>
+        <div style="font-size:13px;line-height:1.7;white-space:pre-wrap">${esc(r.summary||r.content||'No summary returned')}</div>
+      </div>`;
+  } catch(err){ btn.disabled=false; btn.textContent='✨ Summarize with AI'; toast(err.message,'err'); }
+}
+
 loadPipeline();
+
+// ── Ask Library ──────────────────────────────────────────────────────────────
+function openAskLibrary(){
+  document.getElementById('ask-input').value='';
+  openModal('m-ask-library');
+  setTimeout(()=>document.getElementById('ask-input').focus(),100);
+}
+
+async function askLibrary(){
+  const q = document.getElementById('ask-input').value.trim();
+  if(!q) return;
+  const btn = document.getElementById('ask-btn');
+  const status = document.getElementById('ask-status');
+  const history = document.getElementById('ask-history');
+  btn.disabled=true; btn.textContent='Thinking...';
+  status.style.display='block'; status.textContent='Reading your library...';
+  history.style.display='flex';
+
+  // Add user message
+  const userMsg = document.createElement('div');
+  userMsg.style.cssText='align-self:flex-end;background:var(--accent);color:#fff;border-radius:12px 12px 2px 12px;padding:10px 14px;font-size:13px;max-width:85%;line-height:1.6';
+  userMsg.textContent=q;
+  history.appendChild(userMsg);
+  history.scrollTop=history.scrollHeight;
+  document.getElementById('ask-input').value='';
+
+  try {
+    const r = await api('POST','/api/library/ask',{question:q});
+    
+    // Add AI answer
+    const aiMsg = document.createElement('div');
+    aiMsg.style.cssText='align-self:flex-start;background:var(--surface-2);border-radius:2px 12px 12px 12px;padding:12px 14px;font-size:13px;max-width:90%;line-height:1.7;white-space:pre-wrap;border:1px solid var(--border)';
+    aiMsg.textContent=r.answer;
+
+    if(r.sources && r.sources.length){
+      const srcs = document.createElement('div');
+      srcs.style.cssText='margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:6px';
+      srcs.innerHTML='<span style="font-size:10px;color:var(--muted);width:100%;font-weight:600;letter-spacing:.4px;text-transform:uppercase">Sources</span>' +
+        r.sources.map(s=>`<button onclick="openBlockDetail(${s.id});closeM('m-ask-library')" style="background:var(--surface-3);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;cursor:pointer;color:var(--text)">${esc(s.title)}</button>`).join('');
+      aiMsg.appendChild(srcs);
+    }
+
+    const meta = document.createElement('div');
+    meta.style.cssText='font-size:10px;color:var(--muted);margin-top:6px';
+    meta.textContent=`↑ Based on ${r.block_count} blocks in your library`;
+    aiMsg.appendChild(meta);
+
+    history.appendChild(aiMsg);
+    history.scrollTop=history.scrollHeight;
+    status.style.display='none';
+  } catch(err){
+    toast(err.message,'err');
+    status.style.display='none';
+  }
+  btn.disabled=false; btn.textContent='Ask →';
+}
 </script>
+<!-- Ask Library Modal -->
+<div class="mbg off" id="m-ask-library">
+  <div class="modal" style="max-width:680px">
+    <div class="mh"><h2>Ask your Library 🧠</h2><button class="mx" onclick="closeM('m-ask-library')">✕</button></div>
+    <div class="mb" style="display:flex;flex-direction:column;gap:12px">
+      <p style="font-size:13px;color:var(--muted);margin:0">Ask anything — Claude reads your actual research blocks, transcripts, and notes to answer. No hallucination, citations included.</p>
+      <div id="ask-history" style="display:none;max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-bottom:4px"></div>
+      <div style="display:flex;gap:8px">
+        <textarea id="ask-input" placeholder="e.g. What posing tips do I have for nervous clients? What did that Canva video say about composition?" style="flex:1;min-height:72px;resize:vertical;font-size:13px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:inherit" onkeydown="if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){askLibrary();return false}"></textarea>
+        <button class="btn btn-dark" id="ask-btn" onclick="askLibrary()" style="align-self:flex-end;white-space:nowrap">Ask →</button>
+      </div>
+      <div id="ask-status" style="font-size:11px;color:var(--muted);display:none"></div>
+    </div>
+  </div>
+</div>
 </body>
 </html>
