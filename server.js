@@ -988,17 +988,29 @@ app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
 
     // ── Step 1: Download video ──────────────────────────────────────────────
     send('download', 'Downloading video from ' + platform + '...');
+    // Find yt-dlp binary (may be in various locations depending on install method)
+    let ytdlpCmd = 'yt-dlp';
+    try {
+      const which = await execAsync('which yt-dlp || which yt_dlp || ls ~/.local/bin/yt-dlp 2>/dev/null || ls /usr/local/bin/yt-dlp 2>/dev/null || echo ""');
+      const found = which.stdout.trim().split('\n')[0];
+      if (found && found !== '') ytdlpCmd = found;
+    } catch(e) {}
+
     try {
       await execAsync(
-        `yt-dlp -f "best[height<=720]/best" --no-playlist -o "${videoPath}" --no-check-certificate "${url}"`,
-        { timeout: 120000 }
+        `${ytdlpCmd} -f "best[height<=720]/best" --no-playlist -o "${videoPath}" --no-check-certificate "${url}"`,
+        { timeout: 180000 }
       );
     } catch(dlErr) {
-      // Try with cookies workaround for Instagram
-      await execAsync(
-        `yt-dlp -f "best" --no-playlist -o "${videoPath}" --extractor-args "instagram:api_version=v1" "${url}"`,
-        { timeout: 120000 }
-      );
+      // Try Python module path as fallback
+      try {
+        await execAsync(
+          `python3 -m yt_dlp -f "best" --no-playlist -o "${videoPath}" "${url}"`,
+          { timeout: 180000 }
+        );
+      } catch(e2) {
+        throw new Error('yt-dlp not available on this server. Please redeploy — Railway needs to rebuild with the updated nixpacks.toml that includes yt-dlp.');
+      }
     }
 
     if (!fs.existsSync(videoPath)) throw new Error('Video download failed — yt-dlp could not retrieve this URL');
@@ -1020,11 +1032,17 @@ app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
 
     // ── Step 3: Screenshots ──────────────────────────────────────────────────
     send('screenshots', 'Capturing frames...');
-    const interval = Math.max(Math.floor((duration || 60) / 7), 3);
-    await execAsync(
-      `ffmpeg -i "${videoPath}" -vf "fps=1/${interval},scale=640:-2" -frames:v 8 "${screenshotsDir}/frame_%03d.jpg" -y 2>/dev/null`
-    );
-    const frames = fs.readdirSync(screenshotsDir).filter(f => f.endsWith('.jpg')).sort();
+    let frames = [];
+    try {
+      const interval = Math.max(Math.floor((duration || 60) / 7), 3);
+      await execAsync(
+        `ffmpeg -i "${videoPath}" -vf "fps=1/${interval},scale=640:-2" -frames:v 8 "${screenshotsDir}/frame_%03d.jpg" -y 2>/dev/null`,
+        { timeout: 60000 }
+      );
+      frames = fs.readdirSync(screenshotsDir).filter(f => f.endsWith('.jpg')).sort();
+    } catch(ffErr) {
+      console.warn('ffmpeg screenshots failed, continuing without frames:', ffErr.message);
+    }
 
     // ── Step 4: Upload screenshots to Drive ──────────────────────────────────
     send('uploading', `Uploading ${frames.length} screenshots to Drive...`);
@@ -1321,6 +1339,31 @@ RULES:
 // ═══════════════════════════════════════════════════
 // START
 // ═══════════════════════════════════════════════════
+// ── Ensure yt-dlp is available ──────────────────────────────────────────────
+(async () => {
+  const { exec } = require('child_process');
+  const { promisify } = require('util');
+  const execAsync = promisify(exec);
+  try {
+    await execAsync('yt-dlp --version');
+    console.log('yt-dlp: available');
+  } catch(e) {
+    console.log('yt-dlp not found, installing via pip...');
+    try {
+      await execAsync('pip3 install -q yt-dlp || pip install -q yt-dlp');
+      console.log('yt-dlp: installed');
+    } catch(e2) {
+      console.warn('yt-dlp install failed:', e2.message);
+    }
+  }
+  try {
+    await execAsync('ffmpeg -version');
+    console.log('ffmpeg: available');
+  } catch(e) {
+    console.warn('ffmpeg not found — video screenshots will be skipped');
+  }
+})();
+
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
   console.log(`Phixo Admin v3 — port ${PORT}`);
