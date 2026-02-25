@@ -1199,7 +1199,7 @@ app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
         thumb: uploaded.data.thumbnailLink || '',
         label: `Frame ${i+1} (~${(i * interval)}s)`
       });
-      if (i === 0) thumbnailUrl = uploaded.data.thumbnailLink || '';
+      if (i === 0) thumbnailUrl = `/api/drive/file/${uploaded.data.id}`;
     }
 
     // ── Step 5: Transcribe with Whisper ──────────────────────────────────────
@@ -1372,7 +1372,7 @@ app.post('/api/drive/sync', requireAuth, async (req, res) => {
         await pool.query(
           `INSERT INTO blocks (type,title,category,tags,source,drive_file_id,file_name,file_mime,thumbnail_url)
            VALUES ($1,$2,$3,$4,'drive',$5,$6,$7,$8)`,
-          [folder.type, f.name, folder.category, [], f.id, f.name, f.mimeType||'', f.thumbnailLink||'']
+          [folder.type, f.name, folder.category, [], f.id, f.name, f.mimeType||'', f.mimeType&&f.mimeType.startsWith('image/')?`/api/drive/file/${f.id}`:'']
         );
         imported++;
       }
