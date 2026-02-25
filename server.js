@@ -1004,10 +1004,40 @@ app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
     const ytdlpCmd = `"${global.YTDLP_PATH}"`;
     console.log('Using yt-dlp:', ytdlpCmd);
 
+    // Write Instagram cookies file if env var is set
+    let cookiesArg = '';
+    const isInstagram = url.includes('instagram.com');
+    if (isInstagram && process.env.INSTAGRAM_COOKIES) {
+      const cookiePath = path.join(tmpDir, 'ig_cookies.txt');
+      fs.writeFileSync(cookiePath, process.env.INSTAGRAM_COOKIES);
+      cookiesArg = `--cookies "${cookiePath}"`;
+    }
+
+    const buildCmd = (fmt) => `${ytdlpCmd} ${cookiesArg} -f "${fmt}" --no-playlist --no-check-certificate -o "${videoPath}" "${url}"`;
+
+    const checkIgError = (msg) => {
+      if (!isInstagram) return;
+      if (msg.includes('login required') || msg.includes('login page') || msg.includes('not available') || msg.includes('rate-limit')) {
+        if (!process.env.INSTAGRAM_COOKIES) {
+          throw new Error('Instagram requires authentication. Add your INSTAGRAM_COOKIES to Railway Variables — see the setup instructions in the app.');
+        } else {
+          throw new Error('Instagram cookies have expired. Re-export your cookies from Chrome and update the INSTAGRAM_COOKIES variable in Railway.');
+        }
+      }
+    };
+
     try {
-      await execAsync(`${ytdlpCmd} -f "best[height<=720]/best" --no-playlist --no-check-certificate -o "${videoPath}" "${url}"`, { timeout: 180000 });
+      await execAsync(buildCmd('best[height<=720]/best'), { timeout: 180000 });
     } catch(dlErr) {
-      await execAsync(`${ytdlpCmd} -f "best" --no-playlist -o "${videoPath}" "${url}"`, { timeout: 180000 });
+      const errMsg = (dlErr.stderr || '') + (dlErr.message || '');
+      checkIgError(errMsg);
+      try {
+        await execAsync(buildCmd('b'), { timeout: 180000 });
+      } catch(e2) {
+        const msg2 = (e2.stderr || '') + (e2.message || '');
+        checkIgError(msg2);
+        throw e2;
+      }
     }
 
     if (!fs.existsSync(videoPath)) throw new Error('Video download failed — yt-dlp could not retrieve this URL');
