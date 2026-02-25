@@ -1393,30 +1393,51 @@ app.get('/api/drive/file/:fileId', requireAuth, async (req, res) => {
     });
     const mimeType = meta.data.mimeType || 'application/octet-stream';
     const fileSize = parseInt(meta.data.size || '0');
+    const isVideo = mimeType.startsWith('video/');
 
     res.setHeader('Content-Type', mimeType);
     res.setHeader('Cache-Control', 'private, max-age=3600');
-    res.setHeader('Accept-Ranges', 'bytes');
 
-    const range = req.headers.range;
-    if (range && fileSize) {
-      const parts = range.replace(/bytes=/, '').split('-');
-      const start = parseInt(parts[0], 10);
-      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-      const chunkSize = (end - start) + 1;
-      res.status(206);
-      res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
-      res.setHeader('Content-Length', chunkSize);
-    } else if (fileSize) {
-      res.setHeader('Content-Length', fileSize);
+    if (isVideo) {
+      // For video: buffer entirely then serve with proper range support
+      // This enables seeking in the <video> element
+      const chunks = [];
+      const fileRes = await drive.files.get(
+        { fileId: req.params.fileId, alt: 'media' },
+        { responseType: 'stream' }
+      );
+      await new Promise((resolve, reject) => {
+        fileRes.data.on('data', chunk => chunks.push(chunk));
+        fileRes.data.on('end', resolve);
+        fileRes.data.on('error', reject);
+      });
+      const buffer = Buffer.concat(chunks);
+      const total = buffer.length;
+      res.setHeader('Accept-Ranges', 'bytes');
+
+      const range = req.headers.range;
+      if (range) {
+        const parts = range.replace(/bytes=/, '').split('-');
+        const start = parseInt(parts[0], 10);
+        const end = parts[1] ? Math.min(parseInt(parts[1], 10), total - 1) : total - 1;
+        res.status(206);
+        res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
+        res.setHeader('Content-Length', end - start + 1);
+        res.end(buffer.slice(start, end + 1));
+      } else {
+        res.setHeader('Content-Length', total);
+        res.end(buffer);
+      }
+    } else {
+      // Images/PDFs: pipe directly
+      if (fileSize) res.setHeader('Content-Length', fileSize);
+      const fileRes = await drive.files.get(
+        { fileId: req.params.fileId, alt: 'media' },
+        { responseType: 'stream' }
+      );
+      fileRes.data.on('error', () => { if (!res.headersSent) res.status(500).end(); });
+      fileRes.data.pipe(res);
     }
-
-    const fileRes = await drive.files.get(
-      { fileId: req.params.fileId, alt: 'media' },
-      { responseType: 'stream' }
-    );
-    fileRes.data.on('error', () => { if (!res.headersSent) res.status(500).end(); });
-    fileRes.data.pipe(res);
   } catch (err) {
     console.error('Drive file error:', err.message);
     if (!res.headersSent) res.status(500).json({ error: err.message });
