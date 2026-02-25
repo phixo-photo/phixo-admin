@@ -1084,15 +1084,14 @@ async function loadResearch(){
   grid.innerHTML=blocks.map(b=>{
     const hasImg=b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('image/');
     const hasVideo=b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('video/');
-    // Always use proxy for images (Drive thumbnailLinks expire)
-    // For videos: use stored thumbnail_url if it's our proxy path, else null
-    let thumbSrc = null;
-    if (hasImg) thumbSrc = `/api/drive/file/${b.drive_file_id}`;
-    else if (b.thumbnail_url && b.thumbnail_url.startsWith('/api/')) thumbSrc = esc(b.thumbnail_url);
+    // Use thumbnail_url if available (CDN fast), fallback to proxy on error
+    const proxyUrl = hasImg ? `/api/drive/file/${b.drive_file_id}` : null;
+    const thumbSrc = b.thumbnail_url ? esc(b.thumbnail_url) : proxyUrl;
+    const thumbFallback = proxyUrl ? `this.onerror=null;this.src='${proxyUrl}'` : `this.style.display='none';this.nextElementSibling.style.display='block'`;
     return`<div class="block-card" onclick="openBlockDetail(${b.id})">
       <div class="block-thumb">
         ${thumbSrc
-          ? `<img src="${thumbSrc}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">`
+          ? `<img src="${thumbSrc}" loading="lazy" onerror="${thumbFallback}">`
           : ``}
         ${!thumbSrc&&hasVideo
           ? `<div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--surface-2)"><span style="font-size:36px">🎬</span><span style="font-size:10px;color:var(--muted)">tap to play</span></div>`
