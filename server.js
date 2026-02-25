@@ -1373,36 +1373,32 @@ app.get('/api/drive/file/:fileId', requireAuth, async (req, res) => {
     const drive = getDrive(req);
     const meta = await drive.files.get({
       fileId: req.params.fileId,
-      fields: 'mimeType,name,size'
+      fields: 'mimeType,name,size,webContentLink'
     });
     const mimeType = meta.data.mimeType || 'application/octet-stream';
     const fileSize = parseInt(meta.data.size || '0');
+    const isVideo = mimeType.startsWith('video/');
+
+    // For video files: redirect to Drive's direct CDN URL so the browser
+    // can handle range requests natively (enables seeking, proper playback)
+    if (isVideo && meta.data.webContentLink) {
+      const directUrl = meta.data.webContentLink
+        .replace('&export=download', '')
+        .replace('export=download&', '')
+        .replace('?export=download', '');
+      return res.redirect(302, directUrl);
+    }
+
     res.setHeader('Content-Type', mimeType);
     res.setHeader('Cache-Control', 'private, max-age=7200');
     res.setHeader('X-File-Name', encodeURIComponent(meta.data.name || 'file'));
-    res.setHeader('Accept-Ranges', 'bytes');
-
-    // Range request support (needed for <video> seeking)
-    const range = req.headers.range;
-    if (range && fileSize) {
-      const parts = range.replace(/bytes=/, '').split('-');
-      const start = parseInt(parts[0], 10);
-      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-      const chunkSize = end - start + 1;
-      res.status(206);
-      res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
-      res.setHeader('Content-Length', chunkSize);
-    } else if (fileSize) {
-      res.setHeader('Content-Length', fileSize);
-    }
+    if (fileSize) res.setHeader('Content-Length', fileSize);
 
     const fileRes = await drive.files.get(
       { fileId: req.params.fileId, alt: 'media' },
       { responseType: 'stream' }
     );
-    fileRes.data.on('error', (err) => {
-      if (!res.headersSent) res.status(500).end();
-    });
+    fileRes.data.on('error', () => { if (!res.headersSent) res.status(500).end(); });
     fileRes.data.pipe(res);
   } catch (err) {
     console.error('Drive file error:', err.message);
