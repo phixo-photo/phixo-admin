@@ -1322,26 +1322,38 @@ app.post('/api/drive/sync', requireAuth, async (req, res) => {
 app.get('/api/drive/file/:fileId', requireAuth, async (req, res) => {
   try {
     const drive = getDrive(req);
-    // Single call: get meta + stream together
     const meta = await drive.files.get({
       fileId: req.params.fileId,
-      fields: 'mimeType,name,size,thumbnailLink'
+      fields: 'mimeType,name,size'
     });
     const mimeType = meta.data.mimeType || 'application/octet-stream';
+    const fileSize = parseInt(meta.data.size || '0');
     res.setHeader('Content-Type', mimeType);
     res.setHeader('Cache-Control', 'private, max-age=7200');
     res.setHeader('X-File-Name', encodeURIComponent(meta.data.name || 'file'));
+    res.setHeader('Accept-Ranges', 'bytes');
+
+    // Range request support (needed for <video> seeking)
+    const range = req.headers.range;
+    if (range && fileSize) {
+      const parts = range.replace(/bytes=/, '').split('-');
+      const start = parseInt(parts[0], 10);
+      const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+      const chunkSize = end - start + 1;
+      res.status(206);
+      res.setHeader('Content-Range', `bytes ${start}-${end}/${fileSize}`);
+      res.setHeader('Content-Length', chunkSize);
+    } else if (fileSize) {
+      res.setHeader('Content-Length', fileSize);
+    }
 
     const fileRes = await drive.files.get(
       { fileId: req.params.fileId, alt: 'media' },
       { responseType: 'stream' }
     );
-
     fileRes.data.on('error', (err) => {
-      console.error('Drive stream error:', err.message);
       if (!res.headersSent) res.status(500).end();
     });
-
     fileRes.data.pipe(res);
   } catch (err) {
     console.error('Drive file error:', err.message);
@@ -1349,6 +1361,288 @@ app.get('/api/drive/file/:fileId', requireAuth, async (req, res) => {
   }
 });
 
+
+
+// ── Library Knowledge Base Q&A ───────────────────────────────────────────────
+app.post('/api/library/ask', requireAuth, async (req, res) => {
+  try {
+    const { question } = req.body;
+    if (!question) return res.status(400).json({ error: 'question required' });
+
+    // Fetch ALL blocks with content
+    const result = await pool.query(`
+      SELECT id, type, title, category, tags, content_payload, metadata, source_url
+      FROM blocks ORDER BY created_at DESC
+    `);
+    const blocks = result.rows;
+
+    if (!blocks.length) return res.json({ answer: "Your library is empty. Add some blocks first.", sources: [] });
+
+    // Build context — every block contributes what it has
+    const contextParts = blocks.map(b => {
+      const m = b.metadata || {};
+      const lines = [`[Block #${b.id}] ${b.type.toUpperCase()}: "${b.title}"`];
+      if (b.category) lines.push(`Category: ${b.category}`);
+      if (m.platform) lines.push(`Platform: ${m.platform}`);
+      if (m.one_liner) lines.push(`Summary: ${m.one_liner}`);
+      if (m.key_points && m.key_points.length) lines.push(`Key points: ${m.key_points.join(' | ')}`);
+      if (m.relevance) lines.push(`Relevance: ${m.relevance}`);
+      if (b.content_payload) {
+        // Include full content for notes/scripts, truncated for long transcripts
+        const maxLen = ['note','conversation','pdf'].includes(b.type) ? 4000 : 1500;
+        const text = b.content_payload.substring(0, maxLen);
+        lines.push(`Content: ${text}${b.content_payload.length > maxLen ? '...[truncated]' : ''}`);
+      }
+      return lines.join('\n');
+    });
+
+    const context = contextParts.join('\n\n---\n\n');
+
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1500,
+      system: `You are a research assistant for Ian, a portrait photographer. You have access to Ian's full research library below.
+
+CRITICAL RULES:
+1. Only answer based on what is explicitly in the provided library content
+2. Cite block titles when making claims — e.g. "According to [Block Title]..."
+3. If the answer isn't clearly in the library, say "I don't see that in your library" — never make things up
+4. Be specific and practical. Ian is a working photographer, not a student.
+5. If multiple blocks are relevant, synthesize them and cite each one
+
+LIBRARY CONTENT:
+${context}`,
+      messages: [{ role: 'user', content: question }]
+    });
+
+    const answer = msg.content[0].text;
+
+    // Extract which block IDs were referenced
+    const citedIds = blocks
+      .filter(b => answer.includes(b.title) || answer.includes(`Block #${b.id}`))
+      .map(b => ({ id: b.id, title: b.title, type: b.type }));
+
+    res.json({ answer, sources: citedIds, block_count: blocks.length });
+  } catch (err) {
+    console.error('Library ask error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Block AI Summarize ────────────────────────────────────────────────────────
+app.post('/api/blocks/:id/summarize', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const block = await pool.query('SELECT * FROM blocks WHERE id=$1', [id]);
+    if (!block.rows.length) return res.status(404).json({ error: 'Not found' });
+    const b = block.rows[0];
+
+    // Get content from DB or Drive
+    let content = b.content_payload || '';
+    if (!content && b.drive_file_id) {
+      try {
+        const drive = getDrive(req);
+        const fileRes = await drive.files.get(
+          { fileId: b.drive_file_id, alt: 'media' },
+          { responseType: 'arraybuffer' }
+        );
+        content = Buffer.from(fileRes.data).toString('utf8').substring(0, 8000);
+      } catch(e) { content = b.title; }
+    }
+    if (!content) return res.status(400).json({ error: 'No content to summarize' });
+
+    const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const resp = await claude.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 800,
+      messages: [{
+        role: 'user',
+        content: `You're summarizing research material for portrait photographer Ian Green.
+
+Title: "${b.title}"
+Type: ${b.type}
+
+Content:
+${content.substring(0, 6000)}
+
+Extract the most useful information. Return ONLY valid JSON, no markdown:
+{
+  "key_points": ["5-7 specific, actionable points that are most useful"],
+  "one_liner": "one sentence summary",
+  "relevance": "why this matters for portrait photography sessions"
+}`
+      }]
+    });
+
+    let parsed;
+    try {
+      const raw = resp.content[0].text.replace(/^\`\`\`json\s*/,'').replace(/^\`\`\`\s*/,'').replace(/\s*\`\`\`$/,'').trim();
+      parsed = JSON.parse(raw);
+    } catch(e) {
+      return res.status(500).json({ error: 'AI parse error: ' + e.message });
+    }
+
+    // Merge into existing metadata
+    const existing = b.metadata || {};
+    const newMeta = { ...existing, ...parsed, summarized_at: new Date().toISOString() };
+    await pool.query('UPDATE blocks SET metadata=$1 WHERE id=$2', [JSON.stringify(newMeta), id]);
+
+    res.json({ success: true, metadata: newMeta });
+  } catch(err) {
+    console.error('Summarize error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
+
+// ── Library Knowledge Base Q&A ───────────────────────────────────────────────
+app.post('/api/library/ask', requireAuth, async (req, res) => {
+  try {
+    const { question } = req.body;
+    if (!question) return res.status(400).json({ error: 'question required' });
+
+    // Fetch ALL blocks with content
+    const result = await pool.query(`
+      SELECT id, type, title, category, tags, content_payload, metadata, source_url
+      FROM blocks ORDER BY created_at DESC
+    `);
+    const blocks = result.rows;
+
+    if (!blocks.length) return res.json({ answer: "Your library is empty. Add some blocks first.", sources: [] });
+
+    // Build context — every block contributes what it has
+    const contextParts = blocks.map(b => {
+      const m = b.metadata || {};
+      const lines = [`[Block #${b.id}] ${b.type.toUpperCase()}: "${b.title}"`];
+      if (b.category) lines.push(`Category: ${b.category}`);
+      if (m.platform) lines.push(`Platform: ${m.platform}`);
+      if (m.one_liner) lines.push(`Summary: ${m.one_liner}`);
+      if (m.key_points && m.key_points.length) lines.push(`Key points: ${m.key_points.join(' | ')}`);
+      if (m.relevance) lines.push(`Relevance: ${m.relevance}`);
+      if (b.content_payload) {
+        // Include full content for notes/scripts, truncated for long transcripts
+        const maxLen = ['note','conversation','pdf'].includes(b.type) ? 4000 : 1500;
+        const text = b.content_payload.substring(0, maxLen);
+        lines.push(`Content: ${text}${b.content_payload.length > maxLen ? '...[truncated]' : ''}`);
+      }
+      return lines.join('\n');
+    });
+
+    const context = contextParts.join('\n\n---\n\n');
+
+    const Anthropic = require('@anthropic-ai/sdk');
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1500,
+      system: `You are a research assistant for Ian, a portrait photographer. You have access to Ian's full research library below.
+
+CRITICAL RULES:
+1. Only answer based on what is explicitly in the provided library content
+2. Cite block titles when making claims — e.g. "According to [Block Title]..."
+3. If the answer isn't clearly in the library, say "I don't see that in your library" — never make things up
+4. Be specific and practical. Ian is a working photographer, not a student.
+5. If multiple blocks are relevant, synthesize them and cite each one
+
+LIBRARY CONTENT:
+${context}`,
+      messages: [{ role: 'user', content: question }]
+    });
+
+    const answer = msg.content[0].text;
+
+    // Extract which block IDs were referenced
+    const citedIds = blocks
+      .filter(b => answer.includes(b.title) || answer.includes(`Block #${b.id}`))
+      .map(b => ({ id: b.id, title: b.title, type: b.type }));
+
+    res.json({ answer, sources: citedIds, block_count: blocks.length });
+  } catch (err) {
+    console.error('Library ask error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Block AI Summarize ────────────────────────────────────────────────────────
+
+app.post('/api/knowledge/ask', requireAuth, async (req, res) => {
+  try {
+    const { question } = req.body;
+    if (!question) return res.status(400).json({ error: 'Question required' });
+
+    // Step 1: Search blocks by keyword relevance
+    const words = question.toLowerCase().replace(/[^a-z0-9 ]/g,' ').split(' ').filter(w => w.length > 2);
+    const likeTerms = words.map(w => `%${w}%`);
+
+    // Get all blocks that have content, scored by keyword hits
+    const allBlocks = await pool.query(`
+      SELECT id, type, title, category, tags, content_payload, metadata, source_url
+      FROM blocks
+      WHERE content_payload IS NOT NULL AND content_payload != ''
+         OR metadata IS NOT NULL
+      ORDER BY created_at DESC
+      LIMIT 100
+    `);
+
+    // Score each block
+    const scored = allBlocks.rows.map(b => {
+      const haystack = [
+        b.title || '',
+        b.content_payload || '',
+        JSON.stringify(b.metadata || {}),
+        (b.tags || []).join(' '),
+        b.category || ''
+      ].join(' ').toLowerCase();
+      const score = words.reduce((s, w) => s + (haystack.split(w).length - 1), 0);
+      return { ...b, score };
+    }).filter(b => b.score > 0).sort((a,b) => b.score - a.score).slice(0, 6);
+
+    if (scored.length === 0) {
+      return res.json({ answer: "I couldn't find relevant content in your research library for that question. Try adding more blocks first.", sources: [] });
+    }
+
+    // Build context
+    const context = scored.map((b, i) => {
+      const meta = b.metadata || {};
+      const keyPoints = (meta.key_points || []).join('\n- ');
+      const payload = (b.content_payload || '').substring(0, 1200);
+      return [
+        `[Source ${i+1}: ${b.title} (${b.type})]`,
+        meta.one_liner ? `Summary: ${meta.one_liner}` : '',
+        keyPoints ? `Key points:\n- ${keyPoints}` : '',
+        payload ? `Content: ${payload}` : ''
+      ].filter(Boolean).join('\n');
+    }).join('\n\n---\n\n');
+
+    const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const resp = await claude.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 1200,
+      messages: [{
+        role: 'user',
+        content: `You are an AI assistant for Ian Green, a portrait photographer. Answer his question using ONLY the research material provided below. If the answer isn't in the material, say so clearly. Cite sources by their [Source N] labels.
+
+RESEARCH MATERIAL:
+${context}
+
+QUESTION: ${question}
+
+Answer specifically and practically. Reference the actual content from the sources. If multiple sources are relevant, synthesize them.`
+      }]
+    });
+
+    const sources = scored.map(b => ({ id: b.id, title: b.title, type: b.type }));
+    res.json({ answer: resp.content[0].text, sources });
+  } catch(err) {
+    console.error('Knowledge ask error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 // ═══════════════════════════════════════════════════
 // AI ASSISTANT — Grounded in Drive+DB only
 // ═══════════════════════════════════════════════════
