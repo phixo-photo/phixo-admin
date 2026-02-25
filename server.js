@@ -1055,7 +1055,30 @@ app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
 
     // ── Step 2: Extract audio ────────────────────────────────────────────────
     send('audio', 'Extracting audio...');
-    await execAsync(`"${global.FFMPEG_PATH || 'ffmpeg'}" -i "${videoPath}" -vn -acodec aac -b:a 128k "${audioPath.replace('.mp3','.m4a')}" -y 2>/dev/null`); audioPath = audioPath.replace('.mp3','.m4a');
+    const ffBin = global.FFMPEG_PATH || 'ffmpeg';
+    // Try aac first, then copy stream, then fall back to using video directly
+    let audioExtracted = false;
+    for (const attempt of [
+      `"${ffBin}" -i "${videoPath}" -vn -acodec aac -b:a 128k "${audioPath.replace('.mp3','.m4a')}" -y`,
+      `"${ffBin}" -i "${videoPath}" -vn -acodec copy "${audioPath.replace('.mp3','.m4a')}" -y`,
+      `"${ffBin}" -i "${videoPath}" -vn -f adts "${audioPath.replace('.mp3','.aac')}" -y`,
+    ]) {
+      try {
+        await execAsync(attempt, { timeout: 60000 });
+        if (attempt.includes('.m4a')) audioPath = audioPath.replace('.mp3','.m4a');
+        if (attempt.includes('.aac')) audioPath = audioPath.replace('.mp3','.aac');
+        audioExtracted = true;
+        console.log('Audio extracted with:', attempt.split(' ').slice(0,3).join(' '));
+        break;
+      } catch(e) {
+        console.warn('Audio attempt failed:', e.message?.substring(0,100));
+      }
+    }
+    // Last resort: use the video file itself (Whisper accepts mp4)
+    if (!audioExtracted) {
+      console.warn('Audio extraction failed — sending video directly to Whisper');
+      audioPath = videoPath;
+    }
 
     // ── Step 3: Screenshots ──────────────────────────────────────────────────
     send('screenshots', 'Capturing frames...');
@@ -1130,9 +1153,10 @@ app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
     }
 
     const whisperForm = new FormData();
-    const audioMime = audioPath.endsWith('.m4a') ? 'audio/mp4' : 'audio/mpeg';
+    const audioMime = audioPath.endsWith('.mp4') ? 'video/mp4' : audioPath.endsWith('.aac') ? 'audio/aac' : 'audio/mp4';
+    const audioExt = audioPath.split('.').pop();
     const audioBlob = new Blob([audioBuffer], { type: audioMime });
-    const audioFileName = audioPath.endsWith('.m4a') ? 'audio.m4a' : 'audio.mp3';
+    const audioFileName = 'audio.' + audioExt;
     whisperForm.append('file', audioBlob, audioFileName);
     whisperForm.append('model', 'whisper-1');
     whisperForm.append('response_format', 'text');
