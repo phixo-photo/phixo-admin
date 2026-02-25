@@ -156,6 +156,8 @@ async function initDb() {
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
+    // Migrations for existing DBs
+    await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'`);
     console.log('DB v3 ready');
   } catch (err) {
     console.error('DB init error:', err.message);
