@@ -1135,7 +1135,8 @@ Return ONLY a JSON object with these fields (no markdown, no extra text):
     });
 
     try {
-      const parsed = JSON.parse(claudeRes.content[0].text);
+      const rawText = claudeRes.content[0].text.replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
+      const parsed = JSON.parse(rawText);
       title = parsed.title || title;
       summaryPoints = parsed.key_points || [];
       summary = parsed.one_liner || '';
