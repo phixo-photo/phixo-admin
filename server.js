@@ -383,6 +383,18 @@ app.get('/api/debug', async (req, res) => {
   out.env.DATABASE_URL = process.env.DATABASE_URL ? 'set' : 'MISSING';
   out.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ? 'set' : 'MISSING';
   out.env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ? 'set' : 'MISSING';
+  out.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY ? 'set' : 'MISSING (needed for Whisper)';
+  // Check yt-dlp
+  const { exec: ex2 } = require('child_process');
+  const { promisify: prom2 } = require('util');
+  const path2 = require('path');
+  const execA2 = prom2(ex2);
+  const projectBin = path2.join(process.cwd(), 'bin', 'yt-dlp');
+  for (const p of [projectBin, '/usr/local/bin/yt-dlp', 'yt-dlp']) {
+    try { const r = await execA2(`"${p}" --version 2>/dev/null`); out.ytdlp = { found: true, path: p, version: r.stdout.trim() }; break; }
+    catch(e) { out.ytdlp = { found: false, tried: p, error: e.message }; }
+  }
+  try { await execA2('ffmpeg -version 2>/dev/null'); out.ffmpeg = 'available'; } catch(e) { out.ffmpeg = 'NOT FOUND'; }
   try {
     await pool.query('SELECT 1');
     out.db.connected = true;
@@ -989,16 +1001,16 @@ app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
     // ── Step 1: Download video ──────────────────────────────────────────────
     send('download', 'Downloading video from ' + platform + '...');
     // Find yt-dlp binary (may be in various locations depending on install method)
-    // yt-dlp installed at /usr/local/bin/yt-dlp via nixpacks curl
-    const ytdlpPaths = ['/usr/local/bin/yt-dlp', '/usr/bin/yt-dlp', 'yt-dlp'];
+    // yt-dlp installed into ./bin/ by nixpacks build
+    const path2 = require('path');
+    const projectBin = path2.join(process.cwd(), 'bin', 'yt-dlp');
+    const ytdlpPaths = [projectBin, '/usr/local/bin/yt-dlp', '/usr/bin/yt-dlp', 'yt-dlp'];
     let ytdlpCmd = null;
     for (const p of ytdlpPaths) {
-      try { await execAsync(`${p} --version 2>/dev/null`); ytdlpCmd = p; break; } catch(e) {}
+      try { await execAsync(`"${p}" --version 2>/dev/null`); ytdlpCmd = `"${p}"`; break; } catch(e) {}
     }
-    if (!ytdlpCmd) {
-      try { await execAsync('pip3 install -q yt-dlp'); ytdlpCmd = 'yt-dlp'; } catch(e) {}
-    }
-    if (!ytdlpCmd) throw new Error('yt-dlp not installed. Check Railway build logs.');
+    if (!ytdlpCmd) throw new Error(`yt-dlp binary not found. Tried: ${ytdlpPaths.join(', ')}. Check Railway build logs for the 'bin/yt-dlp --version' line.`);
+    console.log('Using yt-dlp:', ytdlpCmd);
 
     try {
       await execAsync(`${ytdlpCmd} -f "best[height<=720]/best" --no-playlist --no-check-certificate -o "${videoPath}" "${url}"`, { timeout: 180000 });
@@ -1336,24 +1348,24 @@ RULES:
 (async () => {
   const { exec } = require('child_process');
   const { promisify } = require('util');
+  const path2 = require('path');
   const execAsync = promisify(exec);
-  try {
-    await execAsync('yt-dlp --version');
-    console.log('yt-dlp: available');
-  } catch(e) {
-    console.log('yt-dlp not found, installing via pip...');
+  const projectBin = path2.join(process.cwd(), 'bin', 'yt-dlp');
+  const candidates = [projectBin, '/usr/local/bin/yt-dlp', 'yt-dlp'];
+  let found = false;
+  for (const p of candidates) {
     try {
-      await execAsync('pip3 install -q yt-dlp || pip install -q yt-dlp');
-      console.log('yt-dlp: installed');
-    } catch(e2) {
-      console.warn('yt-dlp install failed:', e2.message);
-    }
+      const r = await execAsync(`"${p}" --version 2>/dev/null`);
+      console.log(`yt-dlp: available at ${p} (${r.stdout.trim()})`);
+      found = true; break;
+    } catch(e) {}
   }
+  if (!found) console.warn(`yt-dlp: NOT FOUND. Tried: ${candidates.join(', ')}`);
   try {
-    await execAsync('ffmpeg -version');
+    await execAsync('ffmpeg -version 2>/dev/null');
     console.log('ffmpeg: available');
   } catch(e) {
-    console.warn('ffmpeg not found — video screenshots will be skipped');
+    console.warn('ffmpeg: NOT FOUND');
   }
 })();
 
