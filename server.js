@@ -1028,9 +1028,9 @@ app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
     // ── Step 3: Screenshots ──────────────────────────────────────────────────
     send('screenshots', 'Capturing frames...');
     let frames = [];
+    const interval = Math.max(Math.floor((duration || 60) / 7), 3);
     const ffmpegBin = global.FFMPEG_PATH || 'ffmpeg';
     try {
-      const interval = Math.max(Math.floor((duration || 60) / 7), 3);
       await execAsync(
         `"${ffmpegBin}" -i "${videoPath}" -vf "fps=1/${interval},scale=640:-2" -frames:v 8 "${screenshotsDir}/frame_%03d.jpg" -y 2>/dev/null`,
         { timeout: 60000 }
