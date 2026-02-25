@@ -1392,7 +1392,7 @@ const _toolSetup = (async () => {
 
   try {
     await downloadBinary(
-      'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp',
+      'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux',
       ytdlpPath
     );
     fs2.chmodSync(ytdlpPath, '755');
