@@ -967,6 +967,13 @@ async function loadResearch(){
       </div>
     </div>`;
   }).join('');
+  // Auto-sync on first visit - runs after render
+  if(!window._syncedOnce){
+    window._syncedOnce=true;
+    api('POST','/api/drive/sync').then(r=>{
+      if(r.imported>0){toast(r.imported+' new block'+(r.imported!==1?'s':'')+' synced from Drive','ok');loadResearch();}
+    }).catch(e=>console.warn('Auto-sync:',e.message));
+  }
 }
 function openAddBlock(defaultTab){
   ['ab-url','ab-url-cat','ab-url-tags','ab-up-title','ab-up-cat','ab-up-tags','ab-txt-title','ab-txt-content','ab-txt-cat','ab-txt-tags','ab-drive-cat','ab-drive-tags'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
@@ -1495,25 +1502,7 @@ async function syncDrive(){
   finally{btn.disabled=false;btn.textContent='↻ Sync Drive';}
 }
 
-// Auto-sync on first Research visit
-let _syncedOnce=false;
-const _origLoadResearch=loadResearch;
-async function loadResearch(){
-  await _origLoadResearch();
-  if(!_syncedOnce){
-    _syncedOnce=true;
-    try{
-      const r=await api('POST','/api/drive/sync');
-      console.log('Auto-sync:',r);
-      if(r.imported>0){
-        toast(r.imported+' new blocks synced from Drive','ok');
-        await _origLoadResearch();
-      }
-    }catch(e){
-      console.warn('Auto-sync skipped:',e.message);
-    }
-  }
-}
+// Auto-sync handled inside loadResearch
 
 loadPipeline();
 </script>
