@@ -8,7 +8,7 @@ const { Pool } = require('pg');
 const { Readable } = require('stream');
 
 const app = express();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 } });
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
 
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '15mb' }));
@@ -285,41 +285,90 @@ app.delete('/api/blocks/:id', requireAuth, async (req, res) => {
 
 // Upload file → Drive → create block
 app.post('/api/blocks/upload', requireAuth, upload.single('file'), async (req, res) => {
+  const os = require('os');
+  const tmpFile = require('path').join(os.tmpdir(), `phixo-up-${Date.now()}-${req.file ? req.file.originalname : 'file'}`);
   try {
     if (!req.file) return res.status(400).json({ error: 'No file' });
     const { type, title, category, tags, funnel_stage } = req.body;
     const drive = getDrive(req);
+    const isVideo = req.file.mimetype.startsWith('video/');
 
-    // Get/create "Phixo Research" folder
+    console.log(`Upload: ${req.file.originalname} (${req.file.mimetype}, ${Math.round(req.file.size/1024)}KB)`);
+
+    // Write buffer to temp file (more reliable than Readable.from for large files)
+    require('fs').writeFileSync(tmpFile, req.file.buffer);
+
+    // Get/create folder based on type
+    const folderName = {
+      pose: 'Pose', meme: 'Meme', sfx: 'SFX', pdf: 'Phixo Knowledge', video: 'Videos'
+    }[type] || 'Phixo Research';
+
     let folderId;
-    const fs = await drive.files.list({
-      q: "name='Phixo Research' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+    const fsRes = await drive.files.list({
+      q: `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
       fields: 'files(id)'
     });
-    if (fs.data.files.length) folderId = fs.data.files[0].id;
-    else {
+    if (fsRes.data.files.length) {
+      folderId = fsRes.data.files[0].id;
+    } else {
       const f = await drive.files.create({
-        requestBody: { name: 'Phixo Research', mimeType: 'application/vnd.google-apps.folder' },
+        requestBody: { name: folderName, mimeType: 'application/vnd.google-apps.folder' },
         fields: 'id'
       });
       folderId = f.data.id;
+      console.log(`Created Drive folder: ${folderName}`);
     }
 
+    // Upload to Drive using file stream
+    const { createReadStream } = require('fs');
     const uploaded = await drive.files.create({
       requestBody: { name: req.file.originalname, parents: [folderId] },
-      media: { mimeType: req.file.mimetype, body: Readable.from(req.file.buffer) },
-      fields: 'id, thumbnailLink'
+      media: { mimeType: req.file.mimetype, body: createReadStream(tmpFile) },
+      fields: 'id, thumbnailLink, webViewLink'
     });
+    console.log(`Uploaded to Drive: ${uploaded.data.id} in folder ${folderName}`);
+
+    // Extract video thumbnail frame using ffmpeg
+    let thumbnailUrl = uploaded.data.thumbnailLink || null;
+    let thumbDriveId = null;
+    if (isVideo && global.FFMPEG_PATH) {
+      try {
+        const thumbPath = tmpFile + '_thumb.jpg';
+        await require('util').promisify(require('child_process').exec)(
+          `"${global.FFMPEG_PATH}" -i "${tmpFile}" -ss 00:00:02 -vframes 1 -vf "scale=480:-2" "${thumbPath}" -y`,
+          { timeout: 30000 }
+        );
+        if (require('fs').existsSync(thumbPath)) {
+          const thumbUp = await drive.files.create({
+            requestBody: { name: req.file.originalname + '_thumb.jpg', parents: [folderId] },
+            media: { mimeType: 'image/jpeg', body: createReadStream(thumbPath) },
+            fields: 'id, thumbnailLink'
+          });
+          thumbDriveId = thumbUp.data.id;
+          thumbnailUrl = `/api/drive/file/${thumbDriveId}`;
+          require('fs').unlinkSync(thumbPath);
+          console.log('Video thumbnail extracted and uploaded');
+        }
+      } catch(e) {
+        console.warn('Video thumbnail extraction failed:', e.message);
+      }
+    }
 
     const tagArr = tags ? tags.split(',').map(t=>t.trim()).filter(Boolean) : [];
+    const blockType = type || (isVideo ? 'video' : 'image');
     const r = await pool.query(
       `INSERT INTO blocks (type,title,category,tags,funnel_stage,source,drive_file_id,
         file_name,file_mime,thumbnail_url) VALUES ($1,$2,$3,$4,$5,'upload',$6,$7,$8,$9) RETURNING *`,
-      [type||'image', title||req.file.originalname, category, tagArr, funnel_stage,
-       uploaded.data.id, req.file.originalname, req.file.mimetype, uploaded.data.thumbnailLink]
+      [blockType, title||req.file.originalname, category, tagArr, funnel_stage,
+       uploaded.data.id, req.file.originalname, req.file.mimetype, thumbnailUrl]
     );
     res.json(r.rows[0]);
-  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    console.error('Upload error:', err.message, err.stack);
+    res.status(500).json({ error: err.message });
+  } finally {
+    try { if (require('fs').existsSync(tmpFile)) require('fs').unlinkSync(tmpFile); } catch(e) {}
+  }
 });
 
 // Ingest URL — fetch content, AI summary, create block
