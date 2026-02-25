@@ -1,8 +1,13 @@
 [phases.setup]
-nixPkgs = ["ffmpeg", "yt-dlp", "nodejs_20", "python3", "pip"]
+nixPkgs = ["ffmpeg", "nodejs_20", "python3", "curl"]
 
 [phases.install]
-cmds = ["npm install", "pip3 install -q yt-dlp || true"]
+cmds = [
+  "npm install",
+  "curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp",
+  "chmod a+rx /usr/local/bin/yt-dlp",
+  "yt-dlp --version"
+]
 
 [phases.build]
 cmds = []
