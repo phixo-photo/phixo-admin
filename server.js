@@ -976,7 +976,7 @@ app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'phixo-'));
   const videoPath = path.join(tmpDir, 'video.mp4');
-  const audioPath = path.join(tmpDir, 'audio.mp3');
+  let audioPath = path.join(tmpDir, 'audio.mp3');
   const screenshotsDir = path.join(tmpDir, 'screenshots');
   fs.mkdirSync(screenshotsDir, { recursive: true });
 
@@ -1055,7 +1055,7 @@ app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
 
     // ── Step 2: Extract audio ────────────────────────────────────────────────
     send('audio', 'Extracting audio...');
-    await execAsync(`"${global.FFMPEG_PATH || 'ffmpeg'}" -i "${videoPath}" -vn -acodec libmp3lame -q:a 4 "${audioPath}" -y 2>/dev/null`);
+    await execAsync(`"${global.FFMPEG_PATH || 'ffmpeg'}" -i "${videoPath}" -vn -acodec aac -b:a 128k "${audioPath.replace('.mp3','.m4a')}" -y 2>/dev/null`); audioPath = audioPath.replace('.mp3','.m4a');
 
     // ── Step 3: Screenshots ──────────────────────────────────────────────────
     send('screenshots', 'Capturing frames...');
@@ -1124,14 +1124,16 @@ app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
     let audioBuffer = fs.readFileSync(audioPath);
     if (audioBuffer.length > maxWhisperBytes) {
       // Re-encode at lower quality to fit
-      const smallAudio = path.join(tmpDir, 'audio_small.mp3');
-      await execAsync(`"${global.FFMPEG_PATH || 'ffmpeg'}" -i "${audioPath}" -acodec libmp3lame -q:a 9 -ar 16000 "${smallAudio}" -y 2>/dev/null`);
+      let smallAudio = path.join(tmpDir, 'audio_small.mp3');
+      await execAsync(`"${global.FFMPEG_PATH || 'ffmpeg'}" -i "${audioPath}" -acodec aac -b:a 64k -ar 16000 "${smallAudio.replace('.mp3','.m4a')}" -y 2>/dev/null`); smallAudio = smallAudio.replace('.mp3','.m4a');
       audioBuffer = fs.readFileSync(smallAudio);
     }
 
     const whisperForm = new FormData();
-    const audioBlob = new Blob([audioBuffer], { type: 'audio/mpeg' });
-    whisperForm.append('file', audioBlob, 'audio.mp3');
+    const audioMime = audioPath.endsWith('.m4a') ? 'audio/mp4' : 'audio/mpeg';
+    const audioBlob = new Blob([audioBuffer], { type: audioMime });
+    const audioFileName = audioPath.endsWith('.m4a') ? 'audio.m4a' : 'audio.mp3';
+    whisperForm.append('file', audioBlob, audioFileName);
     whisperForm.append('model', 'whisper-1');
     whisperForm.append('response_format', 'text');
 
