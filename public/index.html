@@ -1084,9 +1084,11 @@ async function loadResearch(){
   grid.innerHTML=blocks.map(b=>{
     const hasImg=b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('image/');
     const hasVideo=b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('video/');
-    const thumbSrc = b.thumbnail_url
-      ? esc(b.thumbnail_url)
-      : (hasImg ? `/api/drive/file/${b.drive_file_id}` : null);
+    // Always use proxy for images (Drive thumbnailLinks expire)
+    // For videos: use stored thumbnail_url if it's our proxy path, else null
+    let thumbSrc = null;
+    if (hasImg) thumbSrc = `/api/drive/file/${b.drive_file_id}`;
+    else if (b.thumbnail_url && b.thumbnail_url.startsWith('/api/')) thumbSrc = esc(b.thumbnail_url);
     return`<div class="block-card" onclick="openBlockDetail(${b.id})">
       <div class="block-thumb">
         ${thumbSrc
