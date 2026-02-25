@@ -87,6 +87,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .cf-sh.open .arr{transform:rotate(180deg)}
 .cf-bd{padding:0 20px 16px}
 .cf-bd.hide{display:none}
+.hide{display:none!important}
 .cf-row{display:grid;grid-template-columns:170px 1fr;gap:10px;padding:9px 0;border-bottom:1px solid var(--bg);align-items:start}
 .cf-row:last-child{border-bottom:none}
 .cf-key{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);padding-top:2px}
@@ -186,6 +187,36 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .tc{display:none}.tc.on{display:block}
 .empty{text-align:center;padding:50px 20px;color:var(--muted)}
 .empty .ei{font-size:40px;margin-bottom:12px}
+
+.video-block{display:flex;flex-direction:column;gap:0}
+.vb-hero{position:relative;background:#111;border-radius:10px;overflow:hidden;margin-bottom:16px}
+.vb-hero img{width:100%;max-height:320px;object-fit:contain;display:block}
+.vb-platform{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.7);color:#fff;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.8px}
+.vb-dur{position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,.7);color:#fff;font-size:11px;padding:2px 8px;border-radius:20px}
+.vb-meta{margin-bottom:14px}
+.vb-oneliner{font-size:14px;font-weight:600;line-height:1.45;margin-bottom:6px}
+.vb-relevance{font-size:12px;color:var(--muted);line-height:1.5;background:var(--bg);padding:8px 12px;border-radius:7px;border-left:3px solid var(--accent)}
+.vb-section{margin-bottom:16px}
+.vb-section-head{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.vb-section-head::after{content:'';flex:1;height:1px;background:var(--border)}
+.kp-list{display:flex;flex-direction:column;gap:5px}
+.kp-item{display:flex;align-items:start;gap:9px;background:var(--bg);padding:8px 11px;border-radius:7px;font-size:13px;line-height:1.45}
+.kp-num{font-size:11px;font-weight:800;color:var(--accent);min-width:18px;padding-top:1px}
+.shots-strip{display:flex;gap:7px;overflow-x:auto;padding:2px 0 8px;scrollbar-width:thin}
+.shots-strip::-webkit-scrollbar{height:4px}
+.shots-strip::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.shot-frame{flex-shrink:0;width:120px}
+.shot-frame img{width:120px;height:80px;object-fit:contain;background:#111;border-radius:7px;display:block}
+.shot-label{font-size:10px;color:var(--muted);text-align:center;margin-top:3px}
+.transcript-block{background:var(--bg);border-radius:8px;padding:14px 16px;font-size:12px;line-height:1.8;color:#444;max-height:260px;overflow-y:auto;white-space:pre-wrap;border:1px solid var(--border)}
+.vb-source{font-size:11px;color:var(--muted);margin-top:10px}
+.vb-source a{color:var(--accent)}
+.progress-card{background:var(--nav);border-radius:12px;padding:28px;text-align:center;min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+.progress-spinner{width:36px;height:36px;border:3px solid #333;border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.progress-step{font-size:13px;color:#aaa;max-width:280px;line-height:1.5}
+.progress-step strong{color:#fff;display:block;margin-bottom:4px}
+
 .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--nav);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .25s;pointer-events:none}
 .toast.on{opacity:1}.toast.ok{background:#2a7a2a}.toast.err{background:var(--hot)}
 </style>
@@ -349,18 +380,28 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
       <button class="tab" onclick="switchTab('abt','text',this)">✏️ Text</button>
     </div>
     <div id="abt-url" class="tc on">
-      <label>URL *</label><input id="ab-url" type="url" placeholder="https://...">
+      <label>URL *</label><input id="ab-url" type="url" placeholder="https://..." oninput="checkVideoUrl()">
+      <div id="ab-url-video-hint" style="display:none;background:#1a1a0e;border:1px solid #333;border-radius:8px;padding:12px 14px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:3px">🎬 Video detected</div>
+        <div style="font-size:11px;color:#888;line-height:1.5">This will download the video, extract frames, transcribe the audio with Whisper, and summarize key points. Takes 30–90 seconds. Add your OpenAI API key in Railway if not done.</div>
+      </div>
       <div class="g2">
-        <div><label>Type</label><select id="ab-url-type"><option value="url">Article</option><option value="video">Video</option><option value="image">Image</option></select></div>
-        <div><label>Category</label><input id="ab-url-cat" placeholder="e.g. marketing"></div>
+        <div><label>Type</label><select id="ab-url-type" onchange="checkVideoUrl()"><option value="url">Article / Link</option><option value="video">🎬 TikTok / Reel / Video</option><option value="image">Image</option></select></div>
+        <div><label>Category</label><input id="ab-url-cat" placeholder="e.g. marketing, posing"></div>
       </div>
       <div class="g2">
         <div><label>Funnel Stage</label><select id="ab-url-funnel"><option value="">—</option><option value="tof">TOF</option><option value="mof">MOF</option><option value="bof">BOF</option></select></div>
         <div><label>Tags</label><input id="ab-url-tags" placeholder="comma separated"></div>
       </div>
-      <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+      <div id="ab-url-progress" style="display:none;margin:14px 0">
+        <div class="progress-card">
+          <div class="progress-spinner"></div>
+          <div class="progress-step"><strong id="ab-prog-step">Starting...</strong><span id="ab-prog-msg"></span></div>
+        </div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end" id="ab-url-actions">
         <button class="btn btn-ghost" onclick="closeM('m-addblock')">Cancel</button>
-        <button class="btn btn-dark" id="ab-url-btn" onclick="ingestUrl()">Save Block →</button>
+        <button class="btn btn-dark" id="ab-url-btn" onclick="handleUrlIngest()">Save Block →</button>
       </div>
     </div>
     <div id="abt-upload" class="tc">
@@ -1097,29 +1138,7 @@ async function saveBlocksFromDrive(){
   }catch(err){toast(err.message,'err');}
   finally{btn.disabled=false;btn.textContent='Add Selected →';}
 }
-async function openBlockDetail(id){
-  const b=await api('GET','/api/blocks/'+id);
-  document.getElementById('bd-title').textContent=b.title;
-  const hasImg=b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('image/');
-  document.getElementById('bd-body').innerHTML=`
-    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
-      <span class="tag t-lead">${b.type}</span>
-      ${b.category?`<span class="tag t-lead">${esc(b.category)}</span>`:''}
-      ${b.funnel_stage?funnelBadge(b.funnel_stage):''}
-      ${(b.tags||[]).map(t=>`<span class="tag t-lead">${esc(t)}</span>`).join('')}
-    </div>
-    ${hasImg||b.thumbnail_url?`<img 
-      src="${b.drive_file_id?`/api/drive/file/${b.drive_file_id}`:esc(b.thumbnail_url||'')}"
-      style="max-width:100%;border-radius:8px;margin-bottom:12px;max-height:360px;object-fit:contain;display:block"
-      onerror="${b.thumbnail_url?`this.src='${esc(b.thumbnail_url)}'`:`this.style.display='none'`}"
-    >`:'' }
-    ${b.source_url?`<div style="margin-bottom:10px"><a href="${esc(b.source_url)}" target="_blank" style="color:var(--accent);font-size:13px">↗ Open source</a></div>`:''}
-    ${b.content_payload?`<div style="white-space:pre-wrap;font-size:13px;line-height:1.6;background:var(--bg);padding:12px;border-radius:8px;max-height:300px;overflow-y:auto;margin-bottom:12px">${esc(b.content_payload)}</div>`:''}
-    <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn btn-danger btn-sm" onclick="deleteBlock(${b.id})">Delete Block</button>
-    </div>`;
-  openModal('m-block-detail');
-}
+// openBlockDetail → see video section below
 async function deleteBlock(id){
   if(!confirm('Delete this block?'))return;
   try{await api('DELETE','/api/blocks/'+id);closeM('m-block-detail');toast('Deleted','ok');loadResearch();}
@@ -1503,6 +1522,207 @@ async function syncDrive(){
 }
 
 // Auto-sync handled inside loadResearch
+
+
+// ═══ VIDEO INGEST ═══
+function checkVideoUrl(){
+  const url = document.getElementById('ab-url').value;
+  const isVideo = /tiktok\.com|instagram\.com\/reel|instagram\.com\/p\/|youtube\.com|youtu\.be|twitter\.com|x\.com/.test(url);
+  const typeEl = document.getElementById('ab-url-type');
+  const hint = document.getElementById('ab-url-video-hint');
+  if(isVideo){
+    typeEl.value = 'video';
+    hint.style.display = 'block';
+  } else {
+    hint.style.display = 'none';
+  }
+}
+
+async function handleUrlIngest(){
+  const type = document.getElementById('ab-url-type').value;
+  if(type === 'video'){
+    await ingestVideo();
+  } else {
+    await ingestUrl();
+  }
+}
+
+async function ingestVideo(){
+  const url = document.getElementById('ab-url').value.trim();
+  if(!url){ toast('URL required','err'); return; }
+
+  const btn = document.getElementById('ab-url-btn');
+  const progress = document.getElementById('ab-url-progress');
+  const actions = document.getElementById('ab-url-actions');
+  const stepEl = document.getElementById('ab-prog-step');
+  const msgEl = document.getElementById('ab-prog-msg');
+
+  btn.disabled = true;
+  progress.style.display = 'block';
+  actions.style.opacity = '0.4';
+
+  const stepLabels = {
+    download: 'Downloading video',
+    audio: 'Extracting audio',
+    screenshots: 'Capturing frames',
+    uploading: 'Uploading to Drive',
+    transcribe: 'Transcribing with Whisper',
+    summarize: 'Summarizing with Claude',
+    saving: 'Saving to library',
+    done: 'Done'
+  };
+
+  try {
+    const response = await fetch('/api/blocks/ingest-video', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url,
+        funnel_stage: document.getElementById('ab-url-funnel').value,
+        category: document.getElementById('ab-url-cat').value,
+        tags: document.getElementById('ab-url-tags').value
+      })
+    });
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while(true){
+      const { done, value } = await reader.read();
+      if(done) break;
+      const text = decoder.decode(value);
+      const lines = text.split('\n').filter(l => l.startsWith('data: '));
+      for(const line of lines){
+        try{
+          const data = JSON.parse(line.slice(6));
+          if(data.error){ throw new Error(data.error); }
+          if(data.step){
+            stepEl.textContent = stepLabels[data.step] || data.step;
+            msgEl.textContent = data.msg || '';
+          }
+          if(data.done){
+            closeM('m-addblock');
+            toast('Video block created — transcript, summary & frames ready','ok');
+            loadResearch();
+          }
+        } catch(parseErr){
+          if(parseErr.message !== 'Unexpected token'){
+            toast(parseErr.message,'err');
+            break;
+          }
+        }
+      }
+    }
+  } catch(err){
+    toast(err.message,'err');
+  } finally {
+    btn.disabled = false;
+    progress.style.display = 'none';
+    actions.style.opacity = '1';
+  }
+}
+
+// ═══ RICH BLOCK DETAIL - VIDEO ═══
+function formatDuration(secs){
+  if(!secs)return'';
+  const m=Math.floor(secs/60),s=secs%60;
+  return m+'m '+(s<10?'0':'')+s+'s';
+}
+
+async function openBlockDetail(id){
+  const b = await api('GET','/api/blocks/'+id);
+  document.getElementById('bd-title').textContent = b.title;
+
+  if(b.type === 'video'){
+    renderVideoBlock(b);
+  } else {
+    renderGenericBlock(b);
+  }
+  openModal('m-block-detail');
+}
+
+function renderVideoBlock(b){
+  const m = b.metadata || {};
+  const frames = m.screenshot_frames || [];
+  const keyPoints = m.key_points || [];
+  const firstFrame = frames[0];
+
+  document.getElementById('bd-body').innerHTML = `
+    <div class="video-block">
+      <div class="vb-hero">
+        ${firstFrame
+          ? `<img src="/api/drive/file/${firstFrame.id}" onerror="this.src=''">`
+          : `<div style="height:160px;display:flex;align-items:center;justify-content:center;font-size:48px">🎬</div>`}
+        <span class="vb-platform">${esc(m.platform||'Video')}</span>
+        ${m.duration?`<span class="vb-dur">${formatDuration(m.duration)}</span>`:''}
+      </div>
+
+      <div class="vb-meta">
+        <div class="vb-oneliner">${esc(m.one_liner||b.title)}</div>
+        ${m.relevance?`<div class="vb-relevance">${esc(m.relevance)}</div>`:''}
+        ${b.source_url?`<div class="vb-source">Source: <a href="${esc(b.source_url)}" target="_blank">${esc(b.source_url.substring(0,60))}…</a></div>`:''}
+      </div>
+
+      ${keyPoints.length?`
+        <div class="vb-section">
+          <div class="vb-section-head">Key Points</div>
+          <div class="kp-list">
+            ${keyPoints.map((pt,i)=>`
+              <div class="kp-item">
+                <span class="kp-num">${i+1}</span>
+                <span>${esc(pt)}</span>
+              </div>`).join('')}
+          </div>
+        </div>`:''}
+
+      ${frames.length?`
+        <div class="vb-section">
+          <div class="vb-section-head">${frames.length} Frames</div>
+          <div class="shots-strip">
+            ${frames.map((f,i)=>`
+              <div class="shot-frame">
+                <img src="/api/drive/file/${f.id}" loading="lazy" onerror="this.style.opacity='.2'">
+                <div class="shot-label">${esc(f.label||('Frame '+(i+1)))}</div>
+              </div>`).join('')}
+          </div>
+        </div>`:''}
+
+      ${b.content_payload?`
+        <div class="vb-section">
+          <div class="vb-section-head" style="cursor:pointer" onclick="this.nextElementSibling.classList.toggle('hide')">
+            Transcript <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted)">(click to expand)</span>
+          </div>
+          <div class="transcript-block hide">${esc(b.content_payload)}</div>
+        </div>`:''}
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        ${(b.tags||[]).map(t=>`<span class="tag t-lead">${esc(t)}</span>`).join('')}
+        ${b.funnel_stage?`<span class="tag t-lead">${b.funnel_stage.toUpperCase()}</span>`:''}
+        ${b.category?`<span class="tag t-lead">${esc(b.category)}</span>`:''}
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button class="btn btn-danger btn-sm" onclick="deleteBlock(${b.id})">Delete Block</button>
+      </div>
+    </div>`;
+}
+
+function renderGenericBlock(b){
+  const hasImg = b.drive_file_id && b.file_mime && b.file_mime.startsWith('image/');
+  document.getElementById('bd-body').innerHTML = `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+      <span class="tag t-lead">${b.type}</span>
+      ${b.category?`<span class="tag t-lead">${esc(b.category)}</span>`:''}
+      ${b.funnel_stage?funnelBadge(b.funnel_stage):''}
+      ${(b.tags||[]).map(t=>`<span class="tag t-lead">${esc(t)}</span>`).join('')}
+    </div>
+    ${hasImg?`<img src="/api/drive/file/${b.drive_file_id}" style="max-width:100%;border-radius:8px;margin-bottom:12px;max-height:400px;object-fit:contain;width:100%">`:'' }
+    ${b.thumbnail_url&&!hasImg?`<img src="${esc(b.thumbnail_url)}" style="max-width:100%;border-radius:8px;margin-bottom:12px;max-height:240px;object-fit:contain">`:'' }
+    ${b.source_url?`<div style="margin-bottom:10px"><a href="${esc(b.source_url)}" target="_blank" style="color:var(--accent);font-size:13px">↗ Open source</a></div>`:''}
+    ${b.content_payload?`<div class="transcript-block" style="max-height:320px">${esc(b.content_payload)}</div>`:''}
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+      <button class="btn btn-danger btn-sm" onclick="deleteBlock(${b.id})">Delete Block</button>
+    </div>`;
+}
 
 loadPipeline();
 </script>
