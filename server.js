@@ -989,28 +989,21 @@ app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
     // ── Step 1: Download video ──────────────────────────────────────────────
     send('download', 'Downloading video from ' + platform + '...');
     // Find yt-dlp binary (may be in various locations depending on install method)
-    let ytdlpCmd = 'yt-dlp';
-    try {
-      const which = await execAsync('which yt-dlp || which yt_dlp || ls ~/.local/bin/yt-dlp 2>/dev/null || ls /usr/local/bin/yt-dlp 2>/dev/null || echo ""');
-      const found = which.stdout.trim().split('\n')[0];
-      if (found && found !== '') ytdlpCmd = found;
-    } catch(e) {}
+    // yt-dlp installed at /usr/local/bin/yt-dlp via nixpacks curl
+    const ytdlpPaths = ['/usr/local/bin/yt-dlp', '/usr/bin/yt-dlp', 'yt-dlp'];
+    let ytdlpCmd = null;
+    for (const p of ytdlpPaths) {
+      try { await execAsync(`${p} --version 2>/dev/null`); ytdlpCmd = p; break; } catch(e) {}
+    }
+    if (!ytdlpCmd) {
+      try { await execAsync('pip3 install -q yt-dlp'); ytdlpCmd = 'yt-dlp'; } catch(e) {}
+    }
+    if (!ytdlpCmd) throw new Error('yt-dlp not installed. Check Railway build logs.');
 
     try {
-      await execAsync(
-        `${ytdlpCmd} -f "best[height<=720]/best" --no-playlist -o "${videoPath}" --no-check-certificate "${url}"`,
-        { timeout: 180000 }
-      );
+      await execAsync(`${ytdlpCmd} -f "best[height<=720]/best" --no-playlist --no-check-certificate -o "${videoPath}" "${url}"`, { timeout: 180000 });
     } catch(dlErr) {
-      // Try Python module path as fallback
-      try {
-        await execAsync(
-          `python3 -m yt_dlp -f "best" --no-playlist -o "${videoPath}" "${url}"`,
-          { timeout: 180000 }
-        );
-      } catch(e2) {
-        throw new Error('yt-dlp not available on this server. Please redeploy — Railway needs to rebuild with the updated nixpacks.toml that includes yt-dlp.');
-      }
+      await execAsync(`${ytdlpCmd} -f "best" --no-playlist -o "${videoPath}" "${url}"`, { timeout: 180000 });
     }
 
     if (!fs.existsSync(videoPath)) throw new Error('Video download failed — yt-dlp could not retrieve this URL');
