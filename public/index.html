@@ -383,7 +383,22 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
       <label>URL *</label><input id="ab-url" type="url" placeholder="https://..." oninput="checkVideoUrl()">
       <div id="ab-url-video-hint" style="display:none;background:#1a1a0e;border:1px solid #333;border-radius:8px;padding:12px 14px;margin-bottom:10px">
         <div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:3px">🎬 Video detected</div>
-        <div style="font-size:11px;color:#888;line-height:1.5">This will download the video, extract frames, transcribe the audio with Whisper, and summarize key points. Takes 30–90 seconds. Add your OpenAI API key in Railway if not done.</div>
+        <div style="font-size:11px;color:#888;line-height:1.5">Downloads the video, captures frames, transcribes with Whisper, summarizes key points. Takes 30–90 seconds.</div>
+        <div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.6">
+          ✓ TikTok &nbsp;·&nbsp; ✓ YouTube &nbsp;·&nbsp; ✓ Instagram <span style="color:#666">(needs cookie setup below)</span>
+        </div>
+        <details style="margin-top:8px">
+          <summary style="font-size:10px;color:#666;cursor:pointer;user-select:none">Instagram setup (one time)</summary>
+          <div style="font-size:10px;color:#777;line-height:1.8;margin-top:6px;padding:8px;background:#111;border-radius:6px">
+            1. Install <strong style="color:#aaa">Cookie-Editor</strong> extension in Chrome<br>
+            2. Go to instagram.com and log in<br>
+            3. Click Cookie-Editor → <strong style="color:#aaa">Export → Export as Netscape</strong><br>
+            4. Copy the entire text output<br>
+            5. In Railway → your service → Variables → add <code style="background:#222;padding:1px 4px;border-radius:3px">INSTAGRAM_COOKIES</code> → paste as value<br>
+            6. Redeploy<br>
+            <span style="color:#555;margin-top:4px;display:block">Cookies expire every few months — you'll get a clear error when it's time to refresh.</span>
+          </div>
+        </details>
       </div>
       <div class="g2">
         <div><label>Type</label><select id="ab-url-type" onchange="checkVideoUrl()"><option value="url">Article / Link</option><option value="video">🎬 TikTok / Reel / Video</option><option value="image">Image</option></select></div>
