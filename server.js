@@ -390,11 +390,20 @@ app.get('/api/debug', async (req, res) => {
   const path2 = require('path');
   const execA2 = prom2(ex2);
   const projectBin = path2.join(process.cwd(), 'bin', 'yt-dlp');
-  for (const p of [projectBin, '/usr/local/bin/yt-dlp', 'yt-dlp']) {
-    try { const r = await execA2(`"${p}" --version 2>/dev/null`); out.ytdlp = { found: true, path: p, version: r.stdout.trim() }; break; }
-    catch(e) { out.ytdlp = { found: false, tried: p, error: e.message }; }
+  out.cwd = process.cwd();
+  out.ytdlp = { found: false, tried: [] };
+  for (const p of [projectBin, '/usr/local/bin/yt-dlp', '/usr/bin/yt-dlp', 'yt-dlp']) {
+    try {
+      const r = await execA2(`"${p}" --version 2>/dev/null`);
+      out.ytdlp = { found: true, path: p, version: r.stdout.trim() };
+      break;
+    } catch(e) { out.ytdlp.tried.push(p); }
   }
   try { await execA2('ffmpeg -version 2>/dev/null'); out.ffmpeg = 'available'; } catch(e) { out.ffmpeg = 'NOT FOUND'; }
+  // Check if bin/yt-dlp file exists at all
+  const fs2 = require('fs');
+  out.binExists = fs2.existsSync(projectBin);
+  out.binContents = fs2.existsSync(path2.join(process.cwd(), 'bin')) ? fs2.readdirSync(path2.join(process.cwd(), 'bin')) : 'no bin dir';
   try {
     await pool.query('SELECT 1');
     out.db.connected = true;
