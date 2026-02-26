@@ -160,7 +160,23 @@ async function initDb() {
     await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'`);
     await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS source_type VARCHAR(50)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_blocks_source_type ON blocks(source_type)`);
-    console.log('DB v3.37 ready');
+    
+    // v3.40: Drive sync and discovery enhancements
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS drive_folder_id TEXT`);
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS screenshots JSONB DEFAULT '[]'`);
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS mission TEXT`);
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS vision TEXT`);
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS ideas TEXT`);
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS posing_notes TEXT`);
+    
+    await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS drive_folder_id TEXT`);
+    await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS screenshots JSONB DEFAULT '[]'`);
+    await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS mission TEXT`);
+    await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS vision TEXT`);
+    await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS ideas TEXT`);
+    await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS posing_notes TEXT`);
+    
+    console.log('DB v3.40 ready');
   } catch (err) {
     console.error('DB init error:', err.message);
   } finally { c.release(); }
@@ -1510,6 +1526,144 @@ app.post('/api/drive/sync', requireAuth, async (req, res) => {
 
     res.json({ ok: true, imported, skipped, results });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+});
+
+// Clean up deleted files from research library
+app.post('/api/drive/cleanup', requireAuth, async (req, res) => {
+  try {
+    const drive = getDrive(req);
+    const blocks = await pool.query('SELECT id, drive_file_id FROM blocks WHERE drive_file_id IS NOT NULL AND drive_file_id != \'\'');
+    
+    let deleted = 0;
+    const deletedBlocks = [];
+    
+    for (const block of blocks.rows) {
+      try {
+        // Try to get file metadata from Drive
+        await drive.files.get({
+          fileId: block.drive_file_id,
+          fields: 'id,trashed'
+        });
+      } catch (err) {
+        // File doesn't exist or is trashed - delete from DB
+        if (err.code === 404 || err.message.includes('trashed')) {
+          await pool.query('DELETE FROM blocks WHERE id = $1', [block.id]);
+          deletedBlocks.push(block.id);
+          deleted++;
+        }
+      }
+    }
+    
+    res.json({ ok: true, deleted, deletedBlocks });
+  } catch (err) { 
+    console.error(err); 
+    res.status(500).json({ error: err.message }); 
+  }
+});
+
+// Sync clients from Drive "Clients" folder
+app.post('/api/drive/sync-clients', requireAuth, async (req, res) => {
+  try {
+    const drive = getDrive(req);
+    
+    // Find "Clients" folder
+    const clientsFolderRes = await drive.files.list({
+      q: "name='Clients' and mimeType='application/vnd.google-apps.folder' and trashed=false",
+      fields: 'files(id,name)',
+      pageSize: 5
+    });
+    
+    if (!clientsFolderRes.data.files.length) {
+      return res.json({ ok: false, message: 'No "Clients" folder found in Drive' });
+    }
+    
+    const clientsFolderId = clientsFolderRes.data.files[0].id;
+    
+    // List all client folders
+    const clientFoldersRes = await drive.files.list({
+      q: `'${clientsFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: 'files(id,name)',
+      pageSize: 200
+    });
+    
+    let created = 0;
+    let updated = 0;
+    
+    for (const folder of clientFoldersRes.data.files || []) {
+      // Check if client already exists
+      const existing = await pool.query('SELECT id FROM clients WHERE drive_folder_id = $1', [folder.id]);
+      
+      if (existing.rows.length === 0) {
+        // Create new client
+        await pool.query(
+          `INSERT INTO clients (name, drive_folder_id, status, created_at) 
+           VALUES ($1, $2, 'lead', NOW())`,
+          [folder.name, folder.id]
+        );
+        created++;
+      } else {
+        // Update name if changed
+        await pool.query(
+          'UPDATE clients SET name = $1 WHERE drive_folder_id = $2',
+          [folder.name, folder.id]
+        );
+        updated++;
+      }
+    }
+    
+    res.json({ ok: true, created, updated, total: clientFoldersRes.data.files.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Sync discovery from Drive folders (excluding Clients)
+app.post('/api/drive/sync-discovery', requireAuth, async (req, res) => {
+  try {
+    const drive = getDrive(req);
+    
+    // Get all top-level folders except specific ones
+    const excludeFolders = ['Clients', 'Pose', 'Meme', 'SFX', 'Music', 'Phixo Knowledge', 'Tik Tok Scripts', 'Videos'];
+    
+    const allFoldersRes = await drive.files.list({
+      q: "mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false",
+      fields: 'files(id,name)',
+      pageSize: 200
+    });
+    
+    const discoveryFolders = (allFoldersRes.data.files || []).filter(f => !excludeFolders.includes(f.name));
+    
+    let created = 0;
+    let updated = 0;
+    
+    for (const folder of discoveryFolders) {
+      // Check if prospect already exists
+      const existing = await pool.query('SELECT id FROM prospects WHERE drive_folder_id = $1', [folder.id]);
+      
+      if (existing.rows.length === 0) {
+        // Create new prospect
+        await pool.query(
+          `INSERT INTO prospects (name, drive_folder_id, status, category, created_at) 
+           VALUES ($1, $2, 'watching', 'business', NOW())`,
+          [folder.name, folder.id]
+        );
+        created++;
+      } else {
+        // Update name if changed
+        await pool.query(
+          'UPDATE prospects SET name = $1 WHERE drive_folder_id = $2',
+          [folder.name, folder.id]
+        );
+        updated++;
+      }
+    }
+    
+    res.json({ ok: true, created, updated, total: discoveryFolders.length });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/drive/file/:fileId', requireAuth, async (req, res) => {
