@@ -2023,7 +2023,7 @@ async function syncCollegeMaterial() {
     btn.disabled = true;
     btn.textContent = '⏳ Syncing...';
     
-    const res = await api('/api/drive/sync-college', { method: 'POST' });
+    const res = await api('POST', '/api/drive/sync-college');
     
     toast(res.message, 'ok');
     updateCollegeMaterialCount();
@@ -2038,7 +2038,7 @@ async function syncCollegeMaterial() {
 
 async function updateCollegeMaterialCount() {
   try {
-    const res = await api('/api/blocks?source_type=algonquin');
+    const res = await api('GET', '/api/blocks?source_type=algonquin');
     const count = res.length || 0;
     const countDiv = document.getElementById('college-material-count');
     if (countDiv) {
@@ -2075,10 +2075,7 @@ async function askCollege() {
   messagesDiv.scrollTop = messagesDiv.scrollHeight;
   
   try {
-    const res = await api('/api/library/ask-college', {
-      method: 'POST',
-      body: JSON.stringify({ question })
-    });
+    const res = await api('POST', '/api/library/ask-college', { question });
     
     // Replace loading with answer
     const answerHtml = res.answer.replace(/\n/g, '<br>');
