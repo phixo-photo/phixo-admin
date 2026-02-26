@@ -2025,7 +2025,7 @@ app.post('/api/library/ask-college', requireAuth, async (req, res) => {
     });
     
     const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20241127',
+      model: 'claude-3-5-haiku-20241022',
       max_tokens: 2048,
       system: `You are a teaching assistant helping Ian review his Algonquin College photography course material. 
 
