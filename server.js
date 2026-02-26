@@ -1902,17 +1902,8 @@ RULES:
 
 app.post('/api/drive/sync-college', requireAuth, async (req, res) => {
   try {
+    const drive = getDrive(req);
     const ALG_FOLDER_NAME = 'ALG';
-    const filesResult = await pool.query(
-      'SELECT google_access_token FROM users WHERE id = $1',
-      [req.session.userId]
-    );
-    if (filesResult.rows.length === 0 || !filesResult.rows[0].google_access_token) {
-      return res.status(401).json({ error: 'Google access token not found' });
-    }
-    const accessToken = filesResult.rows[0].google_access_token;
-    const drive = google.drive({ version: 'v3', auth: new google.auth.OAuth2() });
-    drive.context._options.headers = { Authorization: `Bearer ${accessToken}` };
     
     const folderResponse = await drive.files.list({
       q: `name='${ALG_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
