@@ -319,6 +319,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
     </select>
     <button class="btn btn-dark btn-sm" onclick="openAddBlock()">+ Add Block</button>
     <button class="btn btn-ghost btn-sm" id="sync-btn" onclick="syncDrive()" title="Scan all Drive folders and import any new files">↻ Sync Drive</button>
+    <button class="btn btn-ghost btn-sm" id="repair-btn" onclick="repairThumbnails()" title="Fix broken thumbnails on existing blocks">🔧 Fix Thumbs</button>
   </div>
   <div id="research-grid" class="block-grid"></div>
 </div>
@@ -1604,6 +1605,16 @@ function addAssistMsg(text,role){
 }
 
 // ═══ INIT ═══
+async function repairThumbnails(){
+  const btn = document.getElementById('repair-btn');
+  btn.disabled=true; btn.textContent='Fixing...';
+  try {
+    const r = await api('POST','/api/blocks/repair-thumbnails');
+    toast(`Fixed: ${r.images_fixed} images, ${r.videos_fixed} videos, ${r.mime_fixed} mime types`,'ok');
+    loadResearch();
+  } catch(err){ toast(err.message,'err'); }
+  finally { btn.disabled=false; btn.textContent='🔧 Fix Thumbs'; }
+}
 async function syncDrive(){
   const btn=document.getElementById('sync-btn');
   btn.disabled=true;btn.textContent='Syncing...';
