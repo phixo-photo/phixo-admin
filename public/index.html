@@ -1076,10 +1076,12 @@ async function loadResearch(){
   grid.innerHTML=blocks.map(b=>{
     const hasImg=b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('image/');
     const hasVideo=b.type==='video'||(b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('video/'));
-    // For images: always use proxy (Drive CDN links expire after hours)
-    // For videos: use stored thumbnail_url (which should already be a proxy or data: url)
+    // Images: always proxy (CDN links expire)
+    // Everything else: use stored thumbnail_url (proxy path or data: URL)
+    // Fallback for images with missing mime: check type name
+    const likelyImg = hasImg || ['pose','meme','image'].includes(b.type) && b.drive_file_id;
     let thumbSrc = null;
-    if (hasImg && b.drive_file_id) {
+    if (likelyImg && b.drive_file_id) {
       thumbSrc = `/api/drive/file/${b.drive_file_id}`;
     } else if (b.thumbnail_url) {
       thumbSrc = b.thumbnail_url;
