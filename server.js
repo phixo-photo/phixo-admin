@@ -1327,6 +1327,54 @@ Return ONLY a JSON object with these fields (no markdown, no extra text):
 });
 
 // ─── Sync Drive folders → auto-import new blocks ─────
+// ── Repair thumbnail URLs ─────────────────────────────────────────────────────
+app.post('/api/blocks/repair-thumbnails', requireAuth, async (req, res) => {
+  try {
+    // 1. Image blocks with drive_file_id → always proxy
+    const imgFix = await pool.query(`
+      UPDATE blocks 
+      SET thumbnail_url = '/api/drive/file/' || drive_file_id
+      WHERE drive_file_id IS NOT NULL AND drive_file_id != ''
+        AND file_mime IS NOT NULL AND file_mime LIKE 'image/%'
+      RETURNING id
+    `);
+
+    // 2. Video ingest blocks — pull first frame from metadata
+    const videoBlocks = await pool.query(
+      "SELECT id, metadata FROM blocks WHERE type='video' AND metadata IS NOT NULL AND metadata::text LIKE '%screenshot_frames%'"
+    );
+    let videoFixed = 0;
+    for (const b of videoBlocks.rows) {
+      const frames = (b.metadata || {}).screenshot_frames || [];
+      if (frames.length && frames[0].id) {
+        await pool.query('UPDATE blocks SET thumbnail_url=$1 WHERE id=$2',
+          ['/api/drive/file/' + frames[0].id, b.id]);
+        videoFixed++;
+      }
+    }
+
+    // 3. Fix missing file_mime from file_name extension
+    const noMime = await pool.query(
+      "SELECT id, file_name FROM blocks WHERE drive_file_id IS NOT NULL AND (file_mime IS NULL OR file_mime = '')"
+    );
+    let mimeFixed = 0;
+    const extMap = {jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',gif:'image/gif',
+      webp:'image/webp',mp4:'video/mp4',mov:'video/quicktime',pdf:'application/pdf'};
+    for (const b of noMime.rows) {
+      const ext = (b.file_name||'').split('.').pop().toLowerCase();
+      if (extMap[ext]) {
+        await pool.query('UPDATE blocks SET file_mime=$1 WHERE id=$2', [extMap[ext], b.id]);
+        mimeFixed++;
+      }
+    }
+
+    res.json({ ok:true, images_fixed:imgFix.rows.length, videos_fixed:videoFixed, mime_fixed:mimeFixed });
+  } catch(err) {
+    console.error('Repair error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/drive/sync', requireAuth, async (req, res) => {
   try {
     const drive = getDrive(req);
