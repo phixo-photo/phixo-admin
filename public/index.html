@@ -1088,15 +1088,15 @@ async function loadResearch(){
     const thumbSrc = b.thumbnail_url
       ? b.thumbnail_url
       : (hasImg ? `/api/drive/file/${b.drive_file_id}` : null);
+    const fallbackHtml = hasVideo
+      ? `<div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--surface-2)"><span style="font-size:36px">🎬</span><span style="font-size:10px;color:var(--muted)">tap to play</span></div>`
+      : `<span style="font-size:36px">${typeIcon(b.type)}</span>`;
     return`<div class="block-card" onclick="openBlockDetail(${b.id})">
       <div class="block-thumb">
         ${thumbSrc
-          ? `<img src="${esc(thumbSrc)}" loading="lazy" onerror="this.style.display='none';this.nextElementSibling.style.display='block'">`
-          : ``}
-        ${!thumbSrc&&hasVideo
-          ? `<div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:var(--surface-2)"><span style="font-size:36px">🎬</span><span style="font-size:10px;color:var(--muted)">tap to play</span></div>`
-          : ``}
-        <span style="font-size:36px;display:${thumbSrc||hasVideo?'none':'block'}">${typeIcon(b.type)}</span>
+          ? `<img src="${esc(thumbSrc)}" loading="lazy" onerror="this.parentNode.innerHTML='${fallbackHtml.replace(/'/g,"\'").replace(/
+/g,' ')}';">`
+          : fallbackHtml}
         <span class="type-badge">${b.type}</span>
       </div>
       <div class="block-body">
