@@ -6,7 +6,6 @@ const cookieSession = require('cookie-session');
 const path = require('path');
 const { Pool } = require('pg');
 const { Readable } = require('stream');
-const pdfParse = require('pdf-parse');
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
@@ -1710,6 +1709,78 @@ Extract the most useful information. Return ONLY valid JSON, no markdown:
 });
 
 
+// Get random hooks for inspiration
+app.get('/api/hooks/random', requireAuth, async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 5;
+    const result = await pool.query(`
+      SELECT * FROM hooks 
+      ORDER BY RANDOM() 
+      LIMIT $1
+    `, [limit]);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Random hooks error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// One-time import of hooks from hooks_data.txt
+app.post('/api/hooks/import', requireAuth, async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const hooksFile = path.join(__dirname, 'hooks_data.txt');
+    
+    if (!fs.existsSync(hooksFile)) {
+      return res.status(404).json({ error: 'hooks_data.txt not found' });
+    }
+    
+    // Check if hooks already imported
+    const existing = await pool.query('SELECT COUNT(*) FROM hooks');
+    if (parseInt(existing.rows[0].count) > 0) {
+      return res.json({ message: 'Hooks already imported', count: existing.rows[0].count });
+    }
+    
+    const content = fs.readFileSync(hooksFile, 'utf-8');
+    const lines = content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    
+    let currentCategory = 'general';
+    let imported = 0;
+    
+    for (const line of lines) {
+      // Skip title line
+      if (line.includes('1000 VIRAL HOOKS')) continue;
+      
+      // Check if it's a category header (ends with :)
+      if (line.endsWith(':') && line.length < 50) {
+        currentCategory = line.replace(':', '').trim();
+        continue;
+      }
+      
+      // Skip Instagram URLs
+      if (line.startsWith('http')) continue;
+      
+      // Skip URL fragments
+      if (line.includes('instagram.com') || line.includes('igsh=') || line.includes('utm_')) continue;
+      
+      // Skip lines that are too short
+      if (line.length < 20) continue;
+      
+      // This is a hook template
+      await pool.query(
+        'INSERT INTO hooks (text, category, source) VALUES ($1, $2, $3)',
+        [line, currentCategory, 'PDF Import']
+      );
+      imported++;
+    }
+    
+    res.json({ success: true, imported, message: `Imported ${imported} hooks` });
+  } catch (err) {
+    console.error('Hooks import error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ── Library Knowledge Base Q&A ───────────────────────────────────────────────
 app.post('/api/library/ask', requireAuth, async (req, res) => {
@@ -1895,182 +1966,6 @@ RULES:
     });
     res.json({ reply: response.content[0].text });
   } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// COLLEGE REVIEW ROUTES (v3.37)
-// ═══════════════════════════════════════════════════
-
-app.post('/api/drive/sync-college', requireAuth, async (req, res) => {
-  try {
-    const drive = getDrive(req);
-    const ALG_FOLDER_NAME = 'ALG';
-    
-    const folderResponse = await drive.files.list({
-      q: `name='${ALG_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-      fields: 'files(id, name)',
-      pageSize: 10
-    });
-    
-    if (!folderResponse.data.files || folderResponse.data.files.length === 0) {
-      return res.status(404).json({ error: 'ALG folder not found in Google Drive. Please create a folder named "ALG" and upload your college PDFs there.' });
-    }
-    
-    const algFolderId = folderResponse.data.files[0].id;
-    const filesResponse = await drive.files.list({
-      q: `'${algFolderId}' in parents and trashed=false`,
-      fields: 'files(id, name, mimeType, modifiedTime, thumbnailLink)',
-      pageSize: 1000
-    });
-    
-    let imported = 0;
-    let skipped = 0;
-    
-    for (const file of filesResponse.data.files) {
-      if (file.mimeType !== 'application/pdf') {
-        skipped++;
-        continue;
-      }
-      
-      const existing = await pool.query(
-        'SELECT id FROM blocks WHERE drive_file_id = $1',
-        [file.id]
-      );
-      
-      if (existing.rows.length > 0) {
-        skipped++;
-        continue;
-      }
-      
-      try {
-        const fileContent = await drive.files.get(
-          { fileId: file.id, alt: 'media' },
-          { responseType: 'arraybuffer' }
-        );
-        
-        const pdfData = await pdfParse(Buffer.from(fileContent.data));
-        const content = pdfData.text;
-        
-        await pool.query(
-          `INSERT INTO blocks (
-            type, category, title, content_payload, 
-            drive_file_id, file_mime, thumbnail_url, source_type
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
-          [
-            'pdf', 
-            'college', 
-            file.name, 
-            content, 
-            file.id, 
-            'application/pdf',
-            file.thumbnailLink || `/api/drive/thumbnail/${file.id}`,
-            'algonquin'
-          ]
-        );
-        
-        imported++;
-      } catch (err) {
-        console.error(`Error processing ${file.name}:`, err.message);
-        skipped++;
-      }
-    }
-    
-    res.json({ 
-      success: true, 
-      imported, 
-      skipped,
-      message: `Imported ${imported} new file${imported !== 1 ? 's' : ''} from ALG folder${skipped > 0 ? ` (${skipped} skipped)` : ''}` 
-    });
-  } catch (error) {
-    console.error('ALG sync error:', error);
-    res.status(500).json({ error: error.message });
-  }
-});
-
-app.post('/api/library/ask-college', requireAuth, async (req, res) => {
-  const { question } = req.body;
-  
-  if (!question) {
-    return res.status(400).json({ error: 'Question required' });
-  }
-  
-  try {
-    const result = await pool.query(
-      `SELECT id, type, category, title, content_payload 
-       FROM blocks 
-       WHERE source_type = 'algonquin'
-       ORDER BY created_at DESC`
-    );
-    
-    if (result.rows.length === 0) {
-      return res.json({
-        answer: "I don't have any college material uploaded yet. Please sync your ALG folder first by clicking the 'Sync ALG Folder' button above.",
-        sources: [],
-        material_count: 0
-      });
-    }
-    
-    let context = "# Algonquin College Course Material\n\n";
-    const sources = [];
-    
-    result.rows.forEach((block, idx) => {
-      const excerpt = block.content_payload ? block.content_payload.substring(0, 4000) : '';
-      context += `## Document ${idx + 1}: ${block.title}\n${excerpt}\n\n`;
-      sources.push({
-        id: block.id,
-        title: block.title,
-        type: block.type,
-        category: block.category
-      });
-    });
-    
-    const response = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
-      system: `You are a teaching assistant helping Ian review his Algonquin College photography course material. 
-
-CRITICAL RULES:
-- ONLY use information from the provided college course material below
-- DO NOT use any external knowledge or make assumptions beyond what's explicitly stated
-- If the answer isn't in the provided material, clearly state: "This topic isn't covered in your uploaded college material"
-- Be clear, educational, and concise in your explanations
-- Write in a warm, conversational tone (Ian's style: warm, direct, no hype)
-
-STRICT FORMATTING RULES:
-- Write in flowing paragraphs ONLY - like you're explaining it naturally in conversation
-- DO NOT use section labels like "Angle of View -" or "Magnification -"
-- DO NOT use ANY markdown formatting at all
-- Just write naturally: explain the concept, then flow into what it affects and why it matters
-- Use blank lines between paragraphs
-- Keep it concise but complete - 3-5 paragraphs
-- Integrate all the information smoothly without breaking it into labeled sections
-
-Example of what TO DO:
-"Focal length is the distance between... It affects how much of the scene you capture and how magnified things appear. Longer focal lengths narrow your view but magnify more, while shorter ones show more of the scene with less magnification. It also impacts depth of field - longer lenses give you shallower depth of field."
-
-Example of what NOT to do:
-"Here's what it affects: **Angle of View** - description. **Magnification** - description."
-
-College Material Available:
-${context}`,
-      messages: [{
-        role: 'user',
-        content: question
-      }]
-    });
-    
-    const answer = response.content[0].text;
-    
-    res.json({ 
-      answer, 
-      sources, 
-      material_count: result.rows.length 
-    });
-    
-  } catch (error) {
-    console.error('College Q&A error:', error);
-    res.status(500).json({ error: error.message });
-  }
 });
 
 // ═══════════════════════════════════════════════════
