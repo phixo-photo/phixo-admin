@@ -1079,12 +1079,18 @@ async function loadResearch(){
     // Images: always proxy (CDN links expire)
     // Everything else: use stored thumbnail_url (proxy path or data: URL)
     // Fallback for images with missing mime: check type name
-    const likelyImg = hasImg || ['pose','meme','image'].includes(b.type) && b.drive_file_id;
     let thumbSrc = null;
-    if (likelyImg && b.drive_file_id) {
+    if (hasImg && b.drive_file_id) {
+      // Images always via file proxy
+      thumbSrc = `/api/drive/file/${b.drive_file_id}`;
+    } else if (['pose','image'].includes(b.type) && b.drive_file_id) {
       thumbSrc = `/api/drive/file/${b.drive_file_id}`;
     } else if (b.thumbnail_url) {
+      // Videos, PDFs, notes — use stored proxy URL (thumbnail or screenshot frame)
       thumbSrc = b.thumbnail_url;
+    } else if (b.drive_file_id && !hasVideo) {
+      // Fallback: request Drive thumbnail on the fly
+      thumbSrc = `/api/drive/thumbnail/${b.drive_file_id}`;
     }
     const fallbackIcon = hasVideo ? '🎬' : typeIcon(b.type);
     const thumbHtml = thumbSrc
