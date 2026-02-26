@@ -344,7 +344,7 @@ app.post('/api/blocks/upload', requireAuth, upload.single('file'), async (req, r
     console.log(`Uploaded to Drive: ${uploaded.data.id} in folder ${folderName}`);
 
     // Extract video thumbnail frame using ffmpeg
-    let thumbnailUrl = uploaded.data.thumbnailLink || null;
+    let thumbnailUrl = null; // set below based on type
     let thumbDriveId = null;
     if (isVideo && global.FFMPEG_PATH) {
       try {
@@ -472,7 +472,7 @@ app.get('/api/debug', async (req, res) => {
     if (out.db.tables.includes('blocks')) {
       const count = await pool.query('SELECT COUNT(*) as n FROM blocks');
       out.db.block_count = parseInt(count.rows[0].n);
-      const sample = await pool.query('SELECT id,type,title,drive_file_id FROM blocks LIMIT 5');
+      const sample = await pool.query('SELECT id,type,title,drive_file_id,file_mime,thumbnail_url FROM blocks ORDER BY id DESC LIMIT 10');
       out.blocks = sample.rows;
     } else {
       out.db.note = 'blocks table does not exist yet - initDb may not have run';
@@ -1203,7 +1203,7 @@ app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
       });
       screenshotDriveIds.push({
         id: uploaded.data.id,
-        thumb: uploaded.data.thumbnailLink || '',
+        thumb: `/api/drive/file/${uploaded.data.id}`,
         label: `Frame ${i+1} (~${(i * interval)}s)`
       });
       if (i === 0) thumbnailUrl = `/api/drive/file/${uploaded.data.id}`;
