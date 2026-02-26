@@ -298,6 +298,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
       <option value="lead">Lead</option><option value="booked">Booked</option>
       <option value="shot">Shot</option><option value="delivered">Delivered</option>
     </select>
+    <button class="btn btn-ghost btn-sm" onclick="syncClients()" title="Import client folders from Drive">↻ Sync from Drive</button>
     <button class="btn btn-dark btn-sm" onclick="openNewClient()">+ New Client</button>
   </div>
   <div id="pipeline-grid" class="card-grid"></div>
@@ -315,6 +316,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
       <option value="watching">Watching</option><option value="outreach-ready">Outreach Ready</option>
       <option value="contacted">Contacted</option><option value="not-a-fit">Not a Fit</option>
     </select>
+    <button class="btn btn-ghost btn-sm" onclick="syncDiscovery()" title="Import discovery folders from Drive">↻ Sync from Drive</button>
     <button class="btn btn-dark btn-sm" onclick="openNewProspect()">+ New Target</button>
   </div>
   <div id="discovery-grid" class="card-grid"></div>
@@ -348,6 +350,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
       </select>
       <button class="btn btn-dark btn-sm" onclick="openAddBlock()">+ Add Block</button>
       <button class="btn btn-ghost btn-sm" id="sync-btn" onclick="syncDrive()" title="Scan all Drive folders and import any new files">↻ Sync Drive</button>
+      <button class="btn btn-ghost btn-sm" id="cleanup-btn" onclick="cleanupDeleted()" title="Remove files that were deleted from Drive">🗑️ Clean Up</button>
       <button class="btn btn-ghost btn-sm" id="repair-btn" onclick="repairThumbnails()" title="Fix broken thumbnails on existing blocks">🔧 Fix Thumbs</button>
     </div>
     <div id="research-grid" class="block-grid"></div>
@@ -1799,6 +1802,52 @@ async function syncDrive(){
     toast('Sync failed: '+err.message,'err');
   }
   finally{btn.disabled=false;btn.textContent='↻ Sync Drive';}
+}
+
+async function cleanupDeleted(){
+  const btn=document.getElementById('cleanup-btn');
+  if(!confirm('This will remove blocks for files that were deleted from Google Drive. Continue?')) return;
+  btn.disabled=true;btn.textContent='Cleaning...';
+  try{
+    const r=await api('POST','/api/drive/cleanup');
+    const msg=r.deleted>0
+      ?`Removed ${r.deleted} deleted file${r.deleted!==1?'s':''}`
+      :'No deleted files found';
+    toast(msg,'ok');
+    loadResearch();
+  }catch(err){
+    console.error('Cleanup error:',err);
+    toast('Cleanup failed: '+err.message,'err');
+  }
+  finally{btn.disabled=false;btn.textContent='🗑️ Clean Up';}
+}
+
+async function syncClients(){
+  try{
+    const r=await api('POST','/api/drive/sync-clients');
+    const msg=r.created>0||r.updated>0
+      ?`${r.created} new, ${r.updated} updated (${r.total} total folders)`
+      :'No new client folders found';
+    toast(msg,'ok');
+    loadPipeline();
+  }catch(err){
+    console.error('Client sync error:',err);
+    toast('Client sync failed: '+err.message,'err');
+  }
+}
+
+async function syncDiscovery(){
+  try{
+    const r=await api('POST','/api/drive/sync-discovery');
+    const msg=r.created>0||r.updated>0
+      ?`${r.created} new, ${r.updated} updated (${r.total} total folders)`
+      :'No new discovery folders found';
+    toast(msg,'ok');
+    loadDiscovery();
+  }catch(err){
+    console.error('Discovery sync error:',err);
+    toast('Discovery sync failed: '+err.message,'err');
+  }
 }
 
 // Auto-sync handled inside loadResearch
