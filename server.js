@@ -346,8 +346,7 @@ app.post('/api/blocks/upload', requireAuth, upload.single('file'), async (req, r
     // Extract video thumbnail frame using ffmpeg
     let thumbnailUrl = uploaded.data.thumbnailLink || null;
     let thumbDriveId = null;
-    const skipThumb = ['meme'].includes(type);
-    if (isVideo && global.FFMPEG_PATH && !skipThumb) {
+    if (isVideo && global.FFMPEG_PATH) {
       try {
         const thumbPath = tmpFile + '_thumb.jpg';
         await require('util').promisify(require('child_process').exec)(
@@ -355,15 +354,23 @@ app.post('/api/blocks/upload', requireAuth, upload.single('file'), async (req, r
           { timeout: 30000 }
         );
         if (require('fs').existsSync(thumbPath)) {
-          const thumbUp = await drive.files.create({
-            requestBody: { name: req.file.originalname + '_thumb.jpg', parents: [folderId] },
-            media: { mimeType: 'image/jpeg', body: createReadStream(thumbPath) },
-            fields: 'id, thumbnailLink'
-          });
-          thumbDriveId = thumbUp.data.id;
-          thumbnailUrl = `/api/drive/file/${thumbDriveId}`;
+          const isMeme = (type === 'meme');
+          if (isMeme) {
+            // Store as base64 data URL — no Drive upload needed
+            const thumbBuf = require('fs').readFileSync(thumbPath);
+            thumbnailUrl = 'data:image/jpeg;base64,' + thumbBuf.toString('base64');
+            console.log('Meme thumbnail stored as data URL (' + Math.round(thumbBuf.length/1024) + 'KB)');
+          } else {
+            const thumbUp = await drive.files.create({
+              requestBody: { name: req.file.originalname + '_thumb.jpg', parents: [folderId] },
+              media: { mimeType: 'image/jpeg', body: createReadStream(thumbPath) },
+              fields: 'id'
+            });
+            thumbDriveId = thumbUp.data.id;
+            thumbnailUrl = `/api/drive/file/${thumbDriveId}`;
+            console.log('Video thumbnail extracted and uploaded');
+          }
           require('fs').unlinkSync(thumbPath);
-          console.log('Video thumbnail extracted and uploaded');
         }
       } catch(e) {
         console.warn('Video thumbnail extraction failed:', e.message);
