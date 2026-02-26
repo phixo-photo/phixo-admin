@@ -158,7 +158,9 @@ async function initDb() {
     `);
     // Migrations for existing DBs
     await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'`);
-    console.log('DB v3 ready');
+    await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS source_type VARCHAR(50)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_blocks_source_type ON blocks(source_type)`);
+    console.log('DB v3.37 ready');
   } catch (err) {
     console.error('DB init error:', err.message);
   } finally { c.release(); }
@@ -1892,6 +1894,179 @@ RULES:
     });
     res.json({ reply: response.content[0].text });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// COLLEGE REVIEW ROUTES (v3.37)
+// ═══════════════════════════════════════════════════
+
+app.post('/api/drive/sync-college', requireAuth, async (req, res) => {
+  try {
+    const ALG_FOLDER_NAME = 'ALG';
+    const filesResult = await pool.query(
+      'SELECT google_access_token FROM users WHERE id = $1',
+      [req.session.userId]
+    );
+    if (filesResult.rows.length === 0 || !filesResult.rows[0].google_access_token) {
+      return res.status(401).json({ error: 'Google access token not found' });
+    }
+    const accessToken = filesResult.rows[0].google_access_token;
+    const drive = google.drive({ version: 'v3', auth: new google.auth.OAuth2() });
+    drive.context._options.headers = { Authorization: `Bearer ${accessToken}` };
+    
+    const folderResponse = await drive.files.list({
+      q: `name='${ALG_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: 'files(id, name)',
+      pageSize: 10
+    });
+    
+    if (!folderResponse.data.files || folderResponse.data.files.length === 0) {
+      return res.status(404).json({ error: 'ALG folder not found in Google Drive. Please create a folder named "ALG" and upload your college PDFs there.' });
+    }
+    
+    const algFolderId = folderResponse.data.files[0].id;
+    const filesResponse = await drive.files.list({
+      q: `'${algFolderId}' in parents and trashed=false`,
+      fields: 'files(id, name, mimeType, modifiedTime, thumbnailLink)',
+      pageSize: 1000
+    });
+    
+    let imported = 0;
+    let skipped = 0;
+    
+    for (const file of filesResponse.data.files) {
+      if (file.mimeType !== 'application/pdf') {
+        skipped++;
+        continue;
+      }
+      
+      const existing = await pool.query(
+        'SELECT id FROM blocks WHERE drive_file_id = $1',
+        [file.id]
+      );
+      
+      if (existing.rows.length > 0) {
+        skipped++;
+        continue;
+      }
+      
+      try {
+        const fileContent = await drive.files.get(
+          { fileId: file.id, alt: 'media' },
+          { responseType: 'arraybuffer' }
+        );
+        
+        const pdfData = await pdfParse(Buffer.from(fileContent.data));
+        const content = pdfData.text;
+        
+        await pool.query(
+          `INSERT INTO blocks (
+            type, category, title, content_payload, 
+            drive_file_id, file_mime, thumbnail_url, source_type
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+          [
+            'pdf', 
+            'college', 
+            file.name, 
+            content, 
+            file.id, 
+            'application/pdf',
+            file.thumbnailLink || `/api/drive/thumbnail/${file.id}`,
+            'algonquin'
+          ]
+        );
+        
+        imported++;
+      } catch (err) {
+        console.error(`Error processing ${file.name}:`, err.message);
+        skipped++;
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      imported, 
+      skipped,
+      message: `Imported ${imported} new file${imported !== 1 ? 's' : ''} from ALG folder${skipped > 0 ? ` (${skipped} skipped)` : ''}` 
+    });
+  } catch (error) {
+    console.error('ALG sync error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/library/ask-college', requireAuth, async (req, res) => {
+  const { question } = req.body;
+  
+  if (!question) {
+    return res.status(400).json({ error: 'Question required' });
+  }
+  
+  try {
+    const result = await pool.query(
+      `SELECT id, type, category, title, content_payload 
+       FROM blocks 
+       WHERE source_type = 'algonquin'
+       ORDER BY created_at DESC`
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({
+        answer: "I don't have any college material uploaded yet. Please sync your ALG folder first by clicking the 'Sync ALG Folder' button above.",
+        sources: [],
+        material_count: 0
+      });
+    }
+    
+    let context = "# Algonquin College Course Material\n\n";
+    const sources = [];
+    
+    result.rows.forEach((block, idx) => {
+      const excerpt = block.content_payload ? block.content_payload.substring(0, 4000) : '';
+      context += `## Document ${idx + 1}: ${block.title}\n${excerpt}\n\n`;
+      sources.push({
+        id: block.id,
+        title: block.title,
+        type: block.type,
+        category: block.category
+      });
+    });
+    
+    const response = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20241127',
+      max_tokens: 2048,
+      system: `You are a teaching assistant helping Ian review his Algonquin College photography course material. 
+
+CRITICAL RULES:
+- ONLY use information from the provided college course material below
+- DO NOT use any external knowledge or make assumptions beyond what's explicitly stated
+- If the answer isn't in the provided material, clearly state: "This topic isn't covered in your uploaded college material"
+- Reference specific course documents/sections when answering (e.g., "According to Document 1...")
+- Be clear, educational, and concise in your explanations
+- Use analogies only if they directly relate to concepts in the material
+- If asked about practical application, connect it back to the theory in the course material
+- Write in a warm, conversational tone (Ian's style: warm, direct, no hype)
+
+College Material Available:
+${context}`,
+      messages: [{
+        role: 'user',
+        content: question
+      }]
+    });
+    
+    const answer = response.content[0].text;
+    
+    res.json({ 
+      answer, 
+      sources, 
+      material_count: result.rows.length 
+    });
+    
+  } catch (error) {
+    console.error('College Q&A error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // ═══════════════════════════════════════════════════
