@@ -1388,26 +1388,61 @@ app.post('/api/blocks/repair-thumbnails', requireAuth, async (req, res) => {
       }
     }
 
-    // 4. Force-fix all blocks with expired CDN thumbnail URLs
+    // 4. Fix all blocks with expired CDN URLs or missing thumbnails
+    // For image types: use file proxy. For everything else with drive_file_id: use thumbnail proxy
     const forceAll = await pool.query(`
       UPDATE blocks 
       SET thumbnail_url = CASE
-            WHEN type IN ('pose','meme','image') AND drive_file_id IS NOT NULL THEN '/api/drive/file/' || drive_file_id
+            WHEN type IN ('pose','image') AND drive_file_id IS NOT NULL 
+              THEN '/api/drive/file/' || drive_file_id
+            WHEN drive_file_id IS NOT NULL AND drive_file_id NOT LIKE '%vnd.google%'
+              THEN '/api/drive/thumbnail/' || drive_file_id
             ELSE NULL
-          END,
-          file_mime = CASE 
-            WHEN file_mime IS NULL OR file_mime = '' AND type IN ('pose','image') THEN 'image/jpeg'
-            ELSE file_mime 
           END
-      WHERE (thumbnail_url LIKE 'https://lh3.google%' OR thumbnail_url LIKE 'https://drive.google%')
-         OR (type IN ('pose','meme','image') AND drive_file_id IS NOT NULL AND (thumbnail_url IS NULL OR thumbnail_url = ''))
+      WHERE drive_file_id IS NOT NULL
+        AND drive_file_id != ''
+        AND (
+          thumbnail_url IS NULL 
+          OR thumbnail_url = ''
+          OR thumbnail_url LIKE 'https://lh3.google%'
+          OR thumbnail_url LIKE 'https://drive.google%'
+        )
       RETURNING id, type, thumbnail_url
     `);
 
-    res.json({ ok:true, images_fixed:imgFix.rows.length, videos_fixed:videoFixed, mime_fixed:mimeFixed, cdn_cleared:forceAll.rows.length, details:forceAll.rows });
+    res.json({ ok:true, images_fixed:imgFix.rows.length, videos_fixed:videoFixed, mime_fixed:mimeFixed, fixed:forceAll.rows.length, details:forceAll.rows });
   } catch(err) {
     console.error('Repair error:', err);
     res.status(500).json({ error: err.message });
+  }
+});
+
+
+// ── Drive Thumbnail Proxy ─────────────────────────────────────────────────────
+// Fetches a fresh thumbnail from Drive API for any file type (video, PDF, doc, etc.)
+// Drive generates previews for all types — we just can't store the links (they expire)
+app.get('/api/drive/thumbnail/:fileId', requireAuth, async (req, res) => {
+  try {
+    const drive = getDrive(req);
+    const meta = await drive.files.get({
+      fileId: req.params.fileId,
+      fields: 'thumbnailLink,mimeType'
+    });
+    const link = meta.data.thumbnailLink;
+    if (!link) return res.status(404).send('No thumbnail');
+    // Use larger size
+    const bigLink = link.replace(/=s\d+$/, '=s400').replace(/=s\d+&/, '=s400&');
+    // Fetch and proxy so auth isn't needed client-side
+    const https = require('https');
+    const imgRes = await new Promise((resolve, reject) => {
+      https.get(bigLink, resolve).on('error', reject);
+    });
+    res.setHeader('Content-Type', 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=1800');
+    imgRes.pipe(res);
+  } catch(err) {
+    console.error('Thumbnail proxy error:', req.params.fileId, err.message);
+    res.status(404).send('No thumbnail');
   }
 });
 
