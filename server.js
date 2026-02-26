@@ -1973,6 +1973,26 @@ const _toolSetup = (async () => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
   console.log(`Phixo Admin v3 — port ${PORT}`);
-  if (process.env.DATABASE_URL) await initDb();
+  if (process.env.DATABASE_URL) {
+    await initDb();
+    // Auto-repair thumbnail URLs on every startup
+    try {
+      // Fix image/pose blocks
+      await pool.query(`
+        UPDATE blocks SET thumbnail_url = '/api/drive/file/' || drive_file_id
+        WHERE drive_file_id IS NOT NULL AND drive_file_id != ''
+          AND type IN ('pose','image') AND file_mime LIKE 'image/%'
+          AND (thumbnail_url IS NULL OR thumbnail_url = '' OR thumbnail_url LIKE 'https://%')
+      `);
+      // Fix all other drive blocks (video, pdf, note, meme) with expired/missing thumbnails
+      await pool.query(`
+        UPDATE blocks SET thumbnail_url = '/api/drive/thumbnail/' || drive_file_id
+        WHERE drive_file_id IS NOT NULL AND drive_file_id != ''
+          AND type NOT IN ('pose','image')
+          AND (thumbnail_url IS NULL OR thumbnail_url = '' OR thumbnail_url LIKE 'https://lh3%' OR thumbnail_url LIKE 'https://drive%')
+      `);
+      console.log('Thumbnail URLs auto-repaired');
+    } catch(e) { console.warn('Auto-repair skipped:', e.message); }
+  }
   else console.log('WARNING: No DATABASE_URL');
 });
