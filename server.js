@@ -1532,36 +1532,50 @@ app.post('/api/drive/sync', requireAuth, async (req, res) => {
 app.post('/api/drive/cleanup', requireAuth, async (req, res) => {
   try {
     const drive = getDrive(req);
-    const blocks = await pool.query('SELECT id, drive_file_id FROM blocks WHERE drive_file_id IS NOT NULL AND drive_file_id != \'\'');
+    const blocks = await pool.query('SELECT id, drive_file_id, title FROM blocks WHERE drive_file_id IS NOT NULL AND drive_file_id != \'\'');
     
     let deleted = 0;
     const deletedBlocks = [];
     
+    console.log(`Checking ${blocks.rows.length} blocks for deleted Drive files...`);
+    
     for (const block of blocks.rows) {
+      let shouldDelete = false;
+      
       try {
         // Try to get file metadata from Drive
-        await drive.files.get({
+        const fileRes = await drive.files.get({
           fileId: block.drive_file_id,
-          fields: 'id,trashed'
+          fields: 'id,trashed,name'
         });
-      } catch (err) {
-        // File doesn't exist or is trashed - delete from DB
-        if (err.code === 404 || err.message.includes('trashed')) {
-          await pool.query('DELETE FROM blocks WHERE id = $1', [block.id]);
-          deletedBlocks.push(block.id);
-          deleted++;
+        
+        // If file is trashed, delete from DB
+        if (fileRes.data.trashed) {
+          shouldDelete = true;
+          console.log(`File is trashed: ${block.title} (${block.drive_file_id})`);
         }
+      } catch (err) {
+        // File doesn't exist (404) or other error - delete from DB
+        shouldDelete = true;
+        console.log(`File not found or error: ${block.title} (${block.drive_file_id}) - ${err.message}`);
+      }
+      
+      if (shouldDelete) {
+        await pool.query('DELETE FROM blocks WHERE id = $1', [block.id]);
+        deletedBlocks.push({ id: block.id, title: block.title });
+        deleted++;
       }
     }
     
+    console.log(`Cleanup complete: ${deleted} blocks deleted from database`);
     res.json({ ok: true, deleted, deletedBlocks });
   } catch (err) { 
-    console.error(err); 
+    console.error('Cleanup error:', err); 
     res.status(500).json({ error: err.message }); 
   }
 });
 
-// Sync clients from Drive "Clients" folder
+// Sync clients from Drive "Clients" folder with intelligent analysis
 app.post('/api/drive/sync-clients', requireAuth, async (req, res) => {
   try {
     const drive = getDrive(req);
@@ -1579,41 +1593,136 @@ app.post('/api/drive/sync-clients', requireAuth, async (req, res) => {
     
     const clientsFolderId = clientsFolderRes.data.files[0].id;
     
-    // List all client folders
-    const clientFoldersRes = await drive.files.list({
+    // Get all folders inside Clients
+    const topLevelFoldersRes = await drive.files.list({
       q: `'${clientsFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
       fields: 'files(id,name)',
       pageSize: 200
     });
     
+    const clientFolders = [];
+    
+    // Process each top-level folder
+    for (const folder of topLevelFoldersRes.data.files || []) {
+      if (folder.name === 'Brand' || folder.name === 'Influencer') {
+        // Get subfolders inside Brand/Influencer
+        const subFoldersRes = await drive.files.list({
+          q: `'${folder.id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+          fields: 'files(id,name)',
+          pageSize: 200
+        });
+        
+        for (const subFolder of subFoldersRes.data.files || []) {
+          clientFolders.push({
+            id: subFolder.id,
+            name: subFolder.name,
+            category: folder.name.toLowerCase() // 'brand' or 'influencer'
+          });
+        }
+      } else {
+        // Direct client folder (like "Evelyn Huaman")
+        clientFolders.push({
+          id: folder.id,
+          name: folder.name,
+          category: 'individual'
+        });
+      }
+    }
+    
     let created = 0;
     let updated = 0;
+    let analyzed = 0;
     
-    for (const folder of clientFoldersRes.data.files || []) {
+    // Process each client folder
+    for (const folder of clientFolders) {
       // Check if client already exists
       const existing = await pool.query('SELECT id FROM clients WHERE drive_folder_id = $1', [folder.id]);
+      
+      // Get files inside this client folder for analysis
+      const filesRes = await drive.files.list({
+        q: `'${folder.id}' in parents and trashed=false`,
+        fields: 'files(id,name,mimeType)',
+        pageSize: 50
+      });
+      
+      const files = filesRes.data.files || [];
+      
+      // Build context from file names and types for Claude
+      const fileContext = files.map(f => `${f.name} (${f.mimeType})`).join('\n');
+      
+      let clientData = {
+        name: folder.name,
+        drive_folder_id: folder.id,
+        category: folder.category
+      };
+      
+      // Use Claude to analyze if there are files
+      if (files.length > 0 && process.env.ANTHROPIC_API_KEY) {
+        try {
+          const analysis = await anthropic.messages.create({
+            model: 'claude-haiku-4-5-20251001',
+            max_tokens: 1000,
+            messages: [{
+              role: 'user',
+              content: `Analyze this client folder for a photography business. Extract relevant information.
+
+Client Folder Name: ${folder.name}
+Category: ${folder.category}
+
+Files in folder:
+${fileContext}
+
+Based on the folder name and files, provide a brief analysis in JSON format:
+{
+  "platform": "Instagram/LinkedIn/etc or null",
+  "session_type": "Professional Headshots/Personal Branding/Family/etc or null",
+  "notes": "Brief notes about this client based on folder contents",
+  "category": "brand/influencer/individual"
+}
+
+Keep it brief and factual. Return ONLY valid JSON, no markdown.`
+            }]
+          });
+          
+          const responseText = analysis.content[0].text.trim();
+          const cleanJson = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+          const aiData = JSON.parse(cleanJson);
+          
+          if (aiData.platform) clientData.platform = aiData.platform;
+          if (aiData.session_type) clientData.session_type = aiData.session_type;
+          if (aiData.notes) clientData.notes = aiData.notes;
+          
+          analyzed++;
+        } catch (err) {
+          console.error(`Failed to analyze ${folder.name}:`, err.message);
+        }
+      }
       
       if (existing.rows.length === 0) {
         // Create new client
         await pool.query(
-          `INSERT INTO clients (name, drive_folder_id, status, created_at) 
-           VALUES ($1, $2, 'lead', NOW())`,
-          [folder.name, folder.id]
+          `INSERT INTO clients (name, drive_folder_id, platform, session_type, notes, status, created_at) 
+           VALUES ($1, $2, $3, $4, $5, 'lead', NOW())`,
+          [clientData.name, clientData.drive_folder_id, clientData.platform || null, 
+           clientData.session_type || null, clientData.notes || null]
         );
         created++;
       } else {
-        // Update name if changed
+        // Update existing client with new analysis
         await pool.query(
-          'UPDATE clients SET name = $1 WHERE drive_folder_id = $2',
-          [folder.name, folder.id]
+          `UPDATE clients SET name = $1, platform = COALESCE($2, platform), 
+           session_type = COALESCE($3, session_type), notes = COALESCE($4, notes)
+           WHERE drive_folder_id = $5`,
+          [clientData.name, clientData.platform, clientData.session_type, 
+           clientData.notes, clientData.drive_folder_id]
         );
         updated++;
       }
     }
     
-    res.json({ ok: true, created, updated, total: clientFoldersRes.data.files.length });
+    res.json({ ok: true, created, updated, analyzed, total: clientFolders.length });
   } catch (err) {
-    console.error(err);
+    console.error('Client sync error:', err);
     res.status(500).json({ error: err.message });
   }
 });
