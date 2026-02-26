@@ -6,6 +6,7 @@ const cookieSession = require('cookie-session');
 const path = require('path');
 const { Pool } = require('pg');
 const { Readable } = require('stream');
+const pdfParse = require('pdf-parse');
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
