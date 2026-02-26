@@ -6,6 +6,8 @@ const cookieSession = require('cookie-session');
 const path = require('path');
 const { Pool } = require('pg');
 const { Readable } = require('stream');
+const pdfParse = require('pdf-parse');
+const mammoth = require('mammoth');
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
@@ -1575,10 +1577,35 @@ app.post('/api/drive/cleanup', requireAuth, async (req, res) => {
   }
 });
 
-// Sync clients from Drive "Clients" folder with intelligent analysis
+// Sync clients from Drive "Clients" folder with full document analysis
 app.post('/api/drive/sync-clients', requireAuth, async (req, res) => {
   try {
     const drive = getDrive(req);
+    
+    // Helper: Download and extract text from a file
+    const extractFileText = async (fileId, mimeType) => {
+      try {
+        const fileRes = await drive.files.get(
+          { fileId, alt: 'media' },
+          { responseType: 'arraybuffer' }
+        );
+        const buffer = Buffer.from(fileRes.data);
+        
+        if (mimeType === 'application/pdf') {
+          const pdfData = await pdfParse(buffer);
+          return pdfData.text;
+        } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+          const result = await mammoth.extractRawText({ buffer });
+          return result.value;
+        } else if (mimeType === 'text/plain') {
+          return buffer.toString('utf-8');
+        }
+        return null;
+      } catch (err) {
+        console.error(`Error extracting text from ${fileId}:`, err.message);
+        return null;
+      }
+    };
     
     // Find "Clients" folder
     const clientsFolderRes = await drive.files.list({
@@ -1605,7 +1632,6 @@ app.post('/api/drive/sync-clients', requireAuth, async (req, res) => {
     // Process each top-level folder
     for (const folder of topLevelFoldersRes.data.files || []) {
       if (folder.name === 'Brand' || folder.name === 'Influencer') {
-        // Get subfolders inside Brand/Influencer
         const subFoldersRes = await drive.files.list({
           q: `'${folder.id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
           fields: 'files(id,name)',
@@ -1616,11 +1642,10 @@ app.post('/api/drive/sync-clients', requireAuth, async (req, res) => {
           clientFolders.push({
             id: subFolder.id,
             name: subFolder.name,
-            category: folder.name.toLowerCase() // 'brand' or 'influencer'
+            category: folder.name.toLowerCase()
           });
         }
       } else {
-        // Direct client folder (like "Evelyn Huaman")
         clientFolders.push({
           id: folder.id,
           name: folder.name,
@@ -1635,10 +1660,12 @@ app.post('/api/drive/sync-clients', requireAuth, async (req, res) => {
     
     // Process each client folder
     for (const folder of clientFolders) {
+      console.log(`Processing client folder: ${folder.name}`);
+      
       // Check if client already exists
       const existing = await pool.query('SELECT id FROM clients WHERE drive_folder_id = $1', [folder.id]);
       
-      // Get files inside this client folder for analysis
+      // Get files inside this client folder
       const filesRes = await drive.files.list({
         q: `'${folder.id}' in parents and trashed=false`,
         fields: 'files(id,name,mimeType)',
@@ -1647,40 +1674,69 @@ app.post('/api/drive/sync-clients', requireAuth, async (req, res) => {
       
       const files = filesRes.data.files || [];
       
-      // Build context from file names and types for Claude
-      const fileContext = files.map(f => `${f.name} (${f.mimeType})`).join('\n');
+      // Extract text from all readable files
+      const fileContents = [];
+      for (const file of files) {
+        if (file.mimeType === 'application/pdf' || 
+            file.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+            file.mimeType === 'text/plain') {
+          const text = await extractFileText(file.id, file.mimeType);
+          if (text) {
+            fileContents.push(`=== ${file.name} ===\n${text}`);
+          }
+        }
+      }
       
       let clientData = {
         name: folder.name,
-        drive_folder_id: folder.id,
-        category: folder.category
+        drive_folder_id: folder.id
       };
       
-      // Use Claude to analyze if there are files
-      if (files.length > 0 && process.env.ANTHROPIC_API_KEY) {
+      // Use Claude to analyze if we have file contents
+      if (fileContents.length > 0 && process.env.ANTHROPIC_API_KEY) {
         try {
+          const fullText = fileContents.join('\n\n').substring(0, 30000); // Limit to 30k chars
+          
           const analysis = await anthropic.messages.create({
             model: 'claude-haiku-4-5-20251001',
-            max_tokens: 1000,
+            max_tokens: 2000,
             messages: [{
               role: 'user',
-              content: `Analyze this client folder for a photography business. Extract relevant information.
+              content: `You are analyzing client documents for a photography business. Extract ALL relevant information and map it to these exact fields.
 
-Client Folder Name: ${folder.name}
-Category: ${folder.category}
+Client Folder: ${folder.name}
 
-Files in folder:
-${fileContext}
+Document Contents:
+${fullText}
 
-Based on the folder name and files, provide a brief analysis in JSON format:
+Extract and return JSON with these exact fields (use null if not found):
 {
-  "platform": "Instagram/LinkedIn/etc or null",
-  "session_type": "Professional Headshots/Personal Branding/Family/etc or null",
-  "notes": "Brief notes about this client based on folder contents",
-  "category": "brand/influencer/individual"
+  "platform": "Instagram/LinkedIn/etc",
+  "thread_id": "message thread ID",
+  "session_type": "Professional Headshots/Personal Branding/etc",
+  "session_date": "session date",
+  "offer": "what was offered",
+  "first_contact": "first contact date",
+  "status": "lead/booked/shot/delivered",
+  "lead_temperature": "hot/warm/cold",
+  "what_they_want": "what client wants",
+  "emotional_read": "how they're feeling",
+  "red_flags": "any red flags",
+  "opportunity": "opportunity notes",
+  "how_to_open": "how to open the session",
+  "things_to_avoid": "things to avoid",
+  "key_question": "key question to ask",
+  "things_to_talk_about": "conversation topics",
+  "what_they_need": "what they need from session",
+  "moment_to_watch": "key moment to watch for",
+  "how_to_close": "how to close session",
+  "lighting_setup": "lighting notes",
+  "conversation_log": "message history if present",
+  "draft_reply": "any draft reply",
+  "notes": "general notes"
 }
 
-Keep it brief and factual. Return ONLY valid JSON, no markdown.`
+Return ONLY valid JSON, no markdown, no explanations.`
             }]
           });
           
@@ -1688,33 +1744,74 @@ Keep it brief and factual. Return ONLY valid JSON, no markdown.`
           const cleanJson = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
           const aiData = JSON.parse(cleanJson);
           
-          if (aiData.platform) clientData.platform = aiData.platform;
-          if (aiData.session_type) clientData.session_type = aiData.session_type;
-          if (aiData.notes) clientData.notes = aiData.notes;
-          
+          // Map all fields
+          Object.assign(clientData, aiData);
           analyzed++;
+          
+          console.log(`Analyzed ${folder.name}: Found ${Object.keys(aiData).filter(k => aiData[k]).length} populated fields`);
         } catch (err) {
           console.error(`Failed to analyze ${folder.name}:`, err.message);
         }
       }
       
       if (existing.rows.length === 0) {
-        // Create new client
+        // Create new client with all fields
         await pool.query(
-          `INSERT INTO clients (name, drive_folder_id, platform, session_type, notes, status, created_at) 
-           VALUES ($1, $2, $3, $4, $5, 'lead', NOW())`,
-          [clientData.name, clientData.drive_folder_id, clientData.platform || null, 
-           clientData.session_type || null, clientData.notes || null]
+          `INSERT INTO clients (
+            name, drive_folder_id, platform, thread_id, session_type, session_date, offer,
+            first_contact, status, lead_temperature, what_they_want, emotional_read, 
+            red_flags, opportunity, how_to_open, things_to_avoid, key_question,
+            things_to_talk_about, what_they_need, moment_to_watch, how_to_close,
+            lighting_setup, conversation_log, draft_reply, notes, created_at
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 
+            $18, $19, $20, $21, $22, $23, $24, $25, NOW()
+          )`,
+          [
+            clientData.name, clientData.drive_folder_id,
+            clientData.platform || null, clientData.thread_id || null,
+            clientData.session_type || null, clientData.session_date || null,
+            clientData.offer || null, clientData.first_contact || null,
+            clientData.status || 'lead', clientData.lead_temperature || null,
+            clientData.what_they_want || null, clientData.emotional_read || null,
+            clientData.red_flags || null, clientData.opportunity || null,
+            clientData.how_to_open || null, clientData.things_to_avoid || null,
+            clientData.key_question || null, clientData.things_to_talk_about || null,
+            clientData.what_they_need || null, clientData.moment_to_watch || null,
+            clientData.how_to_close || null, clientData.lighting_setup || null,
+            clientData.conversation_log || null, clientData.draft_reply || null,
+            clientData.notes || null
+          ]
         );
         created++;
       } else {
-        // Update existing client with new analysis
+        // Update existing client
         await pool.query(
-          `UPDATE clients SET name = $1, platform = COALESCE($2, platform), 
-           session_type = COALESCE($3, session_type), notes = COALESCE($4, notes)
-           WHERE drive_folder_id = $5`,
-          [clientData.name, clientData.platform, clientData.session_type, 
-           clientData.notes, clientData.drive_folder_id]
+          `UPDATE clients SET 
+            name = $1, platform = COALESCE($2, platform), thread_id = COALESCE($3, thread_id),
+            session_type = COALESCE($4, session_type), session_date = COALESCE($5, session_date),
+            offer = COALESCE($6, offer), first_contact = COALESCE($7, first_contact),
+            status = COALESCE($8, status), lead_temperature = COALESCE($9, lead_temperature),
+            what_they_want = COALESCE($10, what_they_want), emotional_read = COALESCE($11, emotional_read),
+            red_flags = COALESCE($12, red_flags), opportunity = COALESCE($13, opportunity),
+            how_to_open = COALESCE($14, how_to_open), things_to_avoid = COALESCE($15, things_to_avoid),
+            key_question = COALESCE($16, key_question), things_to_talk_about = COALESCE($17, things_to_talk_about),
+            what_they_need = COALESCE($18, what_they_need), moment_to_watch = COALESCE($19, moment_to_watch),
+            how_to_close = COALESCE($20, how_to_close), lighting_setup = COALESCE($21, lighting_setup),
+            conversation_log = COALESCE($22, conversation_log), draft_reply = COALESCE($23, draft_reply),
+            notes = COALESCE($24, notes)
+          WHERE drive_folder_id = $25`,
+          [
+            clientData.name, clientData.platform, clientData.thread_id,
+            clientData.session_type, clientData.session_date, clientData.offer,
+            clientData.first_contact, clientData.status, clientData.lead_temperature,
+            clientData.what_they_want, clientData.emotional_read, clientData.red_flags,
+            clientData.opportunity, clientData.how_to_open, clientData.things_to_avoid,
+            clientData.key_question, clientData.things_to_talk_about, clientData.what_they_need,
+            clientData.moment_to_watch, clientData.how_to_close, clientData.lighting_setup,
+            clientData.conversation_log, clientData.draft_reply, clientData.notes,
+            clientData.drive_folder_id
+          ]
         );
         updated++;
       }
