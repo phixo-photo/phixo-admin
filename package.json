@@ -1,6 +1,6 @@
 {
   "name": "phixo-admin",
-  "version": "3.11.0",
+  "version": "3.37.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -12,6 +12,7 @@
     "@anthropic-ai/sdk": "^0.27.3",
     "cookie-session": "^2.1.0",
     "pg": "^8.11.3",
-    "ffmpeg-static": "^5.2.0"
+    "ffmpeg-static": "^5.2.0",
+    "pdf-parse": "^1.1.1"
   }
 }
