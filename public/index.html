@@ -245,19 +245,6 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .summarize-btn{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit}
 .summarize-btn:hover{opacity:.85}
 .summarize-btn:disabled{opacity:.5;cursor:default}
-/* College Review Tabs */
-.research-tab{background:none;border:none;border-bottom:3px solid transparent;padding:12px 24px;cursor:pointer;font-weight:600;color:#666;font-size:15px;transition:all .2s}
-.research-tab.active{color:#000;border-bottom-color:var(--accent)}
-.research-tab:hover{color:#000}
-.research-tab-content{display:block}
-#college-chat{min-height:400px}
-.college-message{margin-bottom:20px;padding:15px;border-radius:8px;animation:fadeIn .3s}
-@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-.college-message.question{background:#e3f2fd;text-align:right;margin-left:50px}
-.college-message.answer{background:#f5f5f5;border-left:4px solid var(--accent);margin-right:50px}
-.college-message strong{display:block;margin-bottom:8px;color:#000}
-.message-sources{margin-top:10px;padding-top:10px;border-top:1px solid #ddd;font-size:12px;color:#666}
-.message-sources strong{display:inline;color:#000}
 </style>
 </head>
 <body>
@@ -320,8 +307,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
   
   <!-- Research Tabs -->
   <div style="display:flex; gap:15px; padding:0 20px 15px; border-bottom:2px solid #ddd">
-    <button id="tab-library" class="research-tab active" onclick="switchResearchTab('library')">📚 Library</button>
-    <button id="tab-college" class="research-tab" onclick="switchResearchTab('college')">🎓 College Review</button>
+    <button id="tab-library" class="research-tab active">📚 Library</button>
   </div>
   
   <!-- Library Tab -->
@@ -344,41 +330,6 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
       <button class="btn btn-ghost btn-sm" id="repair-btn" onclick="repairThumbnails()" title="Fix broken thumbnails on existing blocks">🔧 Fix Thumbs</button>
     </div>
     <div id="research-grid" class="block-grid"></div>
-  </div>
-  
-  <!-- College Review Tab -->
-  <div id="research-college-content" class="research-tab-content" style="display:none">
-    <div class="tb" style="background:#f8f9fa; padding:15px; border-radius:8px; margin:15px 20px">
-      <div style="display:flex; justify-content:space-between; align-items:center">
-        <div>
-          <h3 style="margin:0 0 5px 0">🎓 Algonquin College Material Review</h3>
-          <p style="margin:0; color:#666; font-size:13px">Ask questions about your uploaded course material (ALG folder)</p>
-        </div>
-        <button class="btn btn-dark btn-sm" onclick="syncCollegeMaterial()" id="sync-college-btn">🔄 Sync ALG Folder</button>
-      </div>
-      <div id="college-material-count" style="margin-top:10px; font-size:12px; color:#666"></div>
-    </div>
-    
-    <div id="college-chat" style="max-height:500px; overflow-y:auto; padding:20px; margin:0 20px; background:#fff; border:1px solid #ddd; border-radius:8px">
-      <div id="college-messages">
-        <p style="color:#999; text-align:center; padding:40px">
-          Ask questions about your Algonquin College course material.<br>
-          <small>Make sure to sync your ALG folder first!</small>
-        </p>
-      </div>
-    </div>
-    
-    <div style="padding:15px 20px">
-      <div style="display:flex; gap:10px">
-        <input type="text" id="college-question" placeholder="Ask about your college course material..." 
-          onkeypress="if(event.key==='Enter') askCollege()" 
-          style="flex:1; padding:12px; border:2px solid #ddd; border-radius:6px">
-        <button class="btn btn-dark" onclick="askCollege()">Ask</button>
-      </div>
-      <div style="margin-top:12px; padding:12px; background:#fff3cd; border-radius:6px; text-align:center; border:1px solid #ffc107">
-        <small style="color:#856404; font-weight:500">📚 Answers based ONLY on your uploaded ALG folder content</small>
-      </div>
-    </div>
   </div>
 </div>
 <div id="v-calendar" class="view">
@@ -1999,118 +1950,6 @@ async function askLibrary(){
 // ═════════════════════════════════════════════════
 // COLLEGE REVIEW FUNCTIONS (v3.37)
 // ═════════════════════════════════════════════════
-
-function switchResearchTab(tabName) {
-  // Update tab buttons
-  document.querySelectorAll('.research-tab').forEach(btn => btn.classList.remove('active'));
-  document.getElementById(`tab-${tabName}`).classList.add('active');
-  
-  // Update content visibility
-  document.getElementById('research-library-content').style.display = tabName === 'library' ? 'block' : 'none';
-  document.getElementById('research-college-content').style.display = tabName === 'college' ? 'block' : 'none';
-  
-  // Load data if switching to college tab
-  if (tabName === 'college') {
-    updateCollegeMaterialCount();
-  }
-}
-
-async function syncCollegeMaterial() {
-  const btn = document.getElementById('sync-college-btn');
-  if (!btn) return;
-  
-  try {
-    btn.disabled = true;
-    btn.textContent = '⏳ Syncing...';
-    
-    const res = await api('POST', '/api/drive/sync-college');
-    
-    toast(res.message, 'ok');
-    updateCollegeMaterialCount();
-    
-  } catch (err) {
-    toast('Sync failed: ' + err.message, 'err');
-  } finally {
-    btn.disabled = false;
-    btn.textContent = '🔄 Sync ALG Folder';
-  }
-}
-
-async function updateCollegeMaterialCount() {
-  try {
-    const res = await api('GET', '/api/blocks?source_type=algonquin');
-    const count = res.length || 0;
-    const countDiv = document.getElementById('college-material-count');
-    if (countDiv) {
-      countDiv.innerHTML = count > 0 
-        ? `<strong>${count}</strong> college document${count !== 1 ? 's' : ''} loaded` 
-        : 'No college material loaded yet';
-    }
-  } catch (err) {
-    console.error('Failed to get material count:', err);
-  }
-}
-
-async function askCollege() {
-  const questionInput = document.getElementById('college-question');
-  const question = questionInput.value.trim();
-  
-  if (!question) return;
-  
-  const messagesDiv = document.getElementById('college-messages');
-  
-  // Add question
-  const questionDiv = document.createElement('div');
-  questionDiv.className = 'college-message question';
-  questionDiv.innerHTML = `<strong>You:</strong><div>${escapeHtml(question)}</div>`;
-  messagesDiv.appendChild(questionDiv);
-  
-  // Add loading
-  const loadingDiv = document.createElement('div');
-  loadingDiv.className = 'college-message answer';
-  loadingDiv.innerHTML = '<em>Reviewing your college material...</em>';
-  messagesDiv.appendChild(loadingDiv);
-  
-  questionInput.value = '';
-  messagesDiv.scrollTop = messagesDiv.scrollHeight;
-  
-  try {
-    const res = await api('POST', '/api/library/ask-college', { question });
-    
-    // Strip all markdown formatting for clean plain text display
-    const stripMarkdown = (text) => {
-      return text
-        .replace(/\*\*([^*]+)\*\* -/g, '\n\n$1 -')  // **Label** - → add breaks before labels
-        .replace(/\*\*([^*]+)\*\*/g, '$1')  // **bold** → bold
-        .replace(/__([^_]+)__/g, '$1')      // __bold__ → bold
-        .replace(/\*([^*]+)\*/g, '$1')      // *italic* → italic
-        .replace(/_([^_]+)_/g, '$1')        // _italic_ → italic
-        .replace(/^#{1,6}\s+/gm, '')        // # headers → plain
-        .replace(/^\s*[-*+]\s+/gm, '')      // - bullets → plain
-        .replace(/^\s*\d+\.\s+/gm, '');     // 1. numbered → plain
-    };
-    
-    // Replace loading with answer
-    const plainAnswer = stripMarkdown(res.answer);
-    const answerHtml = plainAnswer.replace(/\n/g, '<br>');
-    let sourcesHtml = '';
-    if (res.sources && res.sources.length > 0) {
-      sourcesHtml = `<div class="message-sources"><strong>Sources:</strong> ${res.sources.map(s => s.title).join(', ')}</div>`;
-    }
-    
-    loadingDiv.innerHTML = `<strong>College Review:</strong><div>${answerHtml}</div>${sourcesHtml}`;
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    
-  } catch (err) {
-    loadingDiv.innerHTML = `<em style="color:red;">Error: ${escapeHtml(err.message)}</em>`;
-  }
-}
-
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
 </script>
 <!-- Ask Library Modal -->
 <div class="mbg off" id="m-ask-library">
