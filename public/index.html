@@ -2077,8 +2077,22 @@ async function askCollege() {
   try {
     const res = await api('POST', '/api/library/ask-college', { question });
     
+    // Strip all markdown formatting for clean plain text display
+    const stripMarkdown = (text) => {
+      return text
+        .replace(/\*\*([^*]+)\*\* -/g, '\n\n$1 -')  // **Label** - → add breaks before labels
+        .replace(/\*\*([^*]+)\*\*/g, '$1')  // **bold** → bold
+        .replace(/__([^_]+)__/g, '$1')      // __bold__ → bold
+        .replace(/\*([^*]+)\*/g, '$1')      // *italic* → italic
+        .replace(/_([^_]+)_/g, '$1')        // _italic_ → italic
+        .replace(/^#{1,6}\s+/gm, '')        // # headers → plain
+        .replace(/^\s*[-*+]\s+/gm, '')      // - bullets → plain
+        .replace(/^\s*\d+\.\s+/gm, '');     // 1. numbered → plain
+    };
+    
     // Replace loading with answer
-    const answerHtml = res.answer.replace(/\n/g, '<br>');
+    const plainAnswer = stripMarkdown(res.answer);
+    const answerHtml = plainAnswer.replace(/\n/g, '<br>');
     let sourcesHtml = '';
     if (res.sources && res.sources.length > 0) {
       sourcesHtml = `<div class="message-sources"><strong>Sources:</strong> ${res.sources.map(s => s.title).join(', ')}</div>`;
