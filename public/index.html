@@ -659,6 +659,10 @@ function showView(name,navEl){
   if(navEl)navEl.classList.add('on');
   else{const nb=document.querySelector(`.nb[data-view="${name}"]`);if(nb)nb.classList.add('on');}
   if(name==='pipeline')loadPipeline();
+  else if(name==='research')loadResearch();
+  else if(name==='discovery')loadDiscovery();
+  else if(name==='calendar')loadCalendar();
+}
 
 // ── Ask Library ──────────────────────────────────────────────────────────────
 function openAskLibrary(){
@@ -714,19 +718,6 @@ async function askLibrary(){
     status.style.display='none';
   }
   btn.disabled=false; btn.textContent='Ask →';
-}
-  if(name==='discovery')loadDiscovery();
-  if(name==='research'){
-    // Always reset filters on nav
-    const rf=document.getElementById('res-funnel');
-    const rt=document.getElementById('res-type');
-    const rs=document.getElementById('res-search');
-    if(rf){rf.value='';rf.selectedIndex=0;}
-    if(rt){rt.value='';rt.selectedIndex=0;}
-    if(rs)rs.value='';
-    loadResearch();
-  }
-  if(name==='calendar')loadCalendar();
 }
 function closeM(id){document.getElementById(id).classList.add('off');}
 function openModal(id){document.getElementById(id).classList.remove('off');}
@@ -1083,11 +1074,15 @@ async function loadResearch(){
   if(!blocks.length){grid.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="ei">📚</div><p>No blocks yet</p></div>';return;}
   grid.innerHTML=blocks.map(b=>{
     const hasImg=b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('image/');
-    const hasVideo=b.type==='video'||( b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('video/'));
-    // Thumbnail: prefer stored url (should be /api/drive/file/... proxy), fallback for images
-    const thumbSrc = b.thumbnail_url
-      ? b.thumbnail_url
-      : (hasImg ? `/api/drive/file/${b.drive_file_id}` : null);
+    const hasVideo=b.type==='video'||(b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('video/'));
+    // For images: always use proxy (Drive CDN links expire after hours)
+    // For videos: use stored thumbnail_url (which should already be a proxy or data: url)
+    let thumbSrc = null;
+    if (hasImg && b.drive_file_id) {
+      thumbSrc = `/api/drive/file/${b.drive_file_id}`;
+    } else if (b.thumbnail_url) {
+      thumbSrc = b.thumbnail_url;
+    }
     return`<div class="block-card" onclick="openBlockDetail(${b.id})">
       <div class="block-thumb" style="position:relative">
         ${thumbSrc ? `<img src="${esc(thumbSrc)}" loading="lazy" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0" onerror="this.remove()">` : ''}
