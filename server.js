@@ -343,6 +343,26 @@ app.post('/api/blocks/upload', requireAuth, upload.single('file'), async (req, r
     });
     console.log(`Uploaded to Drive: ${uploaded.data.id} in folder ${folderName}`);
 
+    // Generate PDF thumbnail using ffmpeg (render first page)
+    const isPdf = req.file.mimetype === 'application/pdf';
+    if (isPdf && global.FFMPEG_PATH) {
+      try {
+        const pdfThumbPath = tmpFile + '_thumb.jpg';
+        await require('util').promisify(require('child_process').exec)(
+          `"${global.FFMPEG_PATH}" -i "${tmpFile}" -vframes 1 -vf "scale=480:-2" "${pdfThumbPath}" -y`,
+          { timeout: 30000 }
+        );
+        if (require('fs').existsSync(pdfThumbPath)) {
+          const thumbBuf = require('fs').readFileSync(pdfThumbPath);
+          thumbnailUrl = 'data:image/jpeg;base64,' + thumbBuf.toString('base64');
+          require('fs').unlinkSync(pdfThumbPath);
+          console.log('PDF thumbnail generated');
+        }
+      } catch(e) {
+        console.warn('PDF thumbnail failed (ffmpeg may not support PDF):', e.message.substring(0,80));
+      }
+    }
+
     // Extract video thumbnail frame using ffmpeg
     let thumbnailUrl = null; // set below based on type
     let thumbDriveId = null;
@@ -1368,7 +1388,21 @@ app.post('/api/blocks/repair-thumbnails', requireAuth, async (req, res) => {
       }
     }
 
-    res.json({ ok:true, images_fixed:imgFix.rows.length, videos_fixed:videoFixed, mime_fixed:mimeFixed });
+    // 4. Force-fix pose/meme/image type blocks that have drive_file_id but thumbnail_url is null/CDN
+    const forceImg = await pool.query(`
+      UPDATE blocks 
+      SET thumbnail_url = '/api/drive/file/' || drive_file_id,
+          file_mime = CASE 
+            WHEN file_mime IS NULL OR file_mime = '' THEN 'image/jpeg'
+            ELSE file_mime 
+          END
+      WHERE drive_file_id IS NOT NULL AND drive_file_id != ''
+        AND type IN ('pose','meme','image')
+        AND (thumbnail_url IS NULL OR thumbnail_url = '' OR thumbnail_url NOT LIKE '/api/%')
+      RETURNING id
+    `);
+
+    res.json({ ok:true, images_fixed:imgFix.rows.length, videos_fixed:videoFixed, mime_fixed:mimeFixed, forced:forceImg.rows.length });
   } catch(err) {
     console.error('Repair error:', err);
     res.status(500).json({ error: err.message });
@@ -1494,8 +1528,8 @@ app.get('/api/drive/file/:fileId', requireAuth, async (req, res) => {
       fileRes.data.pipe(res);
     }
   } catch (err) {
-    console.error('Drive file error:', err.message);
-    if (!res.headersSent) res.status(500).json({ error: err.message });
+    console.error('Drive file error for', req.params.fileId, ':', err.message);
+    if (!res.headersSent) res.status(404).send('File not found');
   }
 });
 
