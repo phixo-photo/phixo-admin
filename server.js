@@ -1388,21 +1388,23 @@ app.post('/api/blocks/repair-thumbnails', requireAuth, async (req, res) => {
       }
     }
 
-    // 4. Force-fix pose/meme/image type blocks that have drive_file_id but thumbnail_url is null/CDN
-    const forceImg = await pool.query(`
+    // 4. Force-fix all blocks with expired CDN thumbnail URLs
+    const forceAll = await pool.query(`
       UPDATE blocks 
-      SET thumbnail_url = '/api/drive/file/' || drive_file_id,
+      SET thumbnail_url = CASE
+            WHEN type IN ('pose','meme','image') AND drive_file_id IS NOT NULL THEN '/api/drive/file/' || drive_file_id
+            ELSE NULL
+          END,
           file_mime = CASE 
-            WHEN file_mime IS NULL OR file_mime = '' THEN 'image/jpeg'
+            WHEN file_mime IS NULL OR file_mime = '' AND type IN ('pose','image') THEN 'image/jpeg'
             ELSE file_mime 
           END
-      WHERE drive_file_id IS NOT NULL AND drive_file_id != ''
-        AND type IN ('pose','meme','image')
-        AND (thumbnail_url IS NULL OR thumbnail_url = '' OR thumbnail_url NOT LIKE '/api/%')
-      RETURNING id
+      WHERE (thumbnail_url LIKE 'https://lh3.google%' OR thumbnail_url LIKE 'https://drive.google%')
+         OR (type IN ('pose','meme','image') AND drive_file_id IS NOT NULL AND (thumbnail_url IS NULL OR thumbnail_url = ''))
+      RETURNING id, type, thumbnail_url
     `);
 
-    res.json({ ok:true, images_fixed:imgFix.rows.length, videos_fixed:videoFixed, mime_fixed:mimeFixed, forced:forceImg.rows.length });
+    res.json({ ok:true, images_fixed:imgFix.rows.length, videos_fixed:videoFixed, mime_fixed:mimeFixed, cdn_cleared:forceAll.rows.length, details:forceAll.rows });
   } catch(err) {
     console.error('Repair error:', err);
     res.status(500).json({ error: err.message });
