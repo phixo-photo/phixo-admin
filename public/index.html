@@ -266,6 +266,45 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .summarize-btn{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit}
 .summarize-btn:hover{opacity:.85}
 .summarize-btn:disabled{opacity:.5;cursor:default}
+/* v3.44 Post Builder */
+.content-type-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.ct-card{background:var(--surface);border:2px solid var(--border);border-radius:var(--r);padding:30px;text-align:center;cursor:pointer;transition:all .15s}
+.ct-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.ct-icon{font-size:48px;margin-bottom:12px}
+.ct-title{font-size:16px;font-weight:700;margin-bottom:6px}
+.ct-desc{font-size:13px;color:var(--muted)}
+.pb-header{display:flex;align-items:start;justify-content:space-between;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid var(--border)}
+.pb-header h2{font-size:20px;font-weight:800;margin-bottom:8px}
+.pb-layout{display:grid;grid-template-columns:1fr 320px;gap:24px}
+.pb-main{display:flex;flex-direction:column;gap:16px}
+.content-block{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.cb-header{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.cb-icon{font-size:20px}
+.cb-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--text)}
+.cb-hint{font-size:11px;color:var(--muted);margin-left:auto}
+.cb-tips{margin-top:10px;padding:10px 12px;background:var(--accent-light);border-radius:6px;font-size:12px;line-height:1.5;color:#7a6c45}
+.content-textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px;line-height:1.6;resize:vertical;background:var(--bg)}
+.content-textarea:focus{border-color:var(--accent);outline:none;background:#fff}
+.content-input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px}
+.content-input:focus{border-color:var(--accent);outline:none;background:#fff}
+.hook-search-wrapper{position:relative}
+.hook-input{width:100%;padding:12px 14px;border:2px solid var(--accent);border-radius:8px;font-size:14px;font-weight:500;background:#fff}
+.hook-input:focus{outline:none;border-color:var(--warm)}
+.hook-results{position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:300px;overflow-y:auto;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.12)}
+.hook-result{padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.hook-result:last-child{border-bottom:none}
+.hook-result:hover{background:var(--accent-light)}
+.hook-text{font-size:13px;font-weight:500;margin-bottom:4px}
+.hook-category{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.hook-no-results{padding:20px;text-align:center;font-size:12px;color:var(--muted)}
+.pb-preview{position:sticky;top:20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.preview-header{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:12px}
+.preview-body{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:13px;line-height:1.7;white-space:pre-wrap;min-height:200px;max-height:400px;overflow-y:auto;color:var(--text)}
+.preview-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
+.preview-stat{text-align:center}
+.ps-label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:4px}
+.ps-value{display:block;font-size:14px;font-weight:700}
+.mini-select{padding:5px 10px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}
 </style>
 </head>
 <body>
@@ -1515,147 +1554,290 @@ async function refreshPostModules(){
   renderPostStack();
 }
 function renderPostBuilder(post){
+  const cs = post.content_structure || {};
+  
+  // If no post type selected, show type selector
+  if (!post.post_type || post.post_type === 'photo') {
+    document.getElementById('pb-body').innerHTML = `
+      <div style="max-width:800px;margin:40px auto">
+        <h2 style="font-size:24px;margin-bottom:8px">What type of content?</h2>
+        <p style="color:var(--muted);margin-bottom:30px">Choose the format for this post</p>
+        <div class="content-type-grid">
+          <div class="ct-card" onclick="setPostType('photo')">
+            <div class="ct-icon">📸</div>
+            <div class="ct-title">Photo Post</div>
+            <div class="ct-desc">Single image + caption</div>
+          </div>
+          <div class="ct-card" onclick="setPostType('carousel')">
+            <div class="ct-icon">🎞️</div>
+            <div class="ct-title">Carousel</div>
+            <div class="ct-desc">Multiple images</div>
+          </div>
+          <div class="ct-card" onclick="setPostType('reel')">
+            <div class="ct-icon">🎥</div>
+            <div class="ct-title">Reel/Video</div>
+            <div class="ct-desc">Short video content</div>
+          </div>
+          <div class="ct-card" onclick="setPostType('story')">
+            <div class="ct-icon">📖</div>
+            <div class="ct-title">Story</div>
+            <div class="ct-desc">Quick update</div>
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+  
+  // Main post builder
   document.getElementById('pb-body').innerHTML=`
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;flex-wrap:wrap;gap:10px">
-      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;flex:1">
-        <div><label>Platform</label>
-          <select onchange="updatePost('platform',this.value)">
+    <div class="pb-header">
+      <div class="pb-meta">
+        <h2>${post.post_type === 'photo' ? '📸' : post.post_type === 'carousel' ? '🎞️' : post.post_type === 'reel' ? '🎥' : '📖'} ${post.post_type.charAt(0).toUpperCase() + post.post_type.slice(1)} Post</h2>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <select onchange="updatePost('platform',this.value)" class="mini-select">
             <option ${post.platform==='Instagram'?'selected':''}>Instagram</option>
             <option ${post.platform==='TikTok'?'selected':''}>TikTok</option>
             <option ${post.platform==='LinkedIn'?'selected':''}>LinkedIn</option>
           </select>
-        </div>
-        <div><label>Funnel Stage</label>
-          <select onchange="updatePost('funnel_stage',this.value)">
-            <option value="">—</option>
-            <option value="tof" ${post.funnel_stage==='tof'?'selected':''}>TOF — Awareness</option>
-            <option value="mof" ${post.funnel_stage==='mof'?'selected':''}>MOF — Trust</option>
-            <option value="bof" ${post.funnel_stage==='bof'?'selected':''}>BOF — Convert</option>
+          <select onchange="updatePost('funnel_stage',this.value)" class="mini-select">
+            <option value="">Funnel stage</option>
+            <option value="tof" ${post.funnel_stage==='tof'?'selected':''}>TOF</option>
+            <option value="mof" ${post.funnel_stage==='mof'?'selected':''}>MOF</option>
+            <option value="bof" ${post.funnel_stage==='bof'?'selected':''}>BOF</option>
           </select>
-        </div>
-        <div><label>Post Goal</label>
-          <input value="${esc(post.post_goal||'')}" placeholder="educate / trust / convert" onchange="updatePost('post_goal',this.value)">
-        </div>
-        <div><label>Status</label>
-          <select onchange="updatePost('status',this.value)">
+          <select onchange="updatePost('status',this.value)" class="mini-select">
             <option value="idea" ${post.status==='idea'?'selected':''}>Idea</option>
             <option value="draft" ${post.status==='draft'?'selected':''}>Draft</option>
             <option value="ready" ${post.status==='ready'?'selected':''}>Ready</option>
             <option value="posted" ${post.status==='posted'?'selected':''}>Posted</option>
           </select>
-        </div>
-        <div><label>Post Date</label>
-          <input type="date" value="${post.post_date||''}" onchange="updatePost('post_date',this.value)">
+          <input type="date" value="${post.post_date||''}" onchange="updatePost('post_date',this.value)" class="mini-select" style="width:140px">
         </div>
       </div>
-      <div style="display:flex;gap:8px">
-        <button class="btn btn-ghost btn-sm" onclick="openHooks()">📌 Hooks</button>
-        <button class="btn btn-danger btn-sm" onclick="deletePost(${post.id})">Delete</button>
-      </div>
+      <button class="btn btn-danger btn-sm" onclick="deletePost(${post.id})">Delete</button>
     </div>
+    
     <div class="pb-layout">
-      <div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-          <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted)">Post Stack</div>
-          <div style="display:flex;gap:5px">
-            <button class="btn btn-ghost btn-xs" onclick="addTextModule('hook')">+ Hook</button>
-            <button class="btn btn-ghost btn-xs" onclick="addTextModule('context')">+ Context</button>
-            <button class="btn btn-ghost btn-xs" onclick="addTextModule('bullets')">+ Bullets</button>
-            <button class="btn btn-ghost btn-xs" onclick="addTextModule('cta')">+ CTA</button>
+      <div class="pb-main">
+        <!-- Hook Block -->
+        <div class="content-block">
+          <div class="cb-header">
+            <span class="cb-icon">🪝</span>
+            <span class="cb-title">HOOK</span>
+            <span class="cb-hint">First line - grab attention</span>
           </div>
+          <div class="hook-search-wrapper">
+            <input 
+              type="text" 
+              id="hook-input" 
+              class="hook-input" 
+              placeholder="Type to search 1000+ hooks or write your own..."
+              value="${esc(cs.hook||'')}"
+              oninput="searchHooks(this.value)"
+              onfocus="document.getElementById('hook-results').style.display='block'"
+            >
+            <div id="hook-results" class="hook-results" style="display:none"></div>
+          </div>
+          ${post.funnel_stage ? `<div class="cb-tips">${getFunnelTips(post.funnel_stage, 'hook')}</div>` : ''}
         </div>
-        <div id="pb-stack" class="pb-stack"></div>
-        ${!postModules.length?`<div class="empty" style="padding:30px"><div class="ei">📝</div><p style="font-size:13px">Start with a Hook — or use the Hooks library</p></div>`:''}
+        
+        <!-- Context Block -->
+        <div class="content-block">
+          <div class="cb-header">
+            <span class="cb-icon">📝</span>
+            <span class="cb-title">CONTEXT</span>
+            <span class="cb-hint">Set up the situation (1-2 sentences)</span>
+          </div>
+          <textarea 
+            class="content-textarea"
+            placeholder="What's the pain point or situation?"
+            oninput="updateContentStructure('context', this.value)"
+            rows="2"
+          >${esc(cs.context||'')}</textarea>
+          ${post.funnel_stage ? `<div class="cb-tips">${getFunnelTips(post.funnel_stage, 'context')}</div>` : ''}
+        </div>
+        
+        <!-- Value Block -->
+        <div class="content-block">
+          <div class="cb-header">
+            <span class="cb-icon">✨</span>
+            <span class="cb-title">VALUE</span>
+            <span class="cb-hint">Main content - tips, story, or proof</span>
+          </div>
+          <textarea 
+            class="content-textarea"
+            placeholder="Bullet points, numbered list, or paragraph..."
+            oninput="updateContentStructure('value', this.value)"
+            rows="6"
+          >${esc(cs.value||'')}</textarea>
+          ${post.funnel_stage ? `<div class="cb-tips">${getFunnelTips(post.funnel_stage, 'value')}</div>` : ''}
+        </div>
+        
+        <!-- CTA Block -->
+        <div class="content-block">
+          <div class="cb-header">
+            <span class="cb-icon">🎯</span>
+            <span class="cb-title">CALL TO ACTION</span>
+            <span class="cb-hint">Tell them what to do next</span>
+          </div>
+          <textarea 
+            class="content-textarea"
+            placeholder="Save this, DM for details, link in bio..."
+            oninput="updateContentStructure('cta', this.value)"
+            rows="2"
+          >${esc(cs.cta||'')}</textarea>
+          ${post.funnel_stage ? `<div class="cb-tips">${getFunnelTips(post.funnel_stage, 'cta')}</div>` : ''}
+        </div>
+        
+        <!-- Hashtags Block -->
+        <div class="content-block">
+          <div class="cb-header">
+            <span class="cb-icon">#️⃣</span>
+            <span class="cb-title">HASHTAGS</span>
+            <span class="cb-hint">Use 5-15 relevant hashtags</span>
+          </div>
+          <input 
+            type="text"
+            class="content-input"
+            placeholder="#photography #portraits #headshots"
+            oninput="updateContentStructure('hashtags', this.value)"
+            value="${esc(cs.hashtags||'')}"
+          >
+        </div>
       </div>
-      <div class="pb-sidebar">
-        <div class="pbs-inner">
-          <div class="pbs-head">Research Library</div>
-          <div class="pbs-f">
-            <input type="text" id="pbs-search" placeholder="Search blocks..." oninput="filterPbsBlocks()">
-            <select id="pbs-type" onchange="filterPbsBlocks()">
-              <option value="">All types</option>
-              <option value="pose">Pose</option><option value="meme">Meme</option>
-              <option value="sfx">SFX</option><option value="image">Image</option>
-              <option value="url">URL</option><option value="note">Note</option>
-            </select>
+      
+      <!-- Live Preview -->
+      <div class="pb-preview">
+        <div class="preview-header">CAPTION PREVIEW</div>
+        <div class="preview-body" id="caption-preview"></div>
+        <div class="preview-stats">
+          <div class="preview-stat">
+            <span class="ps-label">Characters</span>
+            <span class="ps-value" id="char-count">0/2200</span>
           </div>
-          <div id="pbs-blocks" class="pbs-blocks"></div>
-        </div>
-        <div class="assist-panel">
-          <div class="assist-head">
-            <div class="at">Post Assistant</div>
-            <div class="as">Asks questions. Uses your library. Helps you think.</div>
+          <div class="preview-stat">
+            <span class="ps-label">Lines</span>
+            <span class="ps-value" id="line-count">0</span>
           </div>
-          <div id="assist-msgs" class="assist-msgs">
-            <div class="am am-ai">What are you building? Give me a rough idea and we'll figure out the angle.</div>
-          </div>
-          <div class="assist-ir">
-            <input type="text" id="assist-input" placeholder="Reply..." onkeydown="if(event.key==='Enter')sendAssist()">
-            <button class="btn btn-accent btn-sm" onclick="sendAssist()" id="assist-btn">→</button>
-          </div>
-          <div class="assist-qr">
-            <button class="aq" onclick="quickAssist('Hook angle ideas')">Hooks</button>
-            <button class="aq" onclick="quickAssist('What should this post focus on?')">Focus</button>
-            <button class="aq" onclick="quickAssist('Shot list for this post')">Shot list</button>
-            <button class="aq" onclick="quickAssist('Best CTA')">CTA</button>
+          <div class="preview-stat">
+            <span class="ps-label">Hashtags</span>
+            <span class="ps-value" id="hashtag-count">0/30</span>
           </div>
         </div>
+        <button class="btn btn-dark" style="width:100%;margin-top:12px" onclick="copyCaption()">📋 Copy Caption</button>
       </div>
     </div>`;
-  renderPostStack();
-  filterPbsBlocks();
-}
-
-function renderPostStack(){
-  const stack=document.getElementById('pb-stack');
-  if(!stack)return;
-  stack.innerHTML=postModules.map((m,i)=>renderModule(m,i)).join('');
-  // drag and drop
-  stack.querySelectorAll('.module').forEach(el=>{
-    el.draggable=true;
-    el.addEventListener('dragstart',()=>{dragSrcIdx=parseInt(el.dataset.idx);el.classList.add('dragging');});
-    el.addEventListener('dragend',()=>el.classList.remove('dragging'));
-    el.addEventListener('dragover',e=>e.preventDefault());
-    el.addEventListener('drop',e=>{
-      e.preventDefault();
-      const toIdx=parseInt(el.dataset.idx);
-      if(dragSrcIdx!==null&&dragSrcIdx!==toIdx){
-        postModules.splice(toIdx,0,postModules.splice(dragSrcIdx,1)[0]);
-        saveModuleOrder();renderPostStack();
-      }
-    });
+  
+  updatePreview();
+  
+  // Close hook results when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.hook-search-wrapper')) {
+      document.getElementById('hook-results').style.display = 'none';
+    }
   });
 }
-function renderModule(m,i){
-  const textTypes=['hook','context','bullets','cta','proof','notes'];
-  const isText=textTypes.includes(m.module_type);
-  const icons={hook:'🪝',context:'💬',bullets:'📋',cta:'🔗',proof:'✅',notes:'📝',meme:'😂',sfx:'🎵',image:'🖼️',pose:'🧍',url:'📄',video:'🎬',screenshot:'📷'};
-  const ico=icons[m.module_type]||'📁';
-  const hasImg=m.drive_file_id&&m.file_mime&&m.file_mime.startsWith('image/');
-  return`<div class="module" data-idx="${i}" data-mid="${m.id}">
-    <div class="module-head">
-      <span class="drag">⠿</span>
-      <span style="margin-right:4px">${ico}</span>
-      <span class="mtype">${m.module_type}</span>
-      <div class="module-actions">
-        <button class="btn btn-danger btn-xs" onclick="removeModule(${m.id})">✕</button>
-      </div>
-    </div>
-    <div class="module-body">
-      ${!isText&&m.block_id?`
-        <div style="display:flex;align-items:start;gap:10px">
-          <div style="width:56px;height:56px;border-radius:6px;overflow:hidden;flex-shrink:0;background:var(--bg);display:flex;align-items:center;justify-content:center">
-            ${hasImg?`<img src="/api/drive/file/${m.drive_file_id}" style="max-width:100%;max-height:100%;object-fit:contain">`:`<span style="font-size:22px">${ico}</span>`}
-          </div>
-          <div>
-            <div style="font-size:13px;font-weight:600">${esc(m.block_title||m.module_type)}</div>
-            ${m.content_payload?`<div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(m.content_payload.substring(0,70))}</div>`:''}
-          </div>
-        </div>`
-      :`<textarea style="min-height:50px" placeholder="${m.module_type==='hook'?'The line that stops the scroll':m.module_type==='bullets'?'Value points — one per line':m.module_type==='cta'?'Call to action':''}" onchange="updateModuleContent(${m.id},this.value)">${esc(m.content||'')}</textarea>`}
-    </div>
-  </div>`;
+
+async function setPostType(type) {
+  await api('PATCH', `/api/posts/${POST_ID}`, { post_type: type });
+  const post = await api('GET', `/api/posts/${POST_ID}`);
+  renderPostBuilder(post);
 }
+
+let hookSearchTimeout;
+async function searchHooks(query) {
+  updateContentStructure('hook', query);
+  
+  if (!query || query.length < 2) {
+    document.getElementById('hook-results').innerHTML = '';
+    document.getElementById('hook-results').style.display = 'none';
+    return;
+  }
+  
+  clearTimeout(hookSearchTimeout);
+  hookSearchTimeout = setTimeout(async () => {
+    const results = await api('GET', `/api/hooks?search=${encodeURIComponent(query)}&limit=5`);
+    const resultsDiv = document.getElementById('hook-results');
+    
+    if (results.length === 0) {
+      resultsDiv.innerHTML = '<div class="hook-no-results">No hooks found - keep typing or use your own!</div>';
+    } else {
+      resultsDiv.innerHTML = results.map(h => `
+        <div class="hook-result" onclick="selectHook('${esc(h.hook_text).replace(/'/g, "\\'")}')">
+          <div class="hook-text">${esc(h.hook_text)}</div>
+          ${h.category ? `<div class="hook-category">${esc(h.category)}</div>` : ''}
+        </div>
+      `).join('');
+    }
+    resultsDiv.style.display = 'block';
+  }, 300);
+}
+
+function selectHook(hookText) {
+  document.getElementById('hook-input').value = hookText;
+  updateContentStructure('hook', hookText);
+  document.getElementById('hook-results').style.display = 'none';
+}
+
+function updateContentStructure(field, value) {
+  // Get current post
+  api('GET', `/api/posts/${POST_ID}`).then(post => {
+    const cs = post.content_structure || {};
+    cs[field] = value;
+    api('PATCH', `/api/posts/${POST_ID}`, { content_structure: cs });
+  });
+  
+  updatePreview();
+}
+
+function updatePreview() {
+  const hook = document.getElementById('hook-input')?.value || '';
+  const context = document.querySelector('[placeholder="What\'s the pain point or situation?"]')?.value || '';
+  const value = document.querySelector('[placeholder="Bullet points, numbered list, or paragraph..."]')?.value || '';
+  const cta = document.querySelector('[placeholder="Save this, DM for details, link in bio..."]')?.value || '';
+  const hashtags = document.querySelector('[placeholder="#photography #portraits #headshots"]')?.value || '';
+  
+  const caption = [hook, context, value, cta, hashtags].filter(x => x).join('\n\n');
+  
+  document.getElementById('caption-preview').textContent = caption || 'Your caption will appear here...';
+  document.getElementById('char-count').textContent = `${caption.length}/2200`;
+  document.getElementById('line-count').textContent = caption.split('\n').length;
+  
+  const hashtagMatches = hashtags.match(/#\w+/g);
+  document.getElementById('hashtag-count').textContent = `${hashtagMatches ? hashtagMatches.length : 0}/30`;
+}
+
+function getFunnelTips(stage, block) {
+  const tips = {
+    tof: {
+      hook: '💡 TOF: Surprising fact, big mistake, or "3 ways to..." - grab attention',
+      context: '💡 TOF: Identify a common struggle or question your audience has',
+      value: '💡 TOF: Educational tips, how-to steps, or myth-busting - teach something valuable',
+      cta: '💡 TOF: Ask to save, share, or comment - low commitment'
+    },
+    mof: {
+      hook: '💡 MOF: Personal story, behind-the-scenes, or "Here\'s what I learned..."',
+      context: '💡 MOF: Share your experience or journey with this topic',
+      value: '💡 MOF: Deeper insights, your process, lessons learned - build trust',
+      cta: '💡 MOF: Ask to read full caption, check bio, or DM for more'
+    },
+    bof: {
+      hook: '💡 BOF: Offer, testimonial, or "Limited spots available..."',
+      context: '💡 BOF: Address objections or hesitations they might have',
+      value: '💡 BOF: Social proof, specific results, what they get - show value',
+      cta: '💡 BOF: Strong CTA - Book now, DM to reserve, link in bio'
+    }
+  };
+  
+  return tips[stage]?.[block] || '';
+}
+
+function copyCaption() {
+  const caption = document.getElementById('caption-preview').textContent;
+  navigator.clipboard.writeText(caption);
+  toast('Caption copied!', 'ok');
+}
+
 async function addTextModule(type){
   try{const m=await api('POST','/api/posts/'+POST_ID+'/modules',{module_type:type});postModules.push(m);renderPostStack();}
   catch(err){toast(err.message,'err');}
