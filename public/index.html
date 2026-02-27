@@ -352,6 +352,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .hook-modal-item:hover{background:var(--accent-light);border-color:var(--accent)}
 .hook-cat{display:inline-block;margin-left:8px;padding:2px 6px;background:var(--bg);border-radius:4px;font-size:10px;color:var(--muted);text-transform:uppercase}
 .hook-empty{padding:40px;text-align:center;color:var(--muted);font-size:14px}
+.hook-loading{padding:20px;text-align:center;color:var(--muted);font-size:13px;font-style:italic}
 .btn-link{background:none;border:none;color:var(--accent);cursor:pointer;padding:0;font:inherit}
 .btn-link:hover{text-decoration:underline}
 .btn-xs{padding:2px 6px;font-size:10px;background:var(--bg);border:1px solid var(--border);border-radius:4px;cursor:pointer}
@@ -1865,58 +1866,92 @@ function loadAttachedBlocks() {
   });
 }
 
+let hooksOffset = 0;
+let hooksLoading = false;
+let hooksHasMore = true;
+let currentHookSearch = '';
+
 function toggleHookSearch() {
   const modal = document.getElementById('hook-search-modal');
   if (modal.style.display === 'none') {
     modal.style.display = 'flex';
     document.getElementById('hook-search-input').value = '';
     document.getElementById('hook-search-input').focus();
-    // Load all hooks immediately for inspiration
-    loadAllHooks();
+    // Reset and load all hooks
+    hooksOffset = 0;
+    hooksHasMore = true;
+    currentHookSearch = '';
+    document.getElementById('hook-search-results').innerHTML = '';
+    loadMoreHooks();
+    
+    // Add scroll listener for infinite scroll
+    const resultsDiv = document.getElementById('hook-search-results');
+    resultsDiv.onscroll = () => {
+      if (hooksLoading || !hooksHasMore) return;
+      const { scrollTop, scrollHeight, clientHeight } = resultsDiv;
+      if (scrollTop + clientHeight >= scrollHeight - 100) {
+        loadMoreHooks();
+      }
+    };
   } else {
     modal.style.display = 'none';
   }
 }
 
-async function loadAllHooks() {
-  const hooks = await api('GET', '/api/hooks?limit=50');
+async function loadMoreHooks() {
+  if (hooksLoading || !hooksHasMore) return;
+  
+  hooksLoading = true;
+  
+  // Show loading indicator
+  const resultsDiv = document.getElementById('hook-search-results');
+  const loadingHTML = '<div class="hook-loading">Loading more hooks...</div>';
+  resultsDiv.innerHTML += loadingHTML;
+  
+  const searchParam = currentHookSearch ? `&search=${encodeURIComponent(currentHookSearch)}` : '';
+  const hooks = await api('GET', `/api/hooks?limit=50&offset=${hooksOffset}${searchParam}`);
+  
+  // Remove loading indicator
+  const loadingEl = resultsDiv.querySelector('.hook-loading');
+  if (loadingEl) loadingEl.remove();
   
   if (hooks.length === 0) {
-    document.getElementById('hook-search-results').innerHTML = '<div class="hook-empty">No hooks found</div>';
+    hooksHasMore = false;
+    if (hooksOffset === 0) {
+      resultsDiv.innerHTML = '<div class="hook-empty">No hooks found</div>';
+    }
+    hooksLoading = false;
     return;
   }
   
-  document.getElementById('hook-search-results').innerHTML = hooks.map(h => `
+  if (hooks.length < 50) {
+    hooksHasMore = false;
+  }
+  
+  const hookHTML = hooks.map(h => `
     <div class="hook-modal-item" onclick="selectHookFromModal(\`${esc(h.text).replace(/`/g, '\\`')}\`)">
       ${esc(h.text)}
       ${h.category ? `<span class="hook-cat">${esc(h.category)}</span>` : ''}
     </div>
   `).join('');
+  
+  resultsDiv.innerHTML += hookHTML;
+  hooksOffset += 50;
+  hooksLoading = false;
 }
 
 let hookSearchTimeout;
 async function searchHooksModal(query) {
-  // If empty, show all hooks
-  if (!query || query.trim() === '') {
-    loadAllHooks();
-    return;
-  }
+  currentHookSearch = query.trim();
+  
+  // Reset for new search
+  hooksOffset = 0;
+  hooksHasMore = true;
+  document.getElementById('hook-search-results').innerHTML = '';
   
   clearTimeout(hookSearchTimeout);
-  hookSearchTimeout = setTimeout(async () => {
-    const hooks = await api('GET', `/api/hooks?search=${encodeURIComponent(query)}&limit=50`);
-    
-    if (hooks.length === 0) {
-      document.getElementById('hook-search-results').innerHTML = '<div class="hook-empty">No hooks found - try different words</div>';
-      return;
-    }
-    
-    document.getElementById('hook-search-results').innerHTML = hooks.map(h => `
-      <div class="hook-modal-item" onclick="selectHookFromModal(\`${esc(h.text).replace(/`/g, '\\`')}\`)">
-        ${esc(h.text)}
-        ${h.category ? `<span class="hook-cat">${esc(h.category)}</span>` : ''}
-      </div>
-    `).join('');
+  hookSearchTimeout = setTimeout(() => {
+    loadMoreHooks();
   }, 300);
 }
 
