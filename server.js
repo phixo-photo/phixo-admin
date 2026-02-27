@@ -186,7 +186,11 @@ async function initDb() {
     await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS ideas TEXT`);
     await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS posing_notes TEXT`);
     
-    console.log('DB v3.40 ready');
+    // v3.44: Post builder redesign
+    await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS post_type VARCHAR(50) DEFAULT 'photo'`);
+    await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS content_structure JSONB DEFAULT '{}'`);
+    
+    console.log('DB v3.44 ready');
   } catch (err) {
     console.error('DB init error:', err.message);
   } finally { c.release(); }
@@ -880,9 +884,19 @@ app.post('/api/posts', requireAuth, async (req, res) => {
 
 app.patch('/api/posts/:id', requireAuth, async (req, res) => {
   try {
-    const allowed = ['platform','funnel_stage','post_goal','status','post_date','notes'];
+    const allowed = ['platform','funnel_stage','post_goal','status','post_date','notes','post_type','content_structure'];
     const sets=[]; const vals=[];
-    for (const k of allowed) { if (req.body[k]!==undefined) { vals.push(req.body[k]); sets.push(`${k}=$${vals.length}`); } }
+    for (const k of allowed) { 
+      if (req.body[k]!==undefined) { 
+        // Handle JSONB for content_structure
+        if (k === 'content_structure') {
+          vals.push(JSON.stringify(req.body[k]));
+        } else {
+          vals.push(req.body[k]);
+        }
+        sets.push(`${k}=$${vals.length}`); 
+      } 
+    }
     if (!sets.length) return res.json({ ok:true });
     vals.push(req.params.id);
     const r = await pool.query(`UPDATE posts SET ${sets.join(',')},updated_at=NOW() WHERE id=$${vals.length} RETURNING *`, vals);
