@@ -1718,8 +1718,14 @@ function renderPostBuilder(post){
     <div id="hook-search-modal" class="hook-modal" style="display:none">
       <div class="hook-modal-content">
         <div class="hook-modal-head">
-          <h3>Search Hooks</h3>
-          <button onclick="toggleHookSearch()">✕</button>
+          <div>
+            <h3>Search Hooks</h3>
+            <div id="hook-count-display" style="font-size:11px;color:var(--muted);margin-top:4px">Loading count...</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn-link" onclick="reimportHooks()" style="font-size:11px">Re-import</button>
+            <button onclick="toggleHookSearch()">✕</button>
+          </div>
         </div>
         <input type="text" placeholder="Search 1000+ hooks..." id="hook-search-input" oninput="searchHooksModal(this.value)" class="hook-modal-search">
         <div id="hook-search-results" class="hook-modal-results"></div>
@@ -1883,6 +1889,7 @@ function toggleHookSearch() {
     currentHookSearch = '';
     document.getElementById('hook-search-results').innerHTML = '';
     loadMoreHooks();
+    loadHookCount();
     
     // Add scroll listener for infinite scroll
     const resultsDiv = document.getElementById('hook-search-results');
@@ -1895,6 +1902,37 @@ function toggleHookSearch() {
     };
   } else {
     modal.style.display = 'none';
+  }
+}
+
+async function loadHookCount() {
+  try {
+    const data = await api('GET', '/api/hooks/count');
+    document.getElementById('hook-count-display').textContent = `${data.count} hooks in database`;
+  } catch(e) {
+    document.getElementById('hook-count-display').textContent = '';
+  }
+}
+
+async function reimportHooks() {
+  if (!confirm('Re-import all hooks from hooks_data.txt? This will take 30-60 seconds.')) return;
+  
+  document.getElementById('hook-count-display').textContent = 'Importing...';
+  
+  try {
+    const result = await api('POST', '/api/hooks/ingest');
+    toast(`Imported ${result.count} hooks!`, 'ok');
+    loadHookCount();
+    
+    // Reload hooks display
+    hooksOffset = 0;
+    hooksHasMore = true;
+    currentHookSearch = '';
+    document.getElementById('hook-search-results').innerHTML = '';
+    loadMoreHooks();
+  } catch(e) {
+    toast('Import failed: ' + e.message, 'err');
+    loadHookCount();
   }
 }
 
