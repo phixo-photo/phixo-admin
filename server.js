@@ -992,47 +992,103 @@ app.post('/api/hooks/ingest', requireAuth, async (req, res) => {
     }
     
     const content = fs.readFileSync(hooksFile, 'utf-8');
-    const lines = content.split('\n').filter(line => line.trim());
+    const lines = content.split('\n');
     
-    // Send to Claude to parse all hooks
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 16000,
-      messages: [{ 
-        role: 'user', 
-        content: `Parse this file containing 1000+ viral hooks. Extract EVERY unique hook template (ignore URLs and duplicate examples).
-
-A hook is a short sentence/phrase designed to start a social media post. Look for patterns like:
-- "Here's how to..."
-- "If you're a [X] and want [Y]..."
-- "This is what [X] looks like when..."
-- "The reason you can't..."
-
-Classify each into: story, contrarian, mistake, educational, curiosity, if-then, before-after, question, number-list, comparison, or general.
-
-Return ONLY a JSON array with ALL hooks you can find:
-[{"text":"hook text","category":"category"}]
-
-File content:
-${content}`
-      }]
-    });
-
-    const hooks = JSON.parse(response.content[0].text.replace(/```json|```/g,'').trim());
+    const hooks = [];
+    let currentHook = '';
+    let currentCategory = 'general';
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      // Skip empty lines, URLs, and file header
+      if (!line || 
+          line.startsWith('http') || 
+          line === '1000 VIRAL HOOKS' ||
+          line.length < 10) {
+        continue;
+      }
+      
+      // Category headers (end with :)
+      if (line.endsWith(':') && line.split(' ').length <= 5) {
+        const cat = line.replace(':', '').toLowerCase().trim();
+        if (cat.includes('educational')) currentCategory = 'educational';
+        else if (cat.includes('story')) currentCategory = 'story';
+        else if (cat.includes('contrarian')) currentCategory = 'contrarian';
+        else if (cat.includes('mistake')) currentCategory = 'mistake';
+        else if (cat.includes('curiosity')) currentCategory = 'curiosity';
+        else if (cat.includes('question')) currentCategory = 'question';
+        else if (cat.includes('number')) currentCategory = 'number-list';
+        else if (cat.includes('before') || cat.includes('after')) currentCategory = 'before-after';
+        else if (cat.includes('if') && cat.includes('then')) currentCategory = 'if-then';
+        else currentCategory = 'general';
+        continue;
+      }
+      
+      // Check if line looks like start of a hook (common patterns)
+      const hookStarters = [
+        'this is', 'here\'s', 'if you', 'when you', 'the reason',
+        'what if', 'can you', 'i\'m going', 'it took', 'my ',
+        'money can', 'before i', 'you guys', 'you crave', 'stop ',
+        'don\'t hate', 'did you know', 'why did'
+      ];
+      
+      const isHookStart = hookStarters.some(starter => 
+        line.toLowerCase().startsWith(starter)
+      );
+      
+      // If current line looks like a hook or contains placeholders
+      if (isHookStart || line.includes('(insert') || line.includes('[')) {
+        // Save previous hook if exists
+        if (currentHook.length > 15) {
+          hooks.push({
+            text: currentHook.trim(),
+            category: currentCategory
+          });
+        }
+        currentHook = line;
+      } else {
+        // Continue building current hook (multi-line hooks)
+        if (currentHook) {
+          currentHook += ' ' + line;
+        }
+      }
+      
+      // Check if hook is complete (doesn't end mid-sentence)
+      if (currentHook && (
+          currentHook.endsWith('.') || 
+          currentHook.endsWith('?') || 
+          currentHook.endsWith('!') ||
+          currentHook.endsWith(')') ||
+          i === lines.length - 1
+      )) {
+        if (currentHook.length > 15 && currentHook.length < 500) {
+          hooks.push({
+            text: currentHook.trim(),
+            category: currentCategory
+          });
+          currentHook = '';
+        }
+      }
+    }
     
     // Clear existing and insert all
     await pool.query("DELETE FROM hooks WHERE source='file'");
     let inserted = 0;
+    
     for (const h of hooks) {
-      if (h.text && h.text.length > 5) {
+      try {
         await pool.query(
           'INSERT INTO hooks (text,category,source) VALUES ($1,$2,$3)',
-          [h.text.trim(), h.category||'general', 'file']
+          [h.text, h.category, 'file']
         );
         inserted++;
+      } catch(e) {
+        // Skip duplicates
       }
     }
     
+    console.log(`Imported ${inserted} hooks from hooks_data.txt`);
     res.json({ ok: true, count: inserted });
   } catch (err) { 
     console.error(err); 
