@@ -305,6 +305,57 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .ps-label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:4px}
 .ps-value{display:block;font-size:14px;font-weight:700}
 .mini-select{padding:5px 10px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}
+/* v3.44 Simplified */
+.type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.type-card{background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;transition:all .15s}
+.type-card:hover{border-color:var(--accent);transform:translateY(-4px)}
+.type-icon{font-size:56px;margin-bottom:12px}
+.type-title{font-size:18px;font-weight:700}
+.pb-simple{max-width:1400px;margin:0 auto}
+.pb-top{margin-bottom:24px}
+.pb-top h2{font-size:22px;font-weight:800;margin-bottom:12px;display:flex;align-items:center}
+.pb-meta-row{display:flex;gap:8px;align-items:center}
+.pb-cols{display:grid;grid-template-columns:280px 1fr 300px;gap:24px}
+.pb-refs{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;max-height:calc(100vh - 200px);overflow-y:auto}
+.pb-refs-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.ref-search{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:12px}
+.ref-blocks{display:flex;flex-direction:column;gap:6px}
+.ref-block{display:flex;align-items:start;gap:8px;padding:8px;border-radius:6px;cursor:pointer;border:1px solid transparent;transition:all .12s}
+.ref-block:hover{background:var(--bg);border-color:var(--border)}
+.ref-icon{font-size:20px;flex-shrink:0}
+.ref-info{flex:1;min-width:0}
+.ref-title{font-size:12px;font-weight:600;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ref-snippet{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.attached-block{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:var(--accent-light);border-radius:6px;font-size:11px;margin-bottom:4px}
+.pb-caption{display:flex;flex-direction:column;gap:16px}
+.cs-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.caption-input,.caption-textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit}
+.caption-input:focus,.caption-textarea:focus{outline:none;border-color:var(--accent)}
+.caption-textarea{resize:vertical;line-height:1.6}
+.pb-preview-col{position:sticky;top:20px}
+.preview-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.preview-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:12px}
+.preview-caption{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;min-height:200px;max-height:400px;overflow-y:auto;font-size:13px;line-height:1.7;white-space:pre-wrap;margin-bottom:12px}
+.preview-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.preview-stats > div{text-align:center}
+.stat-num{display:block;font-size:18px;font-weight:700}
+.stat-label{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.hook-modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);align-items:center;justify-content:center;z-index:9999}
+.hook-modal-content{background:var(--surface);border-radius:12px;width:90%;max-width:700px;max-height:80vh;display:flex;flex-direction:column}
+.hook-modal-head{display:flex;justify-content:space-between;align-items:center;padding:20px;border-bottom:1px solid var(--border)}
+.hook-modal-head h3{font-size:18px;font-weight:700}
+.hook-modal-head button{background:none;border:none;font-size:24px;cursor:pointer;color:var(--muted)}
+.hook-modal-search{margin:16px 20px;padding:12px 16px;border:1px solid var(--border);border-radius:8px;font-size:14px}
+.hook-modal-search:focus{outline:none;border-color:var(--accent)}
+.hook-modal-results{flex:1;overflow-y:auto;padding:0 20px 20px}
+.hook-modal-item{padding:14px 16px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:all .12s;font-size:14px;line-height:1.6}
+.hook-modal-item:hover{background:var(--accent-light);border-color:var(--accent)}
+.hook-cat{display:inline-block;margin-left:8px;padding:2px 6px;background:var(--bg);border-radius:4px;font-size:10px;color:var(--muted);text-transform:uppercase}
+.hook-empty{padding:40px;text-align:center;color:var(--muted);font-size:14px}
+.btn-link{background:none;border:none;color:var(--accent);cursor:pointer;padding:0;font:inherit}
+.btn-link:hover{text-decoration:underline}
+.btn-xs{padding:2px 6px;font-size:10px;background:var(--bg);border:1px solid var(--border);border-radius:4px;cursor:pointer}
+.btn-xs:hover{background:var(--border)}
 </style>
 </head>
 <body>
@@ -1556,51 +1607,21 @@ async function refreshPostModules(){
 function renderPostBuilder(post){
   const cs = post.content_structure || {};
   
-  // If no post type selected, show type selector
-  if (!post.post_type || post.post_type === 'photo') {
-    document.getElementById('pb-body').innerHTML = `
-      <div style="max-width:800px;margin:40px auto">
-        <h2 style="font-size:24px;margin-bottom:8px">What type of content?</h2>
-        <p style="color:var(--muted);margin-bottom:30px">Choose the format for this post</p>
-        <div class="content-type-grid">
-          <div class="ct-card" onclick="setPostType('photo')">
-            <div class="ct-icon">📸</div>
-            <div class="ct-title">Photo Post</div>
-            <div class="ct-desc">Single image + caption</div>
-          </div>
-          <div class="ct-card" onclick="setPostType('carousel')">
-            <div class="ct-icon">🎞️</div>
-            <div class="ct-title">Carousel</div>
-            <div class="ct-desc">Multiple images</div>
-          </div>
-          <div class="ct-card" onclick="setPostType('reel')">
-            <div class="ct-icon">🎥</div>
-            <div class="ct-title">Reel/Video</div>
-            <div class="ct-desc">Short video content</div>
-          </div>
-          <div class="ct-card" onclick="setPostType('story')">
-            <div class="ct-icon">📖</div>
-            <div class="ct-title">Story</div>
-            <div class="ct-desc">Quick update</div>
-          </div>
-        </div>
-      </div>`;
-    return;
-  }
-  
-  // Main post builder
   document.getElementById('pb-body').innerHTML=`
-    <div class="pb-header">
-      <div class="pb-meta">
-        <h2>${post.post_type === 'photo' ? '📸' : post.post_type === 'carousel' ? '🎞️' : post.post_type === 'reel' ? '🎥' : '📖'} ${post.post_type.charAt(0).toUpperCase() + post.post_type.slice(1)} Post</h2>
-        <div style="display:flex;gap:8px;margin-top:8px">
+    <div class="pb-simple">
+      <div class="pb-top">
+        <h2>
+          ${post.post_type === 'reel' ? '🎥 Reel' : post.post_type === 'carousel' ? '🎞️ Carousel' : '📸 Photo'}
+          <button class="btn-link" onclick="setPostType('')" style="font-size:13px;margin-left:12px">Change type</button>
+        </h2>
+        <div class="pb-meta-row">
           <select onchange="updatePost('platform',this.value)" class="mini-select">
             <option ${post.platform==='Instagram'?'selected':''}>Instagram</option>
             <option ${post.platform==='TikTok'?'selected':''}>TikTok</option>
             <option ${post.platform==='LinkedIn'?'selected':''}>LinkedIn</option>
           </select>
           <select onchange="updatePost('funnel_stage',this.value)" class="mini-select">
-            <option value="">Funnel stage</option>
+            <option value="">Funnel</option>
             <option value="tof" ${post.funnel_stage==='tof'?'selected':''}>TOF</option>
             <option value="mof" ${post.funnel_stage==='mof'?'selected':''}>MOF</option>
             <option value="bof" ${post.funnel_stage==='bof'?'selected':''}>BOF</option>
@@ -1609,233 +1630,283 @@ function renderPostBuilder(post){
             <option value="idea" ${post.status==='idea'?'selected':''}>Idea</option>
             <option value="draft" ${post.status==='draft'?'selected':''}>Draft</option>
             <option value="ready" ${post.status==='ready'?'selected':''}>Ready</option>
-            <option value="posted" ${post.status==='posted'?'selected':''}>Posted</option>
           </select>
-          <input type="date" value="${post.post_date||''}" onchange="updatePost('post_date',this.value)" class="mini-select" style="width:140px">
-        </div>
-      </div>
-      <button class="btn btn-danger btn-sm" onclick="deletePost(${post.id})">Delete</button>
-    </div>
-    
-    <div class="pb-layout">
-      <div class="pb-main">
-        <!-- Hook Block -->
-        <div class="content-block">
-          <div class="cb-header">
-            <span class="cb-icon">🪝</span>
-            <span class="cb-title">HOOK</span>
-            <span class="cb-hint">First line - grab attention</span>
-          </div>
-          <div class="hook-search-wrapper">
-            <input 
-              type="text" 
-              id="hook-input" 
-              class="hook-input" 
-              placeholder="Type to search 1000+ hooks or write your own..."
-              value="${esc(cs.hook||'')}"
-              oninput="searchHooks(this.value)"
-              onfocus="document.getElementById('hook-results').style.display='block'"
-            >
-            <div id="hook-results" class="hook-results" style="display:none"></div>
-          </div>
-          ${post.funnel_stage ? `<div class="cb-tips">${getFunnelTips(post.funnel_stage, 'hook')}</div>` : ''}
-        </div>
-        
-        <!-- Context Block -->
-        <div class="content-block">
-          <div class="cb-header">
-            <span class="cb-icon">📝</span>
-            <span class="cb-title">CONTEXT</span>
-            <span class="cb-hint">Set up the situation (1-2 sentences)</span>
-          </div>
-          <textarea 
-            class="content-textarea"
-            placeholder="What's the pain point or situation?"
-            oninput="updateContentStructure('context', this.value)"
-            rows="2"
-          >${esc(cs.context||'')}</textarea>
-          ${post.funnel_stage ? `<div class="cb-tips">${getFunnelTips(post.funnel_stage, 'context')}</div>` : ''}
-        </div>
-        
-        <!-- Value Block -->
-        <div class="content-block">
-          <div class="cb-header">
-            <span class="cb-icon">✨</span>
-            <span class="cb-title">VALUE</span>
-            <span class="cb-hint">Main content - tips, story, or proof</span>
-          </div>
-          <textarea 
-            class="content-textarea"
-            placeholder="Bullet points, numbered list, or paragraph..."
-            oninput="updateContentStructure('value', this.value)"
-            rows="6"
-          >${esc(cs.value||'')}</textarea>
-          ${post.funnel_stage ? `<div class="cb-tips">${getFunnelTips(post.funnel_stage, 'value')}</div>` : ''}
-        </div>
-        
-        <!-- CTA Block -->
-        <div class="content-block">
-          <div class="cb-header">
-            <span class="cb-icon">🎯</span>
-            <span class="cb-title">CALL TO ACTION</span>
-            <span class="cb-hint">Tell them what to do next</span>
-          </div>
-          <textarea 
-            class="content-textarea"
-            placeholder="Save this, DM for details, link in bio..."
-            oninput="updateContentStructure('cta', this.value)"
-            rows="2"
-          >${esc(cs.cta||'')}</textarea>
-          ${post.funnel_stage ? `<div class="cb-tips">${getFunnelTips(post.funnel_stage, 'cta')}</div>` : ''}
-        </div>
-        
-        <!-- Hashtags Block -->
-        <div class="content-block">
-          <div class="cb-header">
-            <span class="cb-icon">#️⃣</span>
-            <span class="cb-title">HASHTAGS</span>
-            <span class="cb-hint">Use 5-15 relevant hashtags</span>
-          </div>
-          <input 
-            type="text"
-            class="content-input"
-            placeholder="#photography #portraits #headshots"
-            oninput="updateContentStructure('hashtags', this.value)"
-            value="${esc(cs.hashtags||'')}"
-          >
+          <input type="date" value="${post.post_date||''}" onchange="updatePost('post_date',this.value)" class="mini-select">
+          <button class="btn btn-danger btn-sm" onclick="deletePost(${post.id})" style="margin-left:auto">Delete</button>
         </div>
       </div>
       
-      <!-- Live Preview -->
-      <div class="pb-preview">
-        <div class="preview-header">CAPTION PREVIEW</div>
-        <div class="preview-body" id="caption-preview"></div>
-        <div class="preview-stats">
-          <div class="preview-stat">
-            <span class="ps-label">Characters</span>
-            <span class="ps-value" id="char-count">0/2200</span>
+      <div class="pb-cols">
+        <!-- Left: Reference Blocks -->
+        <div class="pb-refs">
+          <div class="pb-refs-head">
+            <span style="font-weight:700">📚 Reference Material</span>
+            <span style="font-size:11px;color:var(--muted)">Click to attach</span>
           </div>
-          <div class="preview-stat">
-            <span class="ps-label">Lines</span>
-            <span class="ps-value" id="line-count">0</span>
+          <input type="text" placeholder="Search your blocks..." class="ref-search" id="ref-search" oninput="filterRefBlocks()">
+          <div id="ref-blocks" class="ref-blocks"></div>
+          
+          <div class="attached-blocks" id="attached-blocks" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)"></div>
+        </div>
+        
+        <!-- Middle: Caption Builder -->
+        <div class="pb-caption">
+          <div class="caption-section">
+            <div class="cs-label">
+              <span>🪝 HOOK</span>
+              <button class="btn-link" onclick="toggleHookSearch()" style="font-size:11px">Search hooks →</button>
+            </div>
+            <input 
+              type="text" 
+              placeholder="The line that stops the scroll..."
+              value="${esc(cs.hook||'')}"
+              oninput="updateCS('hook',this.value)"
+              class="caption-input"
+            >
           </div>
-          <div class="preview-stat">
-            <span class="ps-label">Hashtags</span>
-            <span class="ps-value" id="hashtag-count">0/30</span>
+          
+          <div class="caption-section">
+            <div class="cs-label">📝 BODY</div>
+            <textarea 
+              placeholder="Context + value points..."
+              oninput="updateCS('body',this.value)"
+              class="caption-textarea"
+              rows="8"
+            >${esc(cs.body||'')}</textarea>
+          </div>
+          
+          <div class="caption-section">
+            <div class="cs-label">🎯 CTA</div>
+            <textarea 
+              placeholder="Save this, DM for details, link in bio..."
+              oninput="updateCS('cta',this.value)"
+              class="caption-textarea"
+              rows="2"
+            >${esc(cs.cta||'')}</textarea>
+          </div>
+          
+          <div class="caption-section">
+            <div class="cs-label">#️⃣ HASHTAGS</div>
+            <input 
+              type="text"
+              placeholder="#photography #portraits #headshots"
+              value="${esc(cs.hashtags||'')}"
+              oninput="updateCS('hashtags',this.value)"
+              class="caption-input"
+            >
           </div>
         </div>
-        <button class="btn btn-dark" style="width:100%;margin-top:12px" onclick="copyCaption()">📋 Copy Caption</button>
+        
+        <!-- Right: Preview -->
+        <div class="pb-preview-col">
+          <div class="preview-box">
+            <div class="preview-label">PREVIEW</div>
+            <div class="preview-caption" id="preview-caption">Your caption will appear here...</div>
+            <div class="preview-stats">
+              <div><span class="stat-num" id="char-count">0</span><span class="stat-label">/2200</span></div>
+              <div><span class="stat-num" id="line-count">0</span><span class="stat-label">lines</span></div>
+              <div><span class="stat-num" id="hash-count">0</span><span class="stat-label">tags</span></div>
+            </div>
+            <button class="btn btn-dark" style="width:100%;margin-top:12px" onclick="copyCaption()">📋 Copy Caption</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Hook Search Modal -->
+    <div id="hook-search-modal" class="hook-modal" style="display:none">
+      <div class="hook-modal-content">
+        <div class="hook-modal-head">
+          <h3>Search Hooks</h3>
+          <button onclick="toggleHookSearch()">✕</button>
+        </div>
+        <input type="text" placeholder="Search 1000+ hooks..." id="hook-search-input" oninput="searchHooksModal(this.value)" class="hook-modal-search">
+        <div id="hook-search-results" class="hook-modal-results"></div>
       </div>
     </div>`;
   
+  loadRefBlocks();
+  loadAttachedBlocks();
   updatePreview();
-  
-  // Close hook results when clicking outside
-  document.addEventListener('click', (e) => {
-    if (!e.target.closest('.hook-search-wrapper')) {
-      document.getElementById('hook-results').style.display = 'none';
-    }
-  });
 }
 
 async function setPostType(type) {
+  if (!type) {
+    // Show type selector
+    document.getElementById('pb-body').innerHTML = `
+      <div style="max-width:700px;margin:60px auto">
+        <h2 style="margin-bottom:30px">Choose content type</h2>
+        <div class="type-grid">
+          <div class="type-card" onclick="setPostType('photo')">
+            <div class="type-icon">📸</div>
+            <div class="type-title">Photo</div>
+          </div>
+          <div class="type-card" onclick="setPostType('carousel')">
+            <div class="type-icon">🎞️</div>
+            <div class="type-title">Carousel</div>
+          </div>
+          <div class="type-card" onclick="setPostType('reel')">
+            <div class="type-icon">🎥</div>
+            <div class="type-title">Reel</div>
+          </div>
+        </div>
+      </div>`;
+    return;
+  }
+  
   await api('PATCH', `/api/posts/${POST_ID}`, { post_type: type });
   const post = await api('GET', `/api/posts/${POST_ID}`);
   renderPostBuilder(post);
 }
 
-let hookSearchTimeout;
-async function searchHooks(query) {
-  updateContentStructure('hook', query);
-  
-  if (!query || query.length < 2) {
-    document.getElementById('hook-results').innerHTML = '';
-    document.getElementById('hook-results').style.display = 'none';
-    return;
-  }
-  
-  clearTimeout(hookSearchTimeout);
-  hookSearchTimeout = setTimeout(async () => {
-    const results = await api('GET', `/api/hooks?search=${encodeURIComponent(query)}&limit=5`);
-    const resultsDiv = document.getElementById('hook-results');
-    
-    if (results.length === 0) {
-      resultsDiv.innerHTML = '<div class="hook-no-results">No hooks found - keep typing or use your own!</div>';
-    } else {
-      resultsDiv.innerHTML = results.map(h => `
-        <div class="hook-result" onclick="selectHook('${esc(h.hook_text).replace(/'/g, "\\'")}')">
-          <div class="hook-text">${esc(h.hook_text)}</div>
-          ${h.category ? `<div class="hook-category">${esc(h.category)}</div>` : ''}
-        </div>
-      `).join('');
-    }
-    resultsDiv.style.display = 'block';
-  }, 300);
-}
-
-function selectHook(hookText) {
-  document.getElementById('hook-input').value = hookText;
-  updateContentStructure('hook', hookText);
-  document.getElementById('hook-results').style.display = 'none';
-}
-
-function updateContentStructure(field, value) {
-  // Get current post
+function updateCS(field, value) {
   api('GET', `/api/posts/${POST_ID}`).then(post => {
     const cs = post.content_structure || {};
     cs[field] = value;
     api('PATCH', `/api/posts/${POST_ID}`, { content_structure: cs });
   });
-  
   updatePreview();
 }
 
 function updatePreview() {
-  const hook = document.getElementById('hook-input')?.value || '';
-  const context = document.querySelector('[placeholder="What\'s the pain point or situation?"]')?.value || '';
-  const value = document.querySelector('[placeholder="Bullet points, numbered list, or paragraph..."]')?.value || '';
-  const cta = document.querySelector('[placeholder="Save this, DM for details, link in bio..."]')?.value || '';
-  const hashtags = document.querySelector('[placeholder="#photography #portraits #headshots"]')?.value || '';
+  const hook = document.querySelector('[oninput*="updateCS(\'hook\'"]')?.value || '';
+  const body = document.querySelector('[oninput*="updateCS(\'body\'"]')?.value || '';
+  const cta = document.querySelector('[oninput*="updateCS(\'cta\'"]')?.value || '';
+  const hashtags = document.querySelector('[oninput*="updateCS(\'hashtags\'"]')?.value || '';
   
-  const caption = [hook, context, value, cta, hashtags].filter(x => x).join('\n\n');
+  const parts = [hook, body, cta, hashtags].filter(x => x.trim());
+  const caption = parts.join('\n\n');
   
-  document.getElementById('caption-preview').textContent = caption || 'Your caption will appear here...';
-  document.getElementById('char-count').textContent = `${caption.length}/2200`;
+  document.getElementById('preview-caption').textContent = caption || 'Your caption will appear here...';
+  document.getElementById('char-count').textContent = caption.length;
   document.getElementById('line-count').textContent = caption.split('\n').length;
   
-  const hashtagMatches = hashtags.match(/#\w+/g);
-  document.getElementById('hashtag-count').textContent = `${hashtagMatches ? hashtagMatches.length : 0}/30`;
-}
-
-function getFunnelTips(stage, block) {
-  const tips = {
-    tof: {
-      hook: '💡 TOF: Surprising fact, big mistake, or "3 ways to..." - grab attention',
-      context: '💡 TOF: Identify a common struggle or question your audience has',
-      value: '💡 TOF: Educational tips, how-to steps, or myth-busting - teach something valuable',
-      cta: '💡 TOF: Ask to save, share, or comment - low commitment'
-    },
-    mof: {
-      hook: '💡 MOF: Personal story, behind-the-scenes, or "Here\'s what I learned..."',
-      context: '💡 MOF: Share your experience or journey with this topic',
-      value: '💡 MOF: Deeper insights, your process, lessons learned - build trust',
-      cta: '💡 MOF: Ask to read full caption, check bio, or DM for more'
-    },
-    bof: {
-      hook: '💡 BOF: Offer, testimonial, or "Limited spots available..."',
-      context: '💡 BOF: Address objections or hesitations they might have',
-      value: '💡 BOF: Social proof, specific results, what they get - show value',
-      cta: '💡 BOF: Strong CTA - Book now, DM to reserve, link in bio'
-    }
-  };
-  
-  return tips[stage]?.[block] || '';
+  const hashMatches = hashtags.match(/#\w+/g);
+  document.getElementById('hash-count').textContent = hashMatches ? hashMatches.length : 0;
 }
 
 function copyCaption() {
-  const caption = document.getElementById('caption-preview').textContent;
+  const caption = document.getElementById('preview-caption').textContent;
+  if (caption === 'Your caption will appear here...') return;
   navigator.clipboard.writeText(caption);
-  toast('Caption copied!', 'ok');
+  toast('Copied!', 'ok');
+}
+
+let refBlocksData = [];
+async function loadRefBlocks() {
+  refBlocksData = await api('GET', '/api/blocks');
+  filterRefBlocks();
+}
+
+function filterRefBlocks() {
+  const search = (document.getElementById('ref-search')?.value || '').toLowerCase();
+  const filtered = refBlocksData.filter(b => 
+    !search || 
+    b.title.toLowerCase().includes(search) ||
+    (b.content_payload||'').toLowerCase().includes(search)
+  );
+  
+  const html = filtered.slice(0, 20).map(b => {
+    const icon = {pose:'🧍',meme:'😂',video:'🎥',sfx:'🎵',note:'📝',url:'🔗',pdf:'📄'}[b.type] || '📁';
+    return `
+      <div class="ref-block" onclick="attachBlock(${b.id})">
+        <div class="ref-icon">${icon}</div>
+        <div class="ref-info">
+          <div class="ref-title">${esc(b.title)}</div>
+          ${b.content_payload ? `<div class="ref-snippet">${esc(b.content_payload.substring(0,60))}...</div>` : ''}
+        </div>
+      </div>`;
+  }).join('');
+  
+  document.getElementById('ref-blocks').innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px">No blocks found</div>';
+}
+
+let attachedBlockIds = [];
+async function attachBlock(blockId) {
+  if (attachedBlockIds.includes(blockId)) {
+    attachedBlockIds = attachedBlockIds.filter(id => id !== blockId);
+  } else {
+    attachedBlockIds.push(blockId);
+  }
+  
+  await api('PATCH', `/api/posts/${POST_ID}`, { 
+    notes: JSON.stringify({ attached_blocks: attachedBlockIds })
+  });
+  
+  loadAttachedBlocks();
+}
+
+function loadAttachedBlocks() {
+  api('GET', `/api/posts/${POST_ID}`).then(post => {
+    try {
+      const notes = JSON.parse(post.notes || '{}');
+      attachedBlockIds = notes.attached_blocks || [];
+    } catch(e) {
+      attachedBlockIds = [];
+    }
+    
+    if (attachedBlockIds.length === 0) {
+      document.getElementById('attached-blocks').innerHTML = '';
+      return;
+    }
+    
+    const attached = refBlocksData.filter(b => attachedBlockIds.includes(b.id));
+    const icon = {pose:'🧍',meme:'😂',video:'🎥',sfx:'🎵',note:'📝',url:'🔗',pdf:'📄'};
+    
+    document.getElementById('attached-blocks').innerHTML = `
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:8px">ATTACHED (${attached.length})</div>
+      ${attached.map(b => `
+        <div class="attached-block">
+          <span>${icon[b.type] || '📁'} ${esc(b.title)}</span>
+          <button onclick="attachBlock(${b.id})" class="btn-xs">✕</button>
+        </div>
+      `).join('')}
+    `;
+  });
+}
+
+function toggleHookSearch() {
+  const modal = document.getElementById('hook-search-modal');
+  if (modal.style.display === 'none') {
+    modal.style.display = 'flex';
+    document.getElementById('hook-search-input').focus();
+  } else {
+    modal.style.display = 'none';
+  }
+}
+
+let hookSearchTimeout;
+async function searchHooksModal(query) {
+  if (!query || query.length < 2) {
+    document.getElementById('hook-search-results').innerHTML = '<div class="hook-empty">Type to search...</div>';
+    return;
+  }
+  
+  clearTimeout(hookSearchTimeout);
+  hookSearchTimeout = setTimeout(async () => {
+    const hooks = await api('GET', `/api/hooks?search=${encodeURIComponent(query)}&limit=10`);
+    
+    if (hooks.length === 0) {
+      document.getElementById('hook-search-results').innerHTML = '<div class="hook-empty">No hooks found</div>';
+      return;
+    }
+    
+    document.getElementById('hook-search-results').innerHTML = hooks.map(h => `
+      <div class="hook-modal-item" onclick="selectHookFromModal('${esc(h.hook_text).replace(/'/g, "\\'")}')">
+        ${esc(h.hook_text)}
+        ${h.category ? `<span class="hook-cat">${esc(h.category)}</span>` : ''}
+      </div>
+    `).join('');
+  }, 300);
+}
+
+function selectHookFromModal(hookText) {
+  const hookInput = document.querySelector('[oninput*="updateCS(\'hook\'"]');
+  if (hookInput) {
+    hookInput.value = hookText;
+    updateCS('hook', hookText);
+  }
+  toggleHookSearch();
 }
 
 async function addTextModule(type){
