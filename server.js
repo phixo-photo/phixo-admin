@@ -972,6 +972,74 @@ app.get('/api/hooks', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Get hooks count
+app.get('/api/hooks/count', requireAuth, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT COUNT(*) as count FROM hooks');
+    res.json({ count: parseInt(r.rows[0].count) });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Ingest hooks from hooks_data.txt
+app.post('/api/hooks/ingest', requireAuth, async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    const hooksFile = path.join(__dirname, 'hooks_data.txt');
+    
+    if (!fs.existsSync(hooksFile)) {
+      return res.status(404).json({ error: 'hooks_data.txt not found' });
+    }
+    
+    const content = fs.readFileSync(hooksFile, 'utf-8');
+    const lines = content.split('\n').filter(line => line.trim());
+    
+    // Send to Claude to parse all hooks
+    const response = await anthropic.messages.create({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 16000,
+      messages: [{ 
+        role: 'user', 
+        content: `Parse this file containing 1000+ viral hooks. Extract EVERY unique hook template (ignore URLs and duplicate examples).
+
+A hook is a short sentence/phrase designed to start a social media post. Look for patterns like:
+- "Here's how to..."
+- "If you're a [X] and want [Y]..."
+- "This is what [X] looks like when..."
+- "The reason you can't..."
+
+Classify each into: story, contrarian, mistake, educational, curiosity, if-then, before-after, question, number-list, comparison, or general.
+
+Return ONLY a JSON array with ALL hooks you can find:
+[{"text":"hook text","category":"category"}]
+
+File content:
+${content}`
+      }]
+    });
+
+    const hooks = JSON.parse(response.content[0].text.replace(/```json|```/g,'').trim());
+    
+    // Clear existing and insert all
+    await pool.query("DELETE FROM hooks WHERE source='file'");
+    let inserted = 0;
+    for (const h of hooks) {
+      if (h.text && h.text.length > 5) {
+        await pool.query(
+          'INSERT INTO hooks (text,category,source) VALUES ($1,$2,$3)',
+          [h.text.trim(), h.category||'general', 'file']
+        );
+        inserted++;
+      }
+    }
+    
+    res.json({ ok: true, count: inserted });
+  } catch (err) { 
+    console.error(err); 
+    res.status(500).json({ error: err.message }); 
+  }
+});
+
 // Ingest hooks PDF from Drive
 app.post('/api/hooks/ingest-pdf', requireAuth, async (req, res) => {
   try {
