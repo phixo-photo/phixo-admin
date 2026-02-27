@@ -958,13 +958,14 @@ app.post('/api/posts/:id/modules/reorder', requireAuth, async (req, res) => {
 // ═══════════════════════════════════════════════════
 app.get('/api/hooks', requireAuth, async (req, res) => {
   try {
-    const { search, category } = req.query;
+    const { search, category, limit } = req.query;
     let q = 'SELECT * FROM hooks';
     const p=[]; const w=[];
     if (search) { p.push('%'+search+'%'); w.push(`text ILIKE $${p.length}`); }
     if (category) { p.push(category); w.push(`category=$${p.length}`); }
     if (w.length) q += ' WHERE '+w.join(' AND ');
     q += ' ORDER BY category, created_at DESC';
+    if (limit) q += ` LIMIT ${parseInt(limit)}`;
     const r = await pool.query(q, p);
     res.json(r.rows);
   } catch (err) { res.status(500).json({ error: err.message }); }
