@@ -6,8 +6,16 @@ const cookieSession = require('cookie-session');
 const path = require('path');
 const { Pool } = require('pg');
 const { Readable } = require('stream');
-const pdfParse = require('pdf-parse');
-const mammoth = require('mammoth');
+
+// Optional dependencies for document reading
+let pdfParse, mammoth;
+try {
+  pdfParse = require('pdf-parse');
+  mammoth = require('mammoth');
+  console.log('Document parsing enabled (pdf-parse + mammoth)');
+} catch (err) {
+  console.log('Document parsing disabled (install pdf-parse + mammoth to enable)');
+}
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
@@ -1584,6 +1592,11 @@ app.post('/api/drive/sync-clients', requireAuth, async (req, res) => {
     
     // Helper: Download and extract text from a file
     const extractFileText = async (fileId, mimeType) => {
+      // Skip if dependencies not available
+      if (!pdfParse || !mammoth) {
+        return null;
+      }
+      
       try {
         const fileRes = await drive.files.get(
           { fileId, alt: 'media' },
@@ -1591,10 +1604,10 @@ app.post('/api/drive/sync-clients', requireAuth, async (req, res) => {
         );
         const buffer = Buffer.from(fileRes.data);
         
-        if (mimeType === 'application/pdf') {
+        if (mimeType === 'application/pdf' && pdfParse) {
           const pdfData = await pdfParse(buffer);
           return pdfData.text;
-        } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+        } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' && mammoth) {
           const result = await mammoth.extractRawText({ buffer });
           return result.value;
         } else if (mimeType === 'text/plain') {
