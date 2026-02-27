@@ -1915,13 +1915,13 @@ async function loadHookCount() {
 }
 
 async function reimportHooks() {
-  if (!confirm('Re-import all 1003 hooks from viral_hooks.csv? Takes ~5 seconds.')) return;
+  if (!confirm('Delete ALL existing hooks and import fresh 1003 from viral_hooks.csv?')) return;
   
-  document.getElementById('hook-count-display').textContent = 'Importing...';
+  document.getElementById('hook-count-display').textContent = 'Deleting old hooks...';
   
   try {
     const result = await api('POST', '/api/hooks/ingest');
-    toast(`Imported ${result.count} hooks!`, 'ok');
+    toast(`Fresh import complete! ${result.count} hooks loaded.`, 'ok');
     loadHookCount();
     
     // Reload hooks display
