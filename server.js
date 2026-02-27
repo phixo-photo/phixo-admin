@@ -1036,8 +1036,10 @@ app.post('/api/hooks/ingest', requireAuth, async (req, res) => {
     
     console.log(`Extracted ${hooks.length} hooks from CSV`);
     
-    // Clear existing and insert all
-    await pool.query("DELETE FROM hooks WHERE source='csv'");
+    // DELETE ALL HOOKS - start completely fresh
+    await pool.query("DELETE FROM hooks");
+    console.log('Cleared all existing hooks');
+    
     let inserted = 0;
     
     for (const h of hooks) {
