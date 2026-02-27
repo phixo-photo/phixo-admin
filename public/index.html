@@ -1892,8 +1892,8 @@ async function searchHooksModal(query) {
     }
     
     document.getElementById('hook-search-results').innerHTML = hooks.map(h => `
-      <div class="hook-modal-item" onclick="selectHookFromModal('${esc(h.hook_text).replace(/'/g, "\\'")}')">
-        ${esc(h.hook_text)}
+      <div class="hook-modal-item" onclick="selectHookFromModal(\`${esc(h.text).replace(/`/g, '\\`')}\`)">
+        ${esc(h.text)}
         ${h.category ? `<span class="hook-cat">${esc(h.category)}</span>` : ''}
       </div>
     `).join('');
