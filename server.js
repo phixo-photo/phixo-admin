@@ -980,115 +980,79 @@ app.get('/api/hooks/count', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// Ingest hooks from hooks_data.txt
+// Ingest hooks from viral_hooks.csv
 app.post('/api/hooks/ingest', requireAuth, async (req, res) => {
   try {
     const fs = require('fs');
     const path = require('path');
-    const hooksFile = path.join(__dirname, 'hooks_data.txt');
+    const csvFile = path.join(__dirname, 'viral_hooks.csv');
     
-    if (!fs.existsSync(hooksFile)) {
-      return res.status(404).json({ error: 'hooks_data.txt not found' });
+    if (!fs.existsSync(csvFile)) {
+      return res.status(404).json({ error: 'viral_hooks.csv not found' });
     }
     
-    const content = fs.readFileSync(hooksFile, 'utf-8');
+    const content = fs.readFileSync(csvFile, 'utf-8');
     const lines = content.split('\n');
     
+    // Skip header row
     const hooks = [];
-    let currentHook = '';
-    let currentCategory = 'general';
-    
-    for (let i = 0; i < lines.length; i++) {
+    for (let i = 1; i < lines.length; i++) {
       const line = lines[i].trim();
+      if (!line) continue;
       
-      // Skip empty lines, URLs, and file header
-      if (!line || 
-          line.startsWith('http') || 
-          line === '1000 VIRAL HOOKS' ||
-          line.length < 10) {
-        continue;
-      }
+      // Parse CSV (handle quoted fields)
+      const fields = [];
+      let currentField = '';
+      let inQuotes = false;
       
-      // Category headers (end with :)
-      if (line.endsWith(':') && line.split(' ').length <= 5) {
-        const cat = line.replace(':', '').toLowerCase().trim();
-        if (cat.includes('educational')) currentCategory = 'educational';
-        else if (cat.includes('story')) currentCategory = 'story';
-        else if (cat.includes('contrarian')) currentCategory = 'contrarian';
-        else if (cat.includes('mistake')) currentCategory = 'mistake';
-        else if (cat.includes('curiosity')) currentCategory = 'curiosity';
-        else if (cat.includes('question')) currentCategory = 'question';
-        else if (cat.includes('number')) currentCategory = 'number-list';
-        else if (cat.includes('before') || cat.includes('after')) currentCategory = 'before-after';
-        else if (cat.includes('if') && cat.includes('then')) currentCategory = 'if-then';
-        else currentCategory = 'general';
-        continue;
-      }
-      
-      // Check if line looks like start of a hook (common patterns)
-      const hookStarters = [
-        'this is', 'here\'s', 'if you', 'when you', 'the reason',
-        'what if', 'can you', 'i\'m going', 'it took', 'my ',
-        'money can', 'before i', 'you guys', 'you crave', 'stop ',
-        'don\'t hate', 'did you know', 'why did'
-      ];
-      
-      const isHookStart = hookStarters.some(starter => 
-        line.toLowerCase().startsWith(starter)
-      );
-      
-      // If current line looks like a hook or contains placeholders
-      if (isHookStart || line.includes('(insert') || line.includes('[')) {
-        // Save previous hook if exists
-        if (currentHook.length > 15) {
-          hooks.push({
-            text: currentHook.trim(),
-            category: currentCategory
-          });
-        }
-        currentHook = line;
-      } else {
-        // Continue building current hook (multi-line hooks)
-        if (currentHook) {
-          currentHook += ' ' + line;
+      for (let j = 0; j < line.length; j++) {
+        const char = line[j];
+        
+        if (char === '"') {
+          inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+          fields.push(currentField.trim());
+          currentField = '';
+        } else {
+          currentField += char;
         }
       }
+      fields.push(currentField.trim()); // Push last field
       
-      // Check if hook is complete (doesn't end mid-sentence)
-      if (currentHook && (
-          currentHook.endsWith('.') || 
-          currentHook.endsWith('?') || 
-          currentHook.endsWith('!') ||
-          currentHook.endsWith(')') ||
-          i === lines.length - 1
-      )) {
-        if (currentHook.length > 15 && currentHook.length < 500) {
+      if (fields.length >= 3) {
+        const hookId = fields[0];
+        const category = fields[1].toLowerCase().replace('_', '-');
+        const hookText = fields[2];
+        
+        if (hookText && hookText.length > 10) {
           hooks.push({
-            text: currentHook.trim(),
-            category: currentCategory
+            id: hookId,
+            text: hookText,
+            category: category
           });
-          currentHook = '';
         }
       }
     }
     
+    console.log(`Extracted ${hooks.length} hooks from CSV`);
+    
     // Clear existing and insert all
-    await pool.query("DELETE FROM hooks WHERE source='file'");
+    await pool.query("DELETE FROM hooks WHERE source='csv'");
     let inserted = 0;
     
     for (const h of hooks) {
       try {
         await pool.query(
           'INSERT INTO hooks (text,category,source) VALUES ($1,$2,$3)',
-          [h.text, h.category, 'file']
+          [h.text, h.category, 'csv']
         );
         inserted++;
       } catch(e) {
-        // Skip duplicates
+        console.error('Insert error:', e.message);
       }
     }
     
-    console.log(`Imported ${inserted} hooks from hooks_data.txt`);
+    console.log(`Imported ${inserted} hooks from viral_hooks.csv`);
     res.json({ ok: true, count: inserted });
   } catch (err) { 
     console.error(err); 
