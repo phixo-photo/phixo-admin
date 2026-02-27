@@ -1,6 +1,6 @@
 {
   "name": "phixo-admin",
-  "version": "3.37.0",
+  "version": "3.43.0",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -13,6 +13,7 @@
     "cookie-session": "^2.1.0",
     "pg": "^8.11.3",
     "ffmpeg-static": "^5.2.0",
-    "pdf-parse": "^1.1.1"
+    "pdf-parse": "^1.1.1",
+    "mammoth": "^1.6.0"
   }
 }
