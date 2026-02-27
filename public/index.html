@@ -1869,25 +1869,45 @@ function toggleHookSearch() {
   const modal = document.getElementById('hook-search-modal');
   if (modal.style.display === 'none') {
     modal.style.display = 'flex';
+    document.getElementById('hook-search-input').value = '';
     document.getElementById('hook-search-input').focus();
+    // Load all hooks immediately for inspiration
+    loadAllHooks();
   } else {
     modal.style.display = 'none';
   }
 }
 
+async function loadAllHooks() {
+  const hooks = await api('GET', '/api/hooks?limit=50');
+  
+  if (hooks.length === 0) {
+    document.getElementById('hook-search-results').innerHTML = '<div class="hook-empty">No hooks found</div>';
+    return;
+  }
+  
+  document.getElementById('hook-search-results').innerHTML = hooks.map(h => `
+    <div class="hook-modal-item" onclick="selectHookFromModal(\`${esc(h.text).replace(/`/g, '\\`')}\`)">
+      ${esc(h.text)}
+      ${h.category ? `<span class="hook-cat">${esc(h.category)}</span>` : ''}
+    </div>
+  `).join('');
+}
+
 let hookSearchTimeout;
 async function searchHooksModal(query) {
-  if (!query || query.length < 2) {
-    document.getElementById('hook-search-results').innerHTML = '<div class="hook-empty">Type to search...</div>';
+  // If empty, show all hooks
+  if (!query || query.trim() === '') {
+    loadAllHooks();
     return;
   }
   
   clearTimeout(hookSearchTimeout);
   hookSearchTimeout = setTimeout(async () => {
-    const hooks = await api('GET', `/api/hooks?search=${encodeURIComponent(query)}&limit=10`);
+    const hooks = await api('GET', `/api/hooks?search=${encodeURIComponent(query)}&limit=50`);
     
     if (hooks.length === 0) {
-      document.getElementById('hook-search-results').innerHTML = '<div class="hook-empty">No hooks found</div>';
+      document.getElementById('hook-search-results').innerHTML = '<div class="hook-empty">No hooks found - try different words</div>';
       return;
     }
     
