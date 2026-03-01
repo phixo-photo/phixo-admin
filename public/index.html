@@ -357,6 +357,77 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .btn-link:hover{text-decoration:underline}
 .btn-xs{padding:2px 6px;font-size:10px;background:var(--bg);border:1px solid var(--border);border-radius:4px;cursor:pointer}
 .btn-xs:hover{background:var(--border)}
+
+/* ── STRATEGY HUB ─────────────────────────────────────── */
+.stab{background:none;border:none;border-bottom:2px solid transparent;padding:9px 14px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;margin-bottom:-1px;font-family:inherit;transition:all .15s}
+.stab:hover{color:var(--text)}
+.stab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.spanel{display:none}.spanel.on{display:block}
+.sh2{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:12px}
+.scard-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.scard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px}
+.scard.sl-accent{border-left:3px solid var(--accent)}
+.scard.sl-red{border-left:3px solid #d94040}
+.scard-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:8px}
+.scard-body{font-size:13px;color:var(--text);line-height:1.6}
+.dont-item{padding:4px 0;color:#c04040;font-size:13px;line-height:1.5;border-bottom:1px solid var(--bg)}
+.dont-item:last-child{border-bottom:none}
+.proof-pill{background:var(--bg);border:1px solid var(--accent);border-radius:20px;padding:4px 12px;font-size:11px;color:var(--accent);font-weight:600}
+.stab-table{width:100%;border-collapse:collapse;font-size:13px}
+.stab-table th{background:var(--surface-2);padding:8px 12px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);border:1px solid var(--border)}
+.stab-table td{padding:10px 12px;border:1px solid var(--border);background:var(--surface);vertical-align:top;line-height:1.55}
+.stab-table tr:nth-child(even) td{background:var(--surface-2)}
+.stat-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.stat-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;text-align:center}
+.stat-val{font-size:22px;font-weight:800;color:var(--accent);margin-bottom:4px}
+.stat-lbl{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.snotice{background:var(--accent-light);border:1px solid #e8d5a8;border-radius:8px;padding:12px 16px;font-size:13px;color:var(--text);margin-bottom:16px;line-height:1.6}
+.wf-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+.wf-day{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px}
+.wf-day-name{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:4px}
+.wf-day-type{font-size:13px;font-weight:700;line-height:1.3;margin-bottom:8px}
+.wf-effort{display:flex;align-items:center;gap:3px;margin-bottom:8px}
+.ef-dot{width:6px;height:6px;border-radius:50%;background:var(--border)}
+.ef-dot.fill{background:var(--accent)}
+.ef-label{font-size:10px;color:var(--muted);margin-left:4px}
+.wf-detail{font-size:11px;color:var(--text);line-height:1.5;margin-bottom:6px}
+.wf-hint{font-size:10px;color:var(--muted);font-style:italic;margin-bottom:6px;line-height:1.4}
+.wf-plats{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:4px}
+.wf-plats span{background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:1px 6px;font-size:9px;color:var(--muted)}
+.wf-time{font-size:10px;color:var(--accent);font-weight:600}
+.post-slot{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);margin-bottom:14px;overflow:hidden}
+.ps-head{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--border)}
+.ps-num{font-size:22px;font-weight:800;color:var(--border)}
+.ps-goal{font-size:12px;color:var(--muted);flex:1}
+.ps-plat{font-size:11px;color:var(--muted)}
+.ps-cells{display:grid;grid-template-columns:repeat(5,1fr)}
+.ps-cell{padding:12px 14px;border-right:1px solid var(--border)}
+.ps-cell:last-child{border-right:none}
+.ps-clabel{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:6px}
+.ps-cval{font-size:12px;color:var(--text);line-height:1.5}
+.ps-cval.dont{color:#c04040}
+.ps-meta{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border)}
+.ps-meta-cell{padding:10px 14px;border-right:1px solid var(--border);font-size:11px;color:var(--muted)}
+.ps-meta-cell:last-child{border-right:none}
+.ps-meta-label{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:3px}
+.bfilt{background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:5px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .12s}
+.bfilt:hover{border-color:var(--accent)}
+.bfilt.on{background:var(--accent-light);border-color:var(--accent);color:var(--accent)}
+.bank-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;position:relative;border-left:3px solid}
+.bank-card.used{opacity:.35}
+.bc-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px}
+.bc-num{font-size:10px;color:var(--muted);min-width:22px;padding-top:2px}
+.bc-title{font-size:13px;font-weight:600;line-height:1.4;flex:1}
+.bc-desc{font-size:12px;color:var(--muted);line-height:1.55;padding-left:30px;margin-bottom:8px}
+.bc-foot{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding-left:30px}
+.bc-tag{background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:1px 8px;font-size:10px;color:var(--muted)}
+.bc-used-btn{margin-left:auto;background:none;border:1px solid var(--border);border-radius:4px;padding:2px 9px;font-size:10px;cursor:pointer;font-family:inherit;color:var(--muted);transition:all .15s}
+.bc-used-btn:hover{border-color:var(--tof);color:var(--tof)}
+.bc-used-btn.marked{border-color:var(--tof);color:var(--tof);background:#e8f4ec}
+.fmt-platform{margin-bottom:28px}
+.fmt-plat-name{font-size:16px;font-weight:800;margin-bottom:8px;padding-bottom:8px;border-bottom:2px solid var(--border)}
+@media(max-width:900px){.wf-grid{grid-template-columns:repeat(4,1fr)}.stat-row{grid-template-columns:repeat(3,1fr)}}
+
 </style>
 </head>
 <body>
@@ -373,6 +444,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
   <div class="nav-section">Content</div>
   <button class="nb" data-view="calendar" onclick="showView('calendar',this)"><span class="ico">📅</span> Calendar</button>
   <button class="nb" onclick="openNewPost()"><span class="ico">✏️</span> New Post</button>
+  <button class="nb" data-view="strategy" onclick="showView('strategy',this)"><span class="ico">🗺</span> Strategy Hub</button>
   <div class="nav-foot">
     <span><span class="dot"></span>Connected</span>
     <a href="/auth/logout">Sign out</a>
@@ -484,6 +556,254 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 <div id="v-post-builder" class="view">
   <button class="back-btn" onclick="showView('calendar')">← Calendar</button>
   <div id="pb-body"></div>
+</div>
+<div id="v-strategy" class="view">
+  <div class="ph"><h1>Content <em>strategy hub</em></h1><p>Brand anchor, weekly workflow, content bank, and format reference — all in one place.</p></div>
+
+  <!-- SUB-NAV TABS -->
+  <div style="display:flex;gap:6px;margin-bottom:28px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:0">
+    <button class="stab on" data-stab="voice" onclick="showStab('voice',this)">Voice & Values</button>
+    <button class="stab" data-stab="lanes" onclick="showStab('lanes',this)">Client Lanes</button>
+    <button class="stab" data-stab="objections" onclick="showStab('objections',this)">Objections</button>
+    <button class="stab" data-stab="model" onclick="showStab('model',this)">Business Model</button>
+    <button class="stab" data-stab="workflow" onclick="showStab('workflow',this)">Workflow Calendar</button>
+    <button class="stab" data-stab="weekly" onclick="showStab('weekly',this)">Weekly Strategy</button>
+    <button class="stab" data-stab="bank" onclick="showStab('bank',this)">Content Bank</button>
+    <button class="stab" data-stab="formats" onclick="showStab('formats',this)">Format Reference</button>
+  </div>
+
+  <!-- ── VOICE & VALUES ── -->
+  <div class="spanel on" id="sp-voice">
+    <div class="sh2">Four Core Voice Traits</div>
+    <div class="scard-grid">
+      <div class="scard sl-accent"><div class="scard-label">Reflective & Insightful</div><div class="scard-body">Write with depth and deliberation. Explore the meaning and purpose of each portrait. Anchor the art in real relevance.</div></div>
+      <div class="scard sl-accent"><div class="scard-label">Warm & Empathetic</div><div class="scard-body">Lead with understanding and steadiness. Acknowledge the vulnerability of being photographed. Supportive, not sentimental.</div></div>
+      <div class="scard sl-accent"><div class="scard-label">Confident & Controlled</div><div class="scard-body">Mastery through discipline and clarity, not bravado. Language is precise, declarative, and process-oriented.</div></div>
+      <div class="scard sl-accent"><div class="scard-label">Grounded & Authentic</div><div class="scard-body">Rooted in lived experience and practical examples. No jargon, no generic claims. Every statement is purposeful and credible.</div></div>
+    </div>
+    <div class="sh2" style="margin-top:24px">Never Say or Use</div>
+    <div class="scard sl-red">
+      <div class="scard-body">
+        <div class="dont-item">Stunning, perfect, gorgeous — no hype words ever</div>
+        <div class="dont-item">Vague promises or undefined jargon</div>
+        <div class="dont-item">"We" unless referring to Phixo as the studio. "I" = Ian. "We" = Phixo.</div>
+        <div class="dont-item">Proof phrases like "Engineered Presence" as taglines — evidence only, always in context</div>
+        <div class="dont-item">Overly casual slang or emojis</div>
+      </div>
+    </div>
+    <div class="sh2" style="margin-top:24px">Proof Phrases — Evidence Only, Never Taglines</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <span class="proof-pill">Engineered Presence</span>
+      <span class="proof-pill">Guided Experience</span>
+      <span class="proof-pill">Tethered Shooting</span>
+      <span class="proof-pill">Natural Retouching</span>
+      <span class="proof-pill">Color-Managed Workflow</span>
+    </div>
+    <div class="scard" style="margin-top:12px"><div class="scard-body" style="color:var(--muted);font-size:12px">These are evidence phrases, not slogans. Always defined and tied directly to client benefit on first use. Tethered Shooting, for example, is always followed by what it means: "images appear on screen in real time so you can review and adjust with confidence."</div></div>
+    <div class="sh2" style="margin-top:24px">Three Writing Modes</div>
+    <table class="stab-table">
+      <thead><tr><th>Mode</th><th>Use When</th><th>Example</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Manifesto Mode</strong></td><td>Philosophical content. For About pages, brand statements.</td><td style="font-style:italic;color:var(--muted)">"A portrait is a scaffold for identity. Structure allows presence to emerge."</td></tr>
+        <tr><td><strong>Guidance Mode</strong></td><td>Process and education. Stepwise clarity.</td><td style="font-style:italic;color:var(--muted)">"We shoot tethered so you can see images in real time and adjust with confidence."</td></tr>
+        <tr><td><strong>Conversion Mode</strong></td><td>CTAs and booking. Short, direct, scannable.</td><td style="font-style:italic;color:var(--muted)">"Book a consultation."</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── CLIENT LANES ── -->
+  <div class="spanel" id="sp-lanes">
+    <div class="snotice">All three lanes are equal. No lane is subordinate. The studio's strength is its wide net and consistent method across all groups.</div>
+    <div class="scard-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="scard sl-accent">
+        <div class="scard-label">Lane 1 — Career & Authority</div>
+        <div class="scard-body"><em>Professionals in transition, job seekers, leaders, founders building a personal brand.</em><br><br>
+        <strong>Primary pain:</strong> Misalignment — photo doesn't match ambitions<br>
+        <strong>Secondary:</strong> Uncertainty about personal branding, limited time<br>
+        <strong>Tertiary:</strong> Nerves about posing, appearing awkward<br><br>
+        <strong>Triggers:</strong> New job, promotion, job search, speaking engagement, rebrand<br><br>
+        <strong>Proof point:</strong> Tethered shooting — clients review in real time, ensuring alignment with desired persona.
+        </div>
+      </div>
+      <div class="scard sl-accent">
+        <div class="scard-label">Lane 2 — Personal Identity & Confidence</div>
+        <div class="scard-body"><em>Graduates, young women, creatives marking a milestone or wanting a portrait that feels like them.</em><br><br>
+        <strong>Primary pain:</strong> Fear of artificiality — stiff poses, fake smiles<br>
+        <strong>Secondary:</strong> Not knowing what to wear, cost uncertainty<br>
+        <strong>Tertiary:</strong> Feeling like a prop, rigid environment<br><br>
+        <strong>Triggers:</strong> Graduation, birthday, personal reinvention, confidence milestone<br><br>
+        <strong>Proof point:</strong> Relaxed environment, natural retouching — real character preserved, not manufactured.
+        </div>
+      </div>
+      <div class="scard sl-accent">
+        <div class="scard-label">Lane 3 — Family & Legacy</div>
+        <div class="scard-body"><em>Families, couples, multi-generational groups preserving connection or celebrating a milestone.</em><br><br>
+        <strong>Primary pain:</strong> Fear of forced, unnatural results<br>
+        <strong>Secondary:</strong> Coordinating schedules, outfit uncertainty<br>
+        <strong>Tertiary:</strong> Group dynamics, inclusivity concerns<br><br>
+        <strong>Triggers:</strong> Birthdays, anniversaries, reunions, holidays, graduations<br><br>
+        <strong>Proof point:</strong> Stepwise guidance for group dynamics — no manufactured moments.
+        </div>
+      </div>
+    </div>
+    <div class="snotice" style="margin-top:16px"><strong>Seasonal emphasis:</strong> Fall → Families · Spring → Grads / Lane 2 · Year-round → Lane 1 Professionals</div>
+  </div>
+
+  <!-- ── OBJECTIONS ── -->
+  <div class="spanel" id="sp-objections">
+    <div class="sh2">Common Objections & Responses</div>
+    <table class="stab-table">
+      <thead><tr><th>Objection</th><th>Phixo Response</th></tr></thead>
+      <tbody>
+        <tr><td style="font-style:italic;color:var(--muted)">"I hate having my photo taken."</td><td>That's normal, and we're here to help. Our sessions are structured to replace stress with guidance. You'll see results in real time.</td></tr>
+        <tr><td style="font-style:italic;color:var(--muted)">"I don't want to look fake."</td><td>We agree. Our retouching enhances your natural features without erasing what makes you unique.</td></tr>
+        <tr><td style="font-style:italic;color:var(--muted)">"I don't have time."</td><td>Sessions are quick and efficient — typically 30 minutes. Everything is ready before you arrive so we can focus on the portrait.</td></tr>
+        <tr><td style="font-style:italic;color:var(--muted)">"What if I don't like my photos?"</td><td>You'll review and select your images during the session. No surprises — you only pay for what you love.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── BUSINESS MODEL ── -->
+  <div class="spanel" id="sp-model">
+    <div class="sh2">Key Numbers</div>
+    <div class="stat-row">
+      <div class="stat-box"><div class="stat-val">10–12</div><div class="stat-lbl">Sessions / Month (Cap)</div></div>
+      <div class="stat-box"><div class="stat-val">$175</div><div class="stat-lbl">Signature Session</div></div>
+      <div class="stat-box"><div class="stat-val">$220</div><div class="stat-lbl">Target AOV</div></div>
+      <div class="stat-box"><div class="stat-val">~$876</div><div class="stat-lbl">Monthly Net (Optimizer)</div></div>
+      <div class="stat-box"><div class="stat-val">3 hrs</div><div class="stat-lbl">Max Admin / Week</div></div>
+      <div class="stat-box"><div class="stat-val">7–10 days</div><div class="stat-lbl">Delivery SLA</div></div>
+    </div>
+    <div class="sh2" style="margin-top:24px">Pricing</div>
+    <div class="scard-grid">
+      <div class="scard sl-accent">
+        <div class="scard-label">Signature Session — $175</div>
+        <div class="scard-body">• 30-minute guided session<br>• 10 final retouched high-resolution images<br>• Online gallery for selection<br>• Natural, non-destructive retouching</div>
+      </div>
+      <div class="scard">
+        <div class="scard-label">Add-Ons (drive AOV toward $220–$250)</div>
+        <div class="scard-body">• Additional retouched images — $40 each or 3 for $99<br>• All Proofs (unretouched, personal-use license) — $149<br>• Rush Turnaround (48 hours) — $99</div>
+      </div>
+    </div>
+    <div class="sh2" style="margin-top:24px">Shooting Windows</div>
+    <table class="stab-table">
+      <thead><tr><th>Day</th><th>Window</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>Saturday</td><td>9:00 AM – 1:00 PM</td><td>Sessions</td></tr>
+        <tr><td>Wednesday</td><td>6:00 PM – 9:00 PM</td><td>Sessions</td></tr>
+        <tr><td>Sunday afternoon</td><td>One dedicated block</td><td>Editing & admin</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── WORKFLOW CALENDAR ── -->
+  <div class="spanel" id="sp-workflow">
+    <div class="snotice">7 days — 2 heavy production days, 2 medium, 2 light, 1 off. Total real production time: roughly 2–3 hours spread across 4 days.</div>
+    <div class="wf-grid">
+      <div class="wf-day" style="border-top:3px solid var(--tof)">
+        <div class="wf-day-name">Monday</div>
+        <div class="wf-day-type" style="color:var(--tof)">Short Video</div>
+        <div class="wf-effort"><span class="ef-dot fill"></span><span class="ef-dot fill"></span><span class="ef-dot fill"></span><span class="ef-label">Heavy</span></div>
+        <div class="wf-detail">Your heaviest lift. Meme format, relatable moment, something in photography anyone would stop for. Film, edit, post.</div>
+        <div class="wf-hint">TikTok first, then cross-post</div>
+        <div class="wf-plats"><span>TikTok</span><span>Reels</span><span>FB</span></div>
+        <div class="wf-time">~45–60 min</div>
+      </div>
+      <div class="wf-day" style="border-top:3px solid var(--mof)">
+        <div class="wf-day-name">Tuesday</div>
+        <div class="wf-day-type" style="color:var(--mof)">Portfolio Image</div>
+        <div class="wf-effort"><span class="ef-dot fill"></span><span class="ef-dot"></span><span class="ef-dot"></span><span class="ef-label">Light</span></div>
+        <div class="wf-detail">One strong portrait. You already have the image. Caption does the MoFu work — what was happening, what you saw in the person.</div>
+        <div class="wf-hint">Pull from a recent session</div>
+        <div class="wf-plats"><span>Instagram</span><span>Facebook</span></div>
+        <div class="wf-time">~10 min</div>
+      </div>
+      <div class="wf-day" style="border-top:3px solid var(--bof)">
+        <div class="wf-day-name">Wednesday</div>
+        <div class="wf-day-type" style="color:var(--bof)">Graphic or Short Video</div>
+        <div class="wf-effort"><span class="ef-dot fill"></span><span class="ef-dot fill"></span><span class="ef-dot"></span><span class="ef-label">Medium</span></div>
+        <div class="wf-detail">Pricing, what to wear, how to book. Simple Canva graphic or a quick talking-head video. Answers the question a ready person already has.</div>
+        <div class="wf-hint">Canva graphic = 10 min. Talking head = 15 min.</div>
+        <div class="wf-plats"><span>Facebook</span><span>Instagram</span><span>TikTok</span></div>
+        <div class="wf-time">~15–30 min</div>
+      </div>
+      <div class="wf-day" style="border-top:3px solid var(--mof)">
+        <div class="wf-day-name">Thursday</div>
+        <div class="wf-day-type" style="color:var(--mof)">Carousel or BTS Clip</div>
+        <div class="wf-effort"><span class="ef-dot fill"></span><span class="ef-dot fill"></span><span class="ef-dot"></span><span class="ef-label">Medium</span></div>
+        <div class="wf-detail">3 shots from a recent session, or a behind the scenes moment. Shows your process, your eye, what working with you actually looks like.</div>
+        <div class="wf-hint">Pull from this week's shoot if you have one</div>
+        <div class="wf-plats"><span>Instagram</span><span>TikTok</span><span>Facebook</span></div>
+        <div class="wf-time">~20–30 min</div>
+      </div>
+      <div class="wf-day" style="border-top:3px solid var(--tof)">
+        <div class="wf-day-name">Friday</div>
+        <div class="wf-day-type" style="color:var(--tof)">Short Video</div>
+        <div class="wf-effort"><span class="ef-dot fill"></span><span class="ef-dot fill"></span><span class="ef-dot"></span><span class="ef-label">Medium</span></div>
+        <div class="wf-detail">Your second video. Lighter than Monday — could be a portfolio shot with a voiceover, not a full production. Still broad, still relatable.</div>
+        <div class="wf-hint">Voiceover over an image works fine</div>
+        <div class="wf-plats"><span>TikTok</span><span>Reels</span><span>FB</span></div>
+        <div class="wf-time">~20–30 min</div>
+      </div>
+      <div class="wf-day" style="border-top:3px solid var(--mof)">
+        <div class="wf-day-name">Saturday</div>
+        <div class="wf-day-type" style="color:var(--mof)">Stories Only</div>
+        <div class="wf-effort"><span class="ef-dot fill"></span><span class="ef-dot"></span><span class="ef-dot"></span><span class="ef-label">Light</span></div>
+        <div class="wf-detail">You're shooting Saturday mornings. A quick sneak peek straight to Stories. Not creating content — just showing what's already happening.</div>
+        <div class="wf-hint">Film 10 seconds during session, post it after</div>
+        <div class="wf-plats"><span>IG Stories</span><span>FB Stories</span></div>
+        <div class="wf-time">~5 min</div>
+      </div>
+      <div class="wf-day" style="border-top:3px solid var(--border);opacity:.45">
+        <div class="wf-day-name">Sunday</div>
+        <div class="wf-day-type" style="color:var(--muted)">Off</div>
+        <div class="wf-detail" style="color:var(--muted)">Editing and admin block. No content creation today.</div>
+      </div>
+    </div>
+    <div class="sh2" style="margin-top:28px">Creation Workflow — Same Process Every Time</div>
+    <div class="scard-grid" style="grid-template-columns:repeat(3,1fr);margin-top:12px">
+      <div class="scard"><div class="scard-label" style="font-size:22px;color:var(--border);font-weight:800;margin-bottom:6px">01</div><div class="scard-label">Open the planner</div><div class="scard-body">Sunday or Monday morning. Pick your concept for each slot from the Content Bank. Fill in format, lane, and hook before you create anything.</div></div>
+      <div class="scard"><div class="scard-label" style="font-size:22px;color:var(--border);font-weight:800;margin-bottom:6px">02</div><div class="scard-label">Create for the primary platform</div><div class="scard-body">TikTok or Instagram Reels first. Vertical video, proper aspect ratio, captions on. Don't optimize for every platform yet.</div></div>
+      <div class="scard"><div class="scard-label" style="font-size:22px;color:var(--border);font-weight:800;margin-bottom:6px">03</div><div class="scard-label">Cross-post</div><div class="scard-body">Same file, pushed to the other two platforms. Adjust caption slightly if needed. You're not rebuilding — just distributing.</div></div>
+    </div>
+    <div class="sh2" style="margin-top:24px">Caption Formula Per Stage</div>
+    <table class="stab-table" style="margin-top:12px">
+      <thead><tr><th>Stage</th><th>Formula</th></tr></thead>
+      <tbody>
+        <tr><td><span class="funnel-label fl-tof">ToFu</span></td><td>Hook line that names what the video is about → 1–2 lines of the actual content → no CTA, no mention of booking</td></tr>
+        <tr><td><span class="funnel-label fl-mof">MoFu</span></td><td>What was happening in this moment → what you noticed or did → soft trail to your profile or link</td></tr>
+        <tr><td><span class="funnel-label fl-bof">BoFu</span></td><td>State the thing directly → explain it simply → clear next step (DM me / link in bio / book a consultation)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── WEEKLY STRATEGY ── -->
+  <div class="spanel" id="sp-weekly">
+    <div class="snotice">3 posts per week — one ToFu, one MoFu, one BoFu. Create once. Cross-post to all three platforms.</div>
+    <div id="weekly-posts"></div>
+    <div class="scard sl-accent" style="margin-top:12px"><div class="scard-body"><strong>Workflow:</strong> Create for TikTok or Instagram Reels first — closest in format. Cross-post to the other two. Same content, different primary job depending on where it lands. You're not rebuilding it three times.</div></div>
+  </div>
+
+  <!-- ── CONTENT BANK ── -->
+  <div class="spanel" id="sp-bank">
+    <div class="tb" style="margin-bottom:20px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="bfilt on" data-f="all" onclick="filterBank('all',this)">All (36)</button>
+        <button class="bfilt" data-f="ToFu" onclick="filterBank('ToFu',this)" style="color:var(--tof)">ToFu (12)</button>
+        <button class="bfilt" data-f="MoFu" onclick="filterBank('MoFu',this)" style="color:var(--mof)">MoFu (12)</button>
+        <button class="bfilt" data-f="BoFu" onclick="filterBank('BoFu',this)" style="color:var(--bof)">BoFu (12)</button>
+      </div>
+      <span id="bank-used-count" style="font-size:12px;color:var(--muted);margin-left:auto;align-self:center"></span>
+    </div>
+    <div id="bank-grid" class="scard-grid"></div>
+  </div>
+
+  <!-- ── FORMAT REFERENCE ── -->
+  <div class="spanel" id="sp-formats">
+    <div class="snotice">Format names are official platform terminology. Funnel stage mapping is analytical — not a named framework.</div>
+    <div id="formats-body"></div>
+  </div>
+
 </div>
 </div>
 <!-- MODALS -->
@@ -805,6 +1125,7 @@ function showView(name,navEl){
   else if(name==='research')loadResearch();
   else if(name==='discovery')loadDiscovery();
   else if(name==='calendar')loadCalendar();
+  else if(name==='strategy'){renderBank();renderWeekly();renderFormats();}
 }
 
 // ── Ask Library ──────────────────────────────────────────────────────────────
@@ -2492,6 +2813,192 @@ async function askLibrary(){
 // ═════════════════════════════════════════════════
 // COLLEGE REVIEW FUNCTIONS (v3.37)
 // ═════════════════════════════════════════════════
+
+// ── STRATEGY HUB ────────────────────────────────────────────────────────────
+function showStab(name, el) {
+  document.querySelectorAll('.spanel').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.stab').forEach(b => b.classList.remove('on'));
+  const p = document.getElementById('sp-' + name);
+  if (p) p.classList.add('on');
+  if (el) el.classList.add('on');
+  if (name === 'bank') renderBank();
+  if (name === 'weekly') renderWeekly();
+  if (name === 'formats') renderFormats();
+}
+
+const WEEKLY_POSTS = [
+  { num:'01', funnel:'ToFu', fClass:'fl-tof', goal:'Get in front of strangers', primary:'TikTok', cross:'Instagram Reels, Facebook', format:'Short video — meme or clip', cells:[
+    {l:'Who You're Talking To', v:'Someone scrolling — no idea who you are', d:false},
+    {l:'What They're Thinking', v:'Nothing about photography. Just on their phone.', d:false},
+    {l:'How You Meet Them', v:'Use a meme format or trending clip already working. Drop your world into it. Humor or relatability is the hook — not you.', d:false},
+    {l:'What It Looks Like', v:'Relatable photographer moment. Client says something, cut to reaction clip. Warm screen setting.', d:false},
+    {l:'What You Don't Do', v:'Introduce yourself. Explain services. Teach. Sell.', d:true},
+  ], cta:'None' },
+  { num:'02', funnel:'MoFu', fClass:'fl-mof', goal:'Build trust with people already watching', primary:'Instagram', cross:'TikTok, Facebook', format:'Reels, carousel, or static image', cells:[
+    {l:'Who You're Talking To', v:'Someone who found you and came to look around', d:false},
+    {l:'What They're Thinking', v:'Can this person actually do the thing? What does working with them look like?', d:false},
+    {l:'How You Meet Them', v:'Show your work and your process. Tethered screen, real-time review. Let the evidence talk.', d:false},
+    {l:'What It Looks Like', v:'Portfolio shots. Behind the scenes. Client seeing their photos for the first time.', d:false},
+    {l:'What You Don't Do', v:'Over-explain. Hard sell. List credentials.', d:true},
+  ], cta:'Soft — link in bio' },
+  { num:'03', funnel:'BoFu', fClass:'fl-bof', goal:'Remove friction for someone ready to book', primary:'Facebook', cross:'Instagram, TikTok', format:'Short video or simple graphic', cells:[
+    {l:'Who You're Talking To', v:'Someone standing at the door — just needs to find the handle', d:false},
+    {l:'What They're Thinking', v:'What does it cost. What do I wear. How long. What do I get.', d:false},
+    {l:'How You Meet Them', v:'Answer the questions a ready person already has. Making it easy to say yes.', d:false},
+    {l:'What It Looks Like', v:'Signature Session $175, 30 min, 10 images. What to wear. Experience start to finish.', d:false},
+    {l:'What You Don't Do', v:'Hard sell. Urgency tactics. Make it feel like an ad.', d:true},
+  ], cta:'Direct — DM me / link in bio' },
+];
+
+function renderWeekly() {
+  const el = document.getElementById('weekly-posts');
+  if (!el || el.dataset.rendered) return;
+  el.dataset.rendered = '1';
+  el.innerHTML = WEEKLY_POSTS.map(p => `
+    <div class="post-slot" style="border-left:3px solid ${p.funnel==='ToFu'?'var(--tof)':p.funnel==='MoFu'?'var(--mof)':'var(--bof)'}">
+      <div class="ps-head">
+        <span class="ps-num">${p.num}</span>
+        <span class="funnel-label ${p.fClass}">${p.funnel}</span>
+        <span class="ps-goal">${p.goal}</span>
+        <span class="ps-plat">Primary: ${p.primary}</span>
+      </div>
+      <div class="ps-cells">
+        ${p.cells.map(c=>`<div class="ps-cell"><div class="ps-clabel">${c.l}</div><div class="ps-cval${c.d?' dont':''}">${c.v}</div></div>`).join('')}
+      </div>
+      <div class="ps-meta">
+        <div class="ps-meta-cell"><div class="ps-meta-label">Primary Platform</div>${p.primary}</div>
+        <div class="ps-meta-cell"><div class="ps-meta-label">Cross-Post To</div>${p.cross}</div>
+        <div class="ps-meta-cell"><div class="ps-meta-label">Format</div>${p.format}</div>
+        <div class="ps-meta-cell"><div class="ps-meta-label">Call to Action</div>${p.cta}</div>
+      </div>
+    </div>`).join('');
+}
+
+const CONTENT_BANK = [
+  {id:1,stage:'ToFu',title:'Why you look completely different in photos than in real life',desc:'Real explanation — lens compression, the familiarity effect. Universal. Anyone who's hated a photo stops for this.',lanes:['All'],fmt:'Short video — talking head'},
+  {id:2,stage:'ToFu',title:'Why candid photos always look better than posed ones',desc:'Relatable to everyone, no photography knowledge needed.',lanes:['All'],fmt:'Short video'},
+  {id:3,stage:'ToFu',title:'The one phone setting that instantly makes portrait photos look better',desc:'Accessible, not gear-nerdy. Your client is the audience, not another photographer.',lanes:['All'],fmt:'Short video with phone demo'},
+  {id:4,stage:'ToFu',title:'Why everyone hates their own photos — and it's not vanity',desc:'Psychological explanation. Fascinating, broad, deeply relatable.',lanes:['All'],fmt:'Short video — talking head'},
+  {id:5,stage:'ToFu',title:'Why you look worse on Zoom than in real life',desc:'Everyone has felt this post-pandemic. Real answer involving focal length and distance.',lanes:['Lane 1'],fmt:'Short video'},
+  {id:6,stage:'ToFu',title:'How to take a better photo of someone with just your phone',desc:'Practical, useful, shareable. Your future client is taking photos of their family right now.',lanes:['Lane 3'],fmt:'Short video with demo'},
+  {id:7,stage:'ToFu',title:'The version of your family that exists right now won't exist in a year',desc:'Emotional, stops parents cold. Doesn't mention photography upfront — that's the point.',lanes:['Lane 3'],fmt:'Short video — voiceover with b-roll'},
+  {id:8,stage:'ToFu',title:'Why we have thousands of phone photos and almost none worth printing',desc:'Universally true. No photography knowledge needed.',lanes:['Lane 3'],fmt:'Short video or carousel'},
+  {id:9,stage:'ToFu',title:'What hiring managers actually notice first on your LinkedIn profile',desc:'Career lane entry point. The photo comes up naturally, not as a sales pitch.',lanes:['Lane 1'],fmt:'Short video — talking head'},
+  {id:10,stage:'ToFu',title:'Why group photos always have at least one person blinking',desc:'Funny, relatable, stops the scroll. Real explanation behind it.',lanes:['All'],fmt:'Short video — meme or talking head'},
+  {id:11,stage:'ToFu',title:'Why professional photos sometimes look "too stiff" — and how to avoid it',desc:'Myth-busting. Speaks to Lane 1 fear without requiring them to be in buying mode.',lanes:['Lane 1'],fmt:'Short video'},
+  {id:12,stage:'ToFu',title:'The reason you look better in the mirror than in photos',desc:'Self-image territory. Lane 2 connects hard with this but it's universal.',lanes:['Lane 2'],fmt:'Short video — talking head'},
+  {id:13,stage:'MoFu',title:'Client sees their portrait on the tethered screen for the first time',desc:'The reaction is the content. No narration needed. This is your process made visible.',lanes:['All'],fmt:'Short video — behind the scenes'},
+  {id:14,stage:'MoFu',title:'Before/after of natural retouching',desc:'What changes, what stays, why it matters. Shows your philosophy without explanation.',lanes:['All'],fmt:'Carousel or side-by-side video'},
+  {id:15,stage:'MoFu',title:'How you physically show someone a pose instead of just describing it',desc:'Makes your collaborative process real. People understand immediately why this works better.',lanes:['All'],fmt:'Short video — behind the scenes'},
+  {id:16,stage:'MoFu',title:'What the tethered screen actually looks like mid-session',desc:'Most people have never seen this. Showing it does more than explaining it ever could.',lanes:['All'],fmt:'Short video or carousel'},
+  {id:17,stage:'MoFu',title:'How you read the booking form before a client arrives',desc:'The camera comfort question. Shows that you've already thought about them before they walk in.',lanes:['All'],fmt:'Short video — talking head'},
+  {id:18,stage:'MoFu',title:'Portfolio — single strong portrait, Lane 1 professional',desc:'Clean, minimal. Your portfolio wall. Let the image speak.',lanes:['Lane 1'],fmt:'Static image'},
+  {id:19,stage:'MoFu',title:'Portfolio — single strong portrait, Lane 2 individual or grad',desc:'Clean, minimal. Your portfolio wall. Let the image speak.',lanes:['Lane 2'],fmt:'Static image'},
+  {id:20,stage:'MoFu',title:'Portfolio — family or couple, Lane 3',desc:'Clean, minimal. Genuine connection visible. Let the image speak.',lanes:['Lane 3'],fmt:'Static image'},
+  {id:21,stage:'MoFu',title:'Carousel — three portraits from a single session showing range',desc:'Same person, different expressions. Shows what a session actually produces.',lanes:['All'],fmt:'Carousel'},
+  {id:22,stage:'MoFu',title:'The moment someone goes from closed off to relaxed — what you actually did',desc:'Narrate what happened without making it about technique.',lanes:['All'],fmt:'Short video — talking head'},
+  {id:23,stage:'MoFu',title:'Side by side — phone selfie vs Phixo portrait, same person',desc:'No hype, no dramatic reveal. Just the honest difference.',lanes:['All'],fmt:'Carousel or split video'},
+  {id:24,stage:'MoFu',title:'Behind the scenes of session setup — lighting, screen, the space',desc:'Shows your studio, your method, your environment. Makes the abstract concrete.',lanes:['All'],fmt:'Short video or carousel'},
+  {id:25,stage:'BoFu',title:'What the Signature Session includes',desc:'$175. 30 minutes. 10 retouched images. Online gallery. Say it simply and clearly.',lanes:['All'],fmt:'Short video or graphic'},
+  {id:26,stage:'BoFu',title:'What to wear to a portrait session',desc:'One of the most-Googled questions before a shoot. Answer it and remove the barrier.',lanes:['All'],fmt:'Short video or carousel'},
+  {id:27,stage:'BoFu',title:'What happens from the moment you book to the moment you get your images',desc:'The full timeline. Booking, deposit, session, selection, delivery. No surprises.',lanes:['All'],fmt:'Short video or carousel'},
+  {id:28,stage:'BoFu',title:'What natural retouching actually means at Phixo',desc:'What changes, what doesn't, why. Answers a real objection before it gets asked.',lanes:['All'],fmt:'Short video or carousel'},
+  {id:29,stage:'BoFu',title:'Add-ons explained — when each one makes sense',desc:'Extra images, all proofs, rush turnaround. Practical, not salesy.',lanes:['All'],fmt:'Short video or graphic'},
+  {id:30,stage:'BoFu',title:'When sessions are available',desc:'Saturday mornings 9–1, Wednesday evenings 6–9. Makes it easy to picture actually booking.',lanes:['All'],fmt:'Simple graphic or short video'},
+  {id:31,stage:'BoFu',title:'Three questions people ask before booking — answered',desc:'FAQ format. Direct, clear, removes friction. Works as a pinned post.',lanes:['All'],fmt:'Carousel or short video'},
+  {id:32,stage:'BoFu',title:'Seasonal push — families in fall, grads in spring',desc:'Timely and specific. A soft deadline without manufactured urgency.',lanes:['Lane 2 & 3'],fmt:'Short video or graphic'},
+  {id:33,stage:'BoFu',title:'The 50% deposit policy explained',desc:'Why it exists, what it protects for both sides. Transparency builds trust.',lanes:['All'],fmt:'Short video — talking head'},
+  {id:34,stage:'BoFu',title:'How to book — the actual steps',desc:'Remove every point of friction. Some people just need to be shown the door handle.',lanes:['All'],fmt:'Short video or graphic'},
+  {id:35,stage:'BoFu',title:'What you walk away with — files, gallery, usage rights, timeline',desc:'Practical. Answers "but what do I actually get" directly.',lanes:['All'],fmt:'Carousel or short video'},
+  {id:36,stage:'BoFu',title:'Limited availability callout — spots open this month',desc:'Honest capacity note. 10-12 sessions max. Not a scarcity tactic — just true.',lanes:['All'],fmt:'Simple graphic or Stories'},
+];
+
+let bankFilter = 'all';
+let usedIdeas = JSON.parse(localStorage.getItem('phixo-used-ideas') || '{}');
+
+function filterBank(f, el) {
+  bankFilter = f;
+  document.querySelectorAll('.bfilt').forEach(b => b.classList.remove('on'));
+  if (el) el.classList.add('on');
+  renderBank();
+}
+
+function toggleUsed(id) {
+  usedIdeas[id] = !usedIdeas[id];
+  localStorage.setItem('phixo-used-ideas', JSON.stringify(usedIdeas));
+  renderBank();
+}
+
+function renderBank() {
+  const grid = document.getElementById('bank-grid');
+  const countEl = document.getElementById('bank-used-count');
+  if (!grid) return;
+  const items = bankFilter === 'all' ? CONTENT_BANK : CONTENT_BANK.filter(i => i.stage === bankFilter);
+  const usedCount = Object.values(usedIdeas).filter(Boolean).length;
+  if (countEl) countEl.textContent = usedCount + ' used · ' + (CONTENT_BANK.length - usedCount) + ' remaining';
+  const stageColor = {ToFu:'var(--tof)',MoFu:'var(--mof)',BoFu:'var(--bof)'};
+  const stageClass = {ToFu:'fl-tof',MoFu:'fl-mof',BoFu:'fl-bof'};
+  grid.innerHTML = items.map(item => `
+    <div class="bank-card${usedIdeas[item.id]?' used':''}" style="border-left-color:${stageColor[item.stage]}">
+      <div class="bc-top">
+        <span class="bc-num">${String(item.id).padStart(2,'0')}</span>
+        <span class="bc-title">${item.title}</span>
+      </div>
+      <div class="bc-desc">${item.desc}</div>
+      <div class="bc-foot">
+        <span class="funnel-label ${stageClass[item.stage]}">${item.stage}</span>
+        ${item.lanes.map(l=>`<span class="bc-tag">${l}</span>`).join('')}
+        <span class="bc-tag">${item.fmt}</span>
+        <button class="bc-used-btn${usedIdeas[item.id]?' marked':''}" onclick="toggleUsed(${item.id})">${usedIdeas[item.id]?'used':'mark used'}</button>
+      </div>
+    </div>`).join('');
+}
+
+const FORMATS = [
+  {platform:'Instagram',color:'#c13584',formats:[
+    {name:'Reels',stage:'ToFu / MoFu',sc:'fl-tof',why:'Pushed to non-followers — highest discovery on Instagram.',best:'Meme-style content for ToFu. Process, portfolio, BTS for MoFu.',cta:'None for ToFu. Soft for MoFu.'},
+    {name:'Carousel',stage:'MoFu',sc:'fl-mof',why:'Requires intent to swipe. Instagram resurfaces saved carousels.',best:'Before/after, portfolio sets, process walkthrough, saveable tips.',cta:'Soft — "save this" or "link in bio"'},
+    {name:'Static Image',stage:'MoFu',sc:'fl-mof',why:'Less algorithmic push. Mostly reaches existing followers.',best:'Single strong portraits across all three lanes.',cta:'None or very soft'},
+    {name:'Stories',stage:'MoFu / BoFu',sc:'fl-mof',why:'Existing followers only — zero discovery. Warm audience.',best:'Sneak peeks, polls, booking prompts, availability.',cta:'Direct — link sticker, "DM me"'},
+    {name:'Live',stage:'MoFu / BoFu',sc:'fl-mof',why:'Notifies followers. No discovery reach. Low priority.',best:'Studio tour, Q&A about sessions.',cta:'Direct — "DM me to book"'},
+  ]},
+  {platform:'TikTok',color:'#888',formats:[
+    {name:'Standard Video',stage:'ToFu / MoFu',sc:'fl-tof',why:'Strongest discovery algorithm of the three platforms.',best:'Meme formats, trending audio for ToFu. Process, BTS for MoFu.',cta:'None for ToFu. Soft for MoFu.'},
+    {name:'Photo Mode (Slideshow)',stage:'MoFu',sc:'fl-mof',why:'FYP distribution but requires intent to swipe.',best:'Portfolio sets, side-by-side comparisons, session range.',cta:'Soft — "link in bio"'},
+    {name:'Duet / Stitch',stage:'ToFu',sc:'fl-tof',why:'Attach to already-performing content and inherit its reach.',best:'React to "I hate photos of me" clips. Respond to photography myths.',cta:'None'},
+    {name:'Live',stage:'MoFu / BoFu',sc:'fl-mof',why:'Can appear to non-followers in Live tab.',best:'Studio walkthrough, editing in real time, booking Q&A.',cta:'Direct — "link in bio to book"'},
+  ]},
+  {platform:'Facebook',color:'#1877f2',formats:[
+    {name:'Feed Video',stage:'MoFu / BoFu',sc:'fl-mof',why:'Organic reach is low — existing followers and local Montreal / West Island network.',best:'Session walkthroughs, what to expect, repurposed Reels.',cta:'Soft to direct'},
+    {name:'Feed Post (Text / Image)',stage:'BoFu',sc:'fl-bof',why:'Lowest reach. Almost exclusively existing followers and local word-of-mouth.',best:'Availability, pricing, session inclusions, booking prompts.',cta:'Direct — "DM me" or "book through the link"'},
+    {name:'Stories',stage:'BoFu',sc:'fl-bof',why:'Existing followers only. Casual, quick, direct.',best:'Last-minute availability. Repurposed Instagram Stories.',cta:'Direct'},
+    {name:'Events',stage:'BoFu',sc:'fl-bof',why:'One of the few formats that can still reach beyond followers through RSVPs.',best:'Mini session days, seasonal promos with a specific date.',cta:'Direct — RSVP or booking link'},
+    {name:'Groups',stage:'ToFu / BoFu',sc:'fl-tof',why:'Local Montreal/West Island groups — one of the only organic ways to reach strangers on Facebook.',best:'West Island community groups, responding to photographer recs.',cta:'Direct but conversational'},
+  ]},
+];
+
+function renderFormats() {
+  const el = document.getElementById('formats-body');
+  if (!el || el.dataset.rendered) return;
+  el.dataset.rendered = '1';
+  el.innerHTML = FORMATS.map(p => `
+    <div class="fmt-platform">
+      <div class="fmt-plat-name" style="color:${p.color}">${p.platform}</div>
+      <table class="stab-table">
+        <thead><tr><th>Format</th><th>Stage</th><th>Why This Stage</th><th>Best For</th><th>Call to Action</th></tr></thead>
+        <tbody>
+          ${p.formats.map(f=>`<tr>
+            <td><strong>${f.name}</strong></td>
+            <td><span class="funnel-label ${f.sc}">${f.stage}</span></td>
+            <td>${f.why}</td>
+            <td>${f.best}</td>
+            <td>${f.cta}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`).join('');
+}
+
 </script>
 <!-- Ask Library Modal -->
 <div class="mbg off" id="m-ask-library">
