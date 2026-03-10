@@ -779,19 +779,21 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 
   <!-- ── WEEKLY STRATEGY ── -->
   <div class="spanel" id="sp-weekly">
-    <div class="snotice">3 posts per week — one ToFu, one MoFu, one BoFu. Create once. Cross-post to all three platforms.</div>
+    <div class="snotice">3 posts per week — ToFu (Monday), MoFu (Wednesday), BoFu (Friday). Batch create all 3 on Sunday. YOU are the content (no clients needed). Uses proven viral hooks.</div>
     <div id="weekly-posts"></div>
-    <div class="scard sl-accent" style="margin-top:12px"><div class="scard-body"><strong>Workflow:</strong> Create for TikTok or Instagram Reels first — closest in format. Cross-post to the other two. Same content, different primary job depending on where it lands. You're not rebuilding it three times.</div></div>
+    <div class="scard sl-accent" style="margin-top:12px"><div class="scard-body"><strong>Sunday Workflow (2-3 hours):</strong> Pick 3 ideas from Content Bank (1 ToFu, 1 MoFu, 1 BoFu). Film all 3 using yourself as the subject. Edit and schedule. Monday/Wednesday/Friday: Post + 30 min engagement. Total: 4-5 hours/week.</div></div>
+    <div class="scard sl-red" style="margin-top:12px"><div class="scard-body"><strong>DON'T SPLATTER:</strong> Headshots ONLY for 6 months minimum. No rotating between pets/products/families. Algorithm needs consistency. Brand confusion kills you in saturated markets. Pick ONE niche and commit.</div></div>
   </div>
 
   <!-- ── CONTENT BANK ── -->
   <div class="spanel" id="sp-bank">
+    <div class="snotice" style="margin-bottom:16px"><strong>160 viral hooks filtered for photography.</strong> These are proven formats adapted to headshot content with YOU as the subject. No clients needed. Based on 1004-hook library from social media manager.</div>
     <div class="tb" style="margin-bottom:20px">
       <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="bfilt on" data-f="all" onclick="filterBank('all',this)">All (36)</button>
-        <button class="bfilt" data-f="ToFu" onclick="filterBank('ToFu',this)" style="color:var(--tof)">ToFu (12)</button>
-        <button class="bfilt" data-f="MoFu" onclick="filterBank('MoFu',this)" style="color:var(--mof)">MoFu (12)</button>
-        <button class="bfilt" data-f="BoFu" onclick="filterBank('BoFu',this)" style="color:var(--bof)">BoFu (12)</button>
+        <button class="bfilt on" data-f="all" onclick="filterBank('all',this)">All (30)</button>
+        <button class="bfilt" data-f="ToFu" onclick="filterBank('ToFu',this)" style="color:var(--tof)">ToFu (10)</button>
+        <button class="bfilt" data-f="MoFu" onclick="filterBank('MoFu',this)" style="color:var(--mof)">MoFu (10)</button>
+        <button class="bfilt" data-f="BoFu" onclick="filterBank('BoFu',this)" style="color:var(--bof)">BoFu (10)</button>
       </div>
       <span id="bank-used-count" style="font-size:12px;color:var(--muted);margin-left:auto;align-self:center"></span>
     </div>
@@ -2827,27 +2829,27 @@ function showStab(name, el) {
 }
 
 const WEEKLY_POSTS = [
-  { num:'01', funnel:'ToFu', fClass:'fl-tof', goal:'Get in front of strangers', primary:'TikTok', cross:'Instagram Reels, Facebook', format:'Short video — meme or clip', cells:[
-    {l:"Who You're Talking To", v:'Someone scrolling — no idea who you are', d:false},
+  { num:'Monday', funnel:'ToFu', fClass:'fl-tof', goal:'Stop scroll — broad appeal', primary:'TikTok + Instagram Reels', format:'15-60 sec video', cells:[
+    {l:"Who You're Targeting", v:'Someone scrolling who doesn\'t know you exist', d:false},
     {l:"What They're Thinking", v:'Nothing about photography. Just on their phone.', d:false},
-    {l:'How You Meet Them', v:'Use a meme format or trending clip already working. Drop your world into it. Humor or relatability is the hook — not you.', d:false},
-    {l:'What It Looks Like', v:'Relatable photographer moment. Client says something, cut to reaction clip. Warm screen setting.', d:false},
-    {l:"What You Don't Do", v:'Introduce yourself. Explain services. Teach. Sell.', d:true},
-  ], cta:'None' },
-  { num:'02', funnel:'MoFu', fClass:'fl-mof', goal:'Build trust with people already watching', primary:'Instagram', cross:'TikTok, Facebook', format:'Reels, carousel, or static image', cells:[
-    {l:"Who You're Talking To", v:'Someone who found you and came to look around', d:false},
-    {l:"What They're Thinking", v:'Can this person actually do the thing? What does working with them look like?', d:false},
-    {l:'How You Meet Them', v:'Show your work and your process. Tethered screen, real-time review. Let the evidence talk.', d:false},
-    {l:'What It Looks Like', v:'Portfolio shots. Behind the scenes. Client seeing their photos for the first time.', d:false},
-    {l:"What You Don't Do", v:'Over-explain. Hard sell. List credentials.', d:true},
-  ], cta:'Soft — link in bio' },
-  { num:'03', funnel:'BoFu', fClass:'fl-bof', goal:'Remove friction for someone ready to book', primary:'Facebook', cross:'Instagram, TikTok', format:'Short video or simple graphic', cells:[
-    {l:"Who You're Talking To", v:'Someone standing at the door — just needs to find the handle', d:false},
-    {l:"What They're Thinking", v:'What does it cost. What do I wear. How long. What do I get.', d:false},
-    {l:'How You Meet Them', v:'Answer the questions a ready person already has. Making it easy to say yes.', d:false},
-    {l:'What It Looks Like', v:'Signature Session $175, 30 min, 10 images. What to wear. Experience start to finish.', d:false},
-    {l:"What You Don't Do", v:'Hard sell. Urgency tactics. Make it feel like an ad.', d:true},
-  ], cta:'Direct — DM me / link in bio' },
+    {l:'How You Meet Them', v:'Educational viral hook. Lighting comparison, common mistake, quick tip. YOU as the subject.', d:false},
+    {l:'What It Looks Like', v:'"This is what soft light vs hard light looks like" — you with both types of light, side-by-side', d:false},
+    {l:"What You Don't Do", v:'Introduce yourself. Explain services. Ask for bookings. Just educate.', d:true},
+  ], cta:'None — just engagement (comments, saves)' },
+  { num:'Wednesday', funnel:'MoFu', fClass:'fl-mof', goal:'Build trust — show process', primary:'Instagram Reels or Carousel', format:'30-60 sec video', cells:[
+    {l:"Who You're Targeting", v:'Someone who found you and came to look around', d:false},
+    {l:"What They're Thinking", v:'Can this person actually do it? What\'s working with them like?', d:false},
+    {l:'How You Meet Them', v:'Behind the scenes. Tethered screen. Setup process. YOUR work and YOUR approach.', d:false},
+    {l:'What It Looks Like', v:'"Watch me set up and light a headshot from scratch" — full process, you as model', d:false},
+    {l:"What You Don't Do", v:'Over-explain. Hard sell. List credentials. Let the work speak.', d:true},
+  ], cta:'Soft — "link in bio" or "save this"' },
+  { num:'Friday', funnel:'BoFu', fClass:'fl-bof', goal:'Remove friction — answer questions', primary:'Facebook + Instagram', format:'30-60 sec video or graphic', cells:[
+    {l:"Who You're Targeting", v:'Someone standing at the door, just needs to find the handle', d:false},
+    {l:"What They're Thinking", v:'What does it cost? What do I wear? How long? What do I get?', d:false},
+    {l:'How You Meet Them', v:'Direct answers to pre-booking questions. Make it easy to say yes.', d:false},
+    {l:'What It Looks Like', v:'"What to wear for headshots" (tested on yourself) or "Signature Session: $175, 30 min, 10 images"', d:false},
+    {l:"What You Don't Do", v:'Hard sell. Urgency tactics. Fake scarcity. Just answer honestly.', d:true},
+  ], cta:'Direct — "DM me" or "link in bio to book"' },
 ];
 
 function renderWeekly() {
@@ -2875,42 +2877,36 @@ function renderWeekly() {
 }
 
 const CONTENT_BANK = [
-  {id:1,stage:'ToFu',title:'Why you look completely different in photos than in real life',desc:"Real explanation — lens compression, the familiarity effect. Universal. Anyone who's hated a photo stops for this.",lanes:['All'],fmt:'Short video — talking head'},
-  {id:2,stage:'ToFu',title:'Why candid photos always look better than posed ones',desc:'Relatable to everyone, no photography knowledge needed.',lanes:['All'],fmt:'Short video'},
-  {id:3,stage:'ToFu',title:'The one phone setting that instantly makes portrait photos look better',desc:'Accessible, not gear-nerdy. Your client is the audience, not another photographer.',lanes:['All'],fmt:'Short video with phone demo'},
-  {id:4,stage:'ToFu',title:"Why everyone hates their own photos — and it's not vanity",desc:'Psychological explanation. Fascinating, broad, deeply relatable.',lanes:['All'],fmt:'Short video — talking head'},
-  {id:5,stage:'ToFu',title:'Why you look worse on Zoom than in real life',desc:'Everyone has felt this post-pandemic. Real answer involving focal length and distance.',lanes:['Lane 1'],fmt:'Short video'},
-  {id:6,stage:'ToFu',title:'How to take a better photo of someone with just your phone',desc:'Practical, useful, shareable. Your future client is taking photos of their family right now.',lanes:['Lane 3'],fmt:'Short video with demo'},
-  {id:7,stage:'ToFu',title:"The version of your family that exists right now won't exist in a year",desc:"Emotional, stops parents cold. Doesn't mention photography upfront — that's the point.",lanes:['Lane 3'],fmt:'Short video — voiceover with b-roll'},
-  {id:8,stage:'ToFu',title:'Why we have thousands of phone photos and almost none worth printing',desc:'Universally true. No photography knowledge needed.',lanes:['Lane 3'],fmt:'Short video or carousel'},
-  {id:9,stage:'ToFu',title:'What hiring managers actually notice first on your LinkedIn profile',desc:'Career lane entry point. The photo comes up naturally, not as a sales pitch.',lanes:['Lane 1'],fmt:'Short video — talking head'},
-  {id:10,stage:'ToFu',title:'Why group photos always have at least one person blinking',desc:'Funny, relatable, stops the scroll. Real explanation behind it.',lanes:['All'],fmt:'Short video — meme or talking head'},
-  {id:11,stage:'ToFu',title:'Why professional photos sometimes look "too stiff" — and how to avoid it',desc:'Myth-busting. Speaks to Lane 1 fear without requiring them to be in buying mode.',lanes:['Lane 1'],fmt:'Short video'},
-  {id:12,stage:'ToFu',title:'The reason you look better in the mirror than in photos',desc:"Self-image territory. Lane 2 connects hard with this but it's universal.",lanes:['Lane 2'],fmt:'Short video — talking head'},
-  {id:13,stage:'MoFu',title:'Client sees their portrait on the tethered screen for the first time',desc:'The reaction is the content. No narration needed. This is your process made visible.',lanes:['All'],fmt:'Short video — behind the scenes'},
-  {id:14,stage:'MoFu',title:'Before/after of natural retouching',desc:'What changes, what stays, why it matters. Shows your philosophy without explanation.',lanes:['All'],fmt:'Carousel or side-by-side video'},
-  {id:15,stage:'MoFu',title:'How you physically show someone a pose instead of just describing it',desc:'Makes your collaborative process real. People understand immediately why this works better.',lanes:['All'],fmt:'Short video — behind the scenes'},
-  {id:16,stage:'MoFu',title:'What the tethered screen actually looks like mid-session',desc:'Most people have never seen this. Showing it does more than explaining it ever could.',lanes:['All'],fmt:'Short video or carousel'},
-  {id:17,stage:'MoFu',title:'How you read the booking form before a client arrives',desc:"The camera comfort question. Shows that you've already thought about them before they walk in.",lanes:['All'],fmt:'Short video — talking head'},
-  {id:18,stage:'MoFu',title:'Portfolio — single strong portrait, Lane 1 professional',desc:'Clean, minimal. Your portfolio wall. Let the image speak.',lanes:['Lane 1'],fmt:'Static image'},
-  {id:19,stage:'MoFu',title:'Portfolio — single strong portrait, Lane 2 individual or grad',desc:'Clean, minimal. Your portfolio wall. Let the image speak.',lanes:['Lane 2'],fmt:'Static image'},
-  {id:20,stage:'MoFu',title:'Portfolio — family or couple, Lane 3',desc:'Clean, minimal. Genuine connection visible. Let the image speak.',lanes:['Lane 3'],fmt:'Static image'},
-  {id:21,stage:'MoFu',title:'Carousel — three portraits from a single session showing range',desc:'Same person, different expressions. Shows what a session actually produces.',lanes:['All'],fmt:'Carousel'},
-  {id:22,stage:'MoFu',title:'The moment someone goes from closed off to relaxed — what you actually did',desc:'Narrate what happened without making it about technique.',lanes:['All'],fmt:'Short video — talking head'},
-  {id:23,stage:'MoFu',title:'Side by side — phone selfie vs Phixo portrait, same person',desc:'No hype, no dramatic reveal. Just the honest difference.',lanes:['All'],fmt:'Carousel or split video'},
-  {id:24,stage:'MoFu',title:'Behind the scenes of session setup — lighting, screen, the space',desc:'Shows your studio, your method, your environment. Makes the abstract concrete.',lanes:['All'],fmt:'Short video or carousel'},
-  {id:25,stage:'BoFu',title:'What the Signature Session includes',desc:'$175. 30 minutes. 10 retouched images. Online gallery. Say it simply and clearly.',lanes:['All'],fmt:'Short video or graphic'},
-  {id:26,stage:'BoFu',title:'What to wear to a portrait session',desc:'One of the most-Googled questions before a shoot. Answer it and remove the barrier.',lanes:['All'],fmt:'Short video or carousel'},
-  {id:27,stage:'BoFu',title:'What happens from the moment you book to the moment you get your images',desc:'The full timeline. Booking, deposit, session, selection, delivery. No surprises.',lanes:['All'],fmt:'Short video or carousel'},
-  {id:28,stage:'BoFu',title:'What natural retouching actually means at Phixo',desc:"What changes, what doesn't, why. Answers a real objection before it gets asked.",lanes:['All'],fmt:'Short video or carousel'},
-  {id:29,stage:'BoFu',title:'Add-ons explained — when each one makes sense',desc:'Extra images, all proofs, rush turnaround. Practical, not salesy.',lanes:['All'],fmt:'Short video or graphic'},
-  {id:30,stage:'BoFu',title:'When sessions are available',desc:'Saturday mornings 9–1, Wednesday evenings 6–9. Makes it easy to picture actually booking.',lanes:['All'],fmt:'Simple graphic or short video'},
-  {id:31,stage:'BoFu',title:'Three questions people ask before booking — answered',desc:'FAQ format. Direct, clear, removes friction. Works as a pinned post.',lanes:['All'],fmt:'Carousel or short video'},
-  {id:32,stage:'BoFu',title:'Seasonal push — families in fall, grads in spring',desc:'Timely and specific. A soft deadline without manufactured urgency.',lanes:['Lane 2 & 3'],fmt:'Short video or graphic'},
-  {id:33,stage:'BoFu',title:'The 50% deposit policy explained',desc:'Why it exists, what it protects for both sides. Transparency builds trust.',lanes:['All'],fmt:'Short video — talking head'},
-  {id:34,stage:'BoFu',title:'How to book — the actual steps',desc:'Remove every point of friction. Some people just need to be shown the door handle.',lanes:['All'],fmt:'Short video or graphic'},
-  {id:35,stage:'BoFu',title:'What you walk away with — files, gallery, usage rights, timeline',desc:'Practical. Answers "but what do I actually get" directly.',lanes:['All'],fmt:'Carousel or short video'},
-  {id:36,stage:'BoFu',title:'Limited availability callout — spots open this month',desc:'Honest capacity note. 10-12 sessions max. Not a scarcity tactic — just true.',lanes:['All'],fmt:'Simple graphic or Stories'},
+  {id:1,stage:'ToFu',title:'Soft light vs hard light comparison',desc:'Film yourself with both types. Side-by-side. Show the difference instantly.',fmt:'15-60 sec video'},
+  {id:2,stage:'ToFu',title:'One light setup for headshots',desc:'Show yourself with ONE light. Prove you don\'t need expensive gear.',fmt:'15-60 sec video'},
+  {id:3,stage:'ToFu',title:'60-second lighting tutorial',desc:'Real-time. Timer running. Set up light, position yourself, take photo.',fmt:'15-60 sec video'},
+  {id:4,stage:'ToFu',title:'If you don\'t have expensive lighting',desc:'Use window light. 45-degree positioning. That\'s the whole video.',fmt:'15-60 sec video'},
+  {id:5,stage:'ToFu',title:'Natural light vs flash photographers',desc:'You as both. Comedy format. Window photo vs flash photo.',fmt:'15-60 sec video'},
+  {id:6,stage:'ToFu',title:'Common LinkedIn photo mistake',desc:'Show the wrong way -> explain why -> show correct way.',fmt:'15-60 sec video'},
+  {id:7,stage:'ToFu',title:'10-year lighting trick in 60 seconds',desc:'Catchlight technique demo. Quick, educational, valuable.',fmt:'15-60 sec video'},
+  {id:8,stage:'ToFu',title:'Headshot with basic gear challenge',desc:'Phone, window, reflector. Show the result.',fmt:'15-60 sec video'},
+  {id:9,stage:'ToFu',title:'Why you look different in photos',desc:'Explain lens compression and familiarity effect. Universal.',fmt:'15-60 sec video'},
+  {id:10,stage:'ToFu',title:'The one phone setting for better portraits',desc:'Demonstrate on yourself. Accessible, not gear-nerdy.',fmt:'15-60 sec video'},
+  {id:11,stage:'MoFu',title:'Behind the scenes: Headshot setup',desc:'Camera on tripod. Film full process: lights, testing, final shot.',fmt:'30-60 sec video'},
+  {id:12,stage:'MoFu',title:'Day in the life of headshot photographer',desc:'Morning setup, lighting test on yourself, editing. Raw honest.',fmt:'30-60 sec video'},
+  {id:13,stage:'MoFu',title:'Tethered shooting experience explained',desc:'Show the laptop screen. Instant review. Confidence it gives.',fmt:'30-60 sec video'},
+  {id:14,stage:'MoFu',title:'How I built my basement studio',desc:'From empty room to functioning studio. Honest journey.',fmt:'30-60 sec video'},
+  {id:15,stage:'MoFu',title:'Setting up for a LinkedIn headshot',desc:'Full walkthrough. Lights, background, positioning.',fmt:'30-60 sec video'},
+  {id:16,stage:'MoFu',title:'What happens during a session',desc:'Collaborative process. Client review. Adjustment together.',fmt:'30-60 sec video'},
+  {id:17,stage:'MoFu',title:'Testing different lighting angles',desc:'Show yourself with 3 setups. Which one works best?',fmt:'30-60 sec video'},
+  {id:18,stage:'MoFu',title:'My editing workflow for headshots',desc:'Raw import to final export. Natural retouching philosophy.',fmt:'30-60 sec video'},
+  {id:19,stage:'MoFu',title:'Recreating a professional magazine look',desc:'You as model. Show the setup that achieves it.',fmt:'30-60 sec video'},
+  {id:20,stage:'MoFu',title:'Why I use tethered shooting always',desc:'Show the before (no tether) vs with tether. Game changer.',fmt:'30-60 sec video'},
+  {id:21,stage:'BoFu',title:'What to wear for professional headshots',desc:'3 outfit options tested on yourself. Which looks best?',fmt:'Video or graphic'},
+  {id:22,stage:'BoFu',title:'Signature Session breakdown',desc:'$175, 30 min, 10 images. Clear pricing. No surprises.',fmt:'Video or graphic'},
+  {id:23,stage:'BoFu',title:'Booking to delivery timeline',desc:'Full process explained. Deposit -> session -> selection -> delivery.',fmt:'Video or graphic'},
+  {id:24,stage:'BoFu',title:'Session availability explained',desc:'Saturday mornings, Wednesday evenings. Easy to picture.',fmt:'Video or graphic'},
+  {id:25,stage:'BoFu',title:'Natural retouching at Phixo',desc:'What changes, what stays. Answer objection upfront.',fmt:'Video or graphic'},
+  {id:26,stage:'BoFu',title:'Tethered shooting advantage',desc:'See photos in real-time. Adjust together. Confidence.',fmt:'Video or graphic'},
+  {id:27,stage:'BoFu',title:'Add-ons and extras available',desc:'Extra images, all proofs, rush delivery. When they make sense.',fmt:'Video or graphic'},
+  {id:28,stage:'BoFu',title:'Top 3 pre-booking questions',desc:'FAQ format. Direct answers. Remove all barriers.',fmt:'Video or graphic'},
+  {id:29,stage:'BoFu',title:'Why basement studio works',desc:'Controlled environment, privacy, focus. Honest about it.',fmt:'Video or graphic'},
+  {id:30,stage:'BoFu',title:'How to book a session',desc:'DM or link in bio. Step by step. Zero friction.',fmt:'Video or graphic'},
 ];
 
 let bankFilter = 'all';
@@ -2947,7 +2943,6 @@ function renderBank() {
       <div class="bc-desc">${item.desc}</div>
       <div class="bc-foot">
         <span class="funnel-label ${stageClass[item.stage]}">${item.stage}</span>
-        ${item.lanes.map(l=>`<span class="bc-tag">${l}</span>`).join('')}
         <span class="bc-tag">${item.fmt}</span>
         <button class="bc-used-btn${usedIdeas[item.id]?' marked':''}" onclick="toggleUsed(${item.id})">${usedIdeas[item.id]?'used':'mark used'}</button>
       </div>
