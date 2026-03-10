@@ -4,19 +4,24 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Phixo Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#f5f4f0;--surface:#fff;--surface-2:#f9f8f5;--border:#e4e2d8;
-  --text:#16160e;--muted:#8c8a78;--accent:#c8a96e;--accent-light:#faf4ea;
-  --nav:#111108;--nav2:#1a1a0f;--nav-text:#777760;--nav-active:#fff;
-  --hot:#d94040;--warm:#c07820;--cold:#3a7abd;
-  --tof:#4a7c59;--mof:#5a6a9e;--bof:#9e5a5a;
-  --r:10px;--sh:0 2px 16px rgba(0,0,0,.07);--nw:220px
+  --bg:#F0E8DB;--surface:#fff;--surface-2:#E8DDD0;--border:#D4C5B0;
+  --text:#2A1F18;--muted:#6B5346;--accent:#B8673E;--accent-light:#C97E57;
+  --nav:#2A1F18;--nav2:#3a2f28;--nav-text:#9C8070;--nav-active:#F0E8DB;
+  --hot:#B8673E;--warm:#C97E57;--cold:#7C5C48;
+  --tof:#7C5C48;--mof:#B8673E;--bof:#9C8070;
+  --r:10px;--sh:0 2px 16px rgba(42,31,24,.07);--nw:220px;
+  --caslon:'Libre Caslon Text',Georgia,serif;
+  --hind:'Hind',system-ui,sans-serif;
 }
-body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex}
+body{font-family:var(--hind);background:var(--bg);color:var(--text);min-height:100vh;display:flex}
 #nav{width:var(--nw);min-height:100vh;background:var(--nav);display:flex;flex-direction:column;position:fixed;top:0;left:0;z-index:100;border-right:1px solid #1e1e12}
-.nav-logo{padding:22px 20px 16px;font-size:16px;font-weight:700;color:#fff}
+.nav-logo{padding:22px 20px 16px;font-size:18px;font-weight:400;color:var(--nav-active);font-family:var(--caslon);letter-spacing:0.08em}
 .nav-logo span{color:var(--accent)}
 .nav-section{padding:14px 12px 4px;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#383828;font-weight:600}
 .nb{display:flex;align-items:center;gap:9px;padding:8px 12px;margin:1px 6px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:500;color:var(--nav-text);border:none;background:none;width:calc(100% - 12px);text-align:left;transition:all .12s}
@@ -30,8 +35,8 @@ body{font-family:system-ui,sans-serif;background:var(--bg);color:var(--text);min
 .view{display:none;padding:36px 40px;max-width:1100px}
 .view.on{display:block}
 .ph{margin-bottom:26px}
-.ph h1{font-size:22px;font-weight:800;letter-spacing:-.4px}
-.ph h1 em{font-style:normal;color:var(--accent)}
+.ph h1{font-size:28px;font-weight:400;letter-spacing:-.01em;font-family:var(--caslon)}
+.ph h1 em{font-style:italic;color:var(--accent)}
 .ph p{color:var(--muted);font-size:13px;margin-top:3px}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .12s;white-space:nowrap;font-family:inherit}
 .btn-dark{background:var(--text);color:#fff}.btn-dark:hover{background:#2a2a18}
@@ -363,13 +368,13 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .stab:hover{color:var(--text)}
 .stab.on{color:var(--accent);border-bottom-color:var(--accent)}
 .spanel{display:none}.spanel.on{display:block}
-.sh2{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:12px}
-.scard-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.scard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px}
+.sh2{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:var(--muted);margin-bottom:16px;font-family:var(--hind)}
+.scard-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.scard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px 22px;box-shadow:var(--sh)}
 .scard.sl-accent{border-left:3px solid var(--accent)}
-.scard.sl-red{border-left:3px solid #d94040}
-.scard-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);margin-bottom:8px}
-.scard-body{font-size:13px;color:var(--text);line-height:1.6}
+.scard.sl-red{border-left:3px solid var(--hot)}
+.scard-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.8px;color:var(--accent);margin-bottom:10px;font-family:var(--hind)}
+.scard-body{font-size:14px;color:var(--text);line-height:1.75;font-family:var(--hind);font-weight:400}
 .dont-item{padding:4px 0;color:#c04040;font-size:13px;line-height:1.5;border-bottom:1px solid var(--bg)}
 .dont-item:last-child{border-bottom:none}
 .proof-pill{background:var(--bg);border:1px solid var(--accent);border-radius:20px;padding:4px 12px;font-size:11px;color:var(--accent);font-weight:600}
