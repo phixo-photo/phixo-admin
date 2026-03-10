@@ -418,17 +418,18 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .bfilt{background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:5px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .12s}
 .bfilt:hover{border-color:var(--accent)}
 .bfilt.on{background:var(--accent-light);border-color:var(--accent);color:var(--accent)}
-.bank-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;position:relative;border-left:3px solid}
-.bank-card.used{opacity:.35}
-.bc-top{display:flex;align-items:flex-start;gap:8px;margin-bottom:6px}
-.bc-num{font-size:10px;color:var(--muted);min-width:22px;padding-top:2px}
-.bc-title{font-size:13px;font-weight:600;line-height:1.4;flex:1}
+.bank-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;position:relative;border-left:3px solid;transition:all .2s}
+.bank-card:hover{box-shadow:var(--sh);transform:translateY(-1px)}
+.bank-card.used{opacity:.4}
+.bc-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:4px}
+.bc-num{font-size:11px;color:var(--accent);min-width:24px;padding-top:2px;font-weight:700;font-family:var(--hind)}
+.bc-title{font-size:14px;font-weight:600;line-height:1.4;flex:1;font-family:var(--hind)}
 .bc-desc{font-size:12px;color:var(--muted);line-height:1.55;padding-left:30px;margin-bottom:8px}
 .bc-foot{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding-left:30px}
 .bc-tag{background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:1px 8px;font-size:10px;color:var(--muted)}
-.bc-used-btn{margin-left:auto;background:none;border:1px solid var(--border);border-radius:4px;padding:2px 9px;font-size:10px;cursor:pointer;font-family:inherit;color:var(--muted);transition:all .15s}
-.bc-used-btn:hover{border-color:var(--tof);color:var(--tof)}
-.bc-used-btn.marked{border-color:var(--tof);color:var(--tof);background:#e8f4ec}
+.bc-used-btn{margin-left:auto;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 10px;font-size:10px;cursor:pointer;font-family:var(--hind);color:var(--muted);transition:all .15s;font-weight:500}
+.bc-used-btn:hover{border-color:var(--accent);color:var(--accent)}
+.bc-used-btn.marked{border-color:var(--accent);color:var(--accent);background:rgba(184,103,62,.1)}
 .fmt-platform{margin-bottom:28px}
 .fmt-plat-name{font-size:16px;font-weight:800;margin-bottom:8px;padding-bottom:8px;border-bottom:2px solid var(--border)}
 @media(max-width:900px){.wf-grid{grid-template-columns:repeat(4,1fr)}.stat-row{grid-template-columns:repeat(3,1fr)}}
@@ -2882,37 +2883,367 @@ function renderWeekly() {
 }
 
 const CONTENT_BANK = [
-  {id:1,stage:'ToFu',title:'Soft light vs hard light comparison',desc:'Film yourself with both types. Side-by-side. Show the difference instantly.',fmt:'15-60 sec video'},
-  {id:2,stage:'ToFu',title:'One light setup for headshots',desc:'Show yourself with ONE light. Prove you don\'t need expensive gear.',fmt:'15-60 sec video'},
-  {id:3,stage:'ToFu',title:'60-second lighting tutorial',desc:'Real-time. Timer running. Set up light, position yourself, take photo.',fmt:'15-60 sec video'},
-  {id:4,stage:'ToFu',title:'If you don\'t have expensive lighting',desc:'Use window light. 45-degree positioning. That\'s the whole video.',fmt:'15-60 sec video'},
-  {id:5,stage:'ToFu',title:'Natural light vs flash photographers',desc:'You as both. Comedy format. Window photo vs flash photo.',fmt:'15-60 sec video'},
-  {id:6,stage:'ToFu',title:'Common LinkedIn photo mistake',desc:'Show the wrong way -> explain why -> show correct way.',fmt:'15-60 sec video'},
-  {id:7,stage:'ToFu',title:'10-year lighting trick in 60 seconds',desc:'Catchlight technique demo. Quick, educational, valuable.',fmt:'15-60 sec video'},
-  {id:8,stage:'ToFu',title:'Headshot with basic gear challenge',desc:'Phone, window, reflector. Show the result.',fmt:'15-60 sec video'},
-  {id:9,stage:'ToFu',title:'Why you look different in photos',desc:'Explain lens compression and familiarity effect. Universal.',fmt:'15-60 sec video'},
-  {id:10,stage:'ToFu',title:'The one phone setting for better portraits',desc:'Demonstrate on yourself. Accessible, not gear-nerdy.',fmt:'15-60 sec video'},
-  {id:11,stage:'MoFu',title:'Behind the scenes: Headshot setup',desc:'Camera on tripod. Film full process: lights, testing, final shot.',fmt:'30-60 sec video'},
-  {id:12,stage:'MoFu',title:'Day in the life of headshot photographer',desc:'Morning setup, lighting test on yourself, editing. Raw honest.',fmt:'30-60 sec video'},
-  {id:13,stage:'MoFu',title:'Tethered shooting experience explained',desc:'Show the laptop screen. Instant review. Confidence it gives.',fmt:'30-60 sec video'},
-  {id:14,stage:'MoFu',title:'How I built my basement studio',desc:'From empty room to functioning studio. Honest journey.',fmt:'30-60 sec video'},
-  {id:15,stage:'MoFu',title:'Setting up for a LinkedIn headshot',desc:'Full walkthrough. Lights, background, positioning.',fmt:'30-60 sec video'},
-  {id:16,stage:'MoFu',title:'What happens during a session',desc:'Collaborative process. Client review. Adjustment together.',fmt:'30-60 sec video'},
-  {id:17,stage:'MoFu',title:'Testing different lighting angles',desc:'Show yourself with 3 setups. Which one works best?',fmt:'30-60 sec video'},
-  {id:18,stage:'MoFu',title:'My editing workflow for headshots',desc:'Raw import to final export. Natural retouching philosophy.',fmt:'30-60 sec video'},
-  {id:19,stage:'MoFu',title:'Recreating a professional magazine look',desc:'You as model. Show the setup that achieves it.',fmt:'30-60 sec video'},
-  {id:20,stage:'MoFu',title:'Why I use tethered shooting always',desc:'Show the before (no tether) vs with tether. Game changer.',fmt:'30-60 sec video'},
-  {id:21,stage:'BoFu',title:'What to wear for professional headshots',desc:'3 outfit options tested on yourself. Which looks best?',fmt:'Video or graphic'},
-  {id:22,stage:'BoFu',title:'Signature Session breakdown',desc:'$175, 30 min, 10 images. Clear pricing. No surprises.',fmt:'Video or graphic'},
-  {id:23,stage:'BoFu',title:'Booking to delivery timeline',desc:'Full process explained. Deposit -> session -> selection -> delivery.',fmt:'Video or graphic'},
-  {id:24,stage:'BoFu',title:'Session availability explained',desc:'Saturday mornings, Wednesday evenings. Easy to picture.',fmt:'Video or graphic'},
-  {id:25,stage:'BoFu',title:'Natural retouching at Phixo',desc:'What changes, what stays. Answer objection upfront.',fmt:'Video or graphic'},
-  {id:26,stage:'BoFu',title:'Tethered shooting advantage',desc:'See photos in real-time. Adjust together. Confidence.',fmt:'Video or graphic'},
-  {id:27,stage:'BoFu',title:'Add-ons and extras available',desc:'Extra images, all proofs, rush delivery. When they make sense.',fmt:'Video or graphic'},
-  {id:28,stage:'BoFu',title:'Top 3 pre-booking questions',desc:'FAQ format. Direct answers. Remove all barriers.',fmt:'Video or graphic'},
-  {id:29,stage:'BoFu',title:'Why basement studio works',desc:'Controlled environment, privacy, focus. Honest about it.',fmt:'Video or graphic'},
-  {id:30,stage:'BoFu',title:'How to book a session',desc:'DM or link in bio. Step by step. Zero friction.',fmt:'Video or graphic'},
-];
+  {
+    id:1,
+    stage:'ToFu',
+    title:'Soft light vs hard light - which for LinkedIn?',
+    hook:'This is what soft light looks like [point at yourself] versus this is what hard light looks like [point at yourself].',
+    overlay:'Which one would you use for your LinkedIn photo?\n1 = Soft  |  2 = Hard',
+    caption:'Testing two lighting setups for professional headshots. Which one do you prefer? Comment 1 or 2 👇',
+    filmIt:'1. Set up soft light (window or softbox)\n2. Film yourself for 3 seconds\n3. Set up hard light (bare flash)\n4. Film yourself for 3 seconds\n5. Edit side-by-side\n6. Add text overlay\n7. 15 seconds total',
+    cta:'Comment 1 or 2',
+    platform:'TikTok, Instagram Reels',
+    length:'15 seconds'
+  },
+  {
+    id:2,
+    stage:'ToFu',
+    title:'One light headshot setup',
+    hook:'Here\'s exactly how much lighting you need for a professional headshot.',
+    overlay:'That\'s it.\nOne light.\nNothing else.',
+    caption:'You don\'t need expensive gear. Here\'s a professional headshot with just one light. Save this if you\'re starting out 💡',
+    filmIt:'1. Start with studio empty/dark\n2. Add ONE light\n3. Position yourself\n4. Timer shot\n5. Show the result\n6. 30 seconds total',
+    cta:'Save this',
+    platform:'TikTok, Instagram',
+    length:'30 seconds'
+  },
+  {
+    id:3,
+    stage:'ToFu',
+    title:'60-second headshot lighting tutorial',
+    hook:'Can I show you how to light a headshot in 60 seconds? Let\'s go.',
+    overlay:'60 seconds.\nReal time.\nNo cuts.',
+    caption:'Full headshot lighting setup in real-time. No edits, no BS. Just the process. ⏱️',
+    filmIt:'1. Start timer on screen\n2. Set up light (show position)\n3. Position camera\n4. Set yourself up with remote/timer\n5. Take shot\n6. Show result on screen\n7. Exactly 60 seconds',
+    cta:'Comment if this helped',
+    platform:'TikTok, Instagram Reels',
+    length:'60 seconds'
+  },
+  {
+    id:4,
+    stage:'ToFu',
+    title:'If you don\'t have expensive lighting...',
+    hook:'If you don\'t have expensive lighting, just use window light like this.',
+    overlay:'Window\n45° angle\nThat\'s it',
+    caption:'Free lighting that looks professional. Just position yourself at 45 degrees to the window. Natural headshot in 30 seconds 🪟',
+    filmIt:'1. Show yourself away from window (bad)\n2. Move to 45° angle from window\n3. Timer shot\n4. Show result\n5. 20 seconds total',
+    cta:'None',
+    platform:'TikTok, Instagram',
+    length:'20 seconds'
+  },
+  {
+    id:5,
+    stage:'ToFu',
+    title:'Natural light vs flash photographers',
+    hook:'Natural light photographers vs flash photographers [comedy format]',
+    overlay:'Me with window light\nvs\nMe with flash\n\nWhich are you?',
+    caption:'Both work. Both have their place. Which camp are you in? 😂 Comment N or F',
+    filmIt:'1. Film yourself by window (casual, relaxed vibe)\n2. Film yourself with flash (serious, technical vibe)\n3. Cut between the two (comedy timing)\n4. 15-25 seconds',
+    cta:'Comment N (natural) or F (flash)',
+    platform:'TikTok',
+    length:'15-25 seconds'
+  },
+  {
+    id:6,
+    stage:'ToFu',
+    title:'Common LinkedIn photo mistake',
+    hook:'Common mistake everyone makes with LinkedIn photos.',
+    overlay:'Wrong: [show bad example]\nWhy: Overhead lighting\nRight: [show correct]',
+    caption:'Stop using overhead lights for headshots. Side lighting is your friend. Here\'s the difference 💡',
+    filmIt:'1. Film yourself under overhead light (unflattering)\n2. Show why it\'s bad (shadows under eyes)\n3. Film yourself with side light (correct)\n4. Show the difference\n5. 30-45 seconds',
+    cta:'Save this',
+    platform:'TikTok, Instagram',
+    length:'30-45 seconds'
+  },
+  {
+    id:7,
+    stage:'ToFu',
+    title:'10-year lighting trick in 60 seconds',
+    hook:'It took me 10 years to learn this lighting trick but I\'ll teach it to you in 60 seconds.',
+    overlay:'Catchlight = life\nNo catchlight = dead eyes\nWatch the difference',
+    caption:'The difference between amateur and pro headshots? Catchlights. Here\'s how to get them every time ✨',
+    filmIt:'1. Film yourself without catchlight (no reflection in eyes)\n2. Add light at correct angle\n3. Film with catchlight (sparkle in eyes)\n4. Show close-up comparison\n5. 45-60 seconds',
+    cta:'Save this',
+    platform:'TikTok, Instagram',
+    length:'45-60 seconds'
+  },
+  {
+    id:8,
+    stage:'ToFu',
+    title:'Headshot with basic gear challenge',
+    hook:'Here\'s a professional headshot with just a phone, window, and reflector.',
+    overlay:'Phone\nWindow\nReflector\n= Professional headshot',
+    caption:'You don\'t need a fancy camera. Here\'s what you can do with a phone and natural light 📱',
+    filmIt:'1. Show the gear (phone, window, $10 reflector)\n2. Set up shot (phone on tripod, you by window)\n3. Timer shot\n4. Show final result\n5. 30 seconds',
+    cta:'None',
+    platform:'TikTok, Instagram',
+    length:'30 seconds'
+  },
+  {
+    id:9,
+    stage:'ToFu',
+    title:'Why you look different in photos',
+    hook:'Why you look completely different in photos than in real life.',
+    overlay:'Lens compression\n+\nFamiliarity effect\n= You hate your photos',
+    caption:'It\'s not you. It\'s physics and psychology. Here\'s why photos feel "off" and what to do about it 🤓',
+    filmIt:'1. Film yourself with wide lens (distorted)\n2. Film yourself with portrait lens (normal)\n3. Explain mirror vs photo (we\'re used to reversed image)\n4. 45-60 seconds',
+    cta:'None',
+    platform:'TikTok, Instagram',
+    length:'45-60 seconds'
+  },
+  {
+    id:10,
+    stage:'ToFu',
+    title:'The one phone setting for better portraits',
+    hook:'The one phone setting that instantly makes portrait photos look better.',
+    overlay:'Portrait mode?\nNo.\n\nThis instead:',
+    caption:'Most people don\'t know about this setting. It\'s built into your phone and makes a huge difference 📱',
+    filmIt:'1. Open phone camera\n2. Show the setting to change (e.g., exposure lock, grid, 2x zoom)\n3. Take photo without it\n4. Take photo with it\n5. Show comparison\n6. 30 seconds',
+    cta:'Save this',
+    platform:'TikTok, Instagram',
+    length:'30 seconds'
+  },
+  {
+    id:11,
+    stage:'MoFu',
+    title:'Behind the scenes: Headshot setup',
+    hook:'Watch me set up and light a professional headshot from scratch.',
+    overlay:'BTS: Lighting a headshot\nNo edits\nFull process',
+    caption:'From empty studio to final shot. This is the full process. Camera on tripod, timer running, editing the result. 📸',
+    filmIt:'1. Camera on tripod filming the whole space\n2. Position light\n3. Set up tethered laptop\n4. Position yourself\n5. Timer/remote shot\n6. Review on laptop\n7. Show final image\n8. 45-60 seconds',
+    cta:'Link in bio for sessions',
+    platform:'Instagram Reels, TikTok',
+    length:'45-60 seconds'
+  },
+  {
+    id:12,
+    stage:'MoFu',
+    title:'Day in the life of headshot photographer',
+    hook:'Day in the life of a headshot photographer working from a basement studio.',
+    overlay:'8am: Studio setup\n9am: Lighting tests on myself\n11am: Editing\n2pm: Client session',
+    caption:'Real day, real studio. No glam, just the work. This is what it actually looks like running headshot sessions from home 🏠',
+    filmIt:'1. Morning - setting up studio (timelapse)\n2. Testing lighting on yourself\n3. Editing at laptop\n4. (If you have a session) Quick BTS clip\n5. 45-60 seconds total',
+    cta:'Follow for more BTS',
+    platform:'Instagram Reels',
+    length:'45-60 seconds'
+  },
+  {
+    id:13,
+    stage:'MoFu',
+    title:'Tethered shooting experience explained',
+    hook:'This is what tethered shooting looks like and why it changes everything.',
+    overlay:'Take photo\n↓\nInstant review on laptop\n↓\nAdjust together',
+    caption:'You see your photos in real-time. We adjust together. No surprises. This is how all my sessions work 💻',
+    filmIt:'1. Show tethered setup (camera → laptop)\n2. Take photo with timer/remote\n3. Show photo appearing on laptop instantly\n4. Zoom in, review details\n5. 30-45 seconds',
+    cta:'Save if you want this experience',
+    platform:'Instagram',
+    length:'30-45 seconds'
+  },
+  {
+    id:14,
+    stage:'MoFu',
+    title:'How I built my basement studio',
+    hook:'From empty basement to functioning headshot studio.',
+    overlay:'Before: Empty room\nDuring: Setup\nAfter: Working studio',
+    caption:'Started from an empty basement. Built it into a working studio. Here\'s the full transformation 🔨',
+    filmIt:'1. Show empty basement (before photo/video)\n2. Show setup process (timelapse if possible)\n3. Show current studio\n4. Show a final headshot taken in the space\n5. 30-45 seconds',
+    cta:'None or "Ask me anything"',
+    platform:'Instagram Reels, TikTok',
+    length:'30-45 seconds'
+  },
+  {
+    id:15,
+    stage:'MoFu',
+    title:'Setting up for a LinkedIn headshot',
+    hook:'Here\'s exactly how I set up for a LinkedIn headshot session.',
+    overlay:'Step 1: Background\nStep 2: Lighting\nStep 3: Camera height\nStep 4: Test shot',
+    caption:'The full setup process. Background, lighting, camera position. Everything you need to know 🎬',
+    filmIt:'1. Set up neutral background\n2. Position key light at 45°\n3. Set camera at eye level\n4. Take test shot (on yourself with timer)\n5. Show result\n6. 45-60 seconds',
+    cta:'Link in bio',
+    platform:'Instagram',
+    length:'45-60 seconds'
+  },
+  {
+    id:16,
+    stage:'MoFu',
+    title:'What happens during a session',
+    hook:'Here\'s what actually happens during a headshot session with me.',
+    overlay:'We start relaxed\nI show you poses\nYou see photos live\nWe adjust together',
+    caption:'It\'s collaborative. I\'m not barking directions. We\'re working together to get shots you actually like. Here\'s how it works 🤝',
+    filmIt:'1. Show yourself relaxed (start of session vibe)\n2. Demonstrate a pose physically\n3. Show tethered screen review\n4. Adjust and shoot again\n5. 30-45 seconds',
+    cta:'DM to book',
+    platform:'Instagram',
+    length:'30-45 seconds'
+  },
+  {
+    id:17,
+    stage:'MoFu',
+    title:'Testing 3 lighting angles',
+    hook:'Testing 3 different lighting angles. Which one works best?',
+    overlay:'1: 45° side\n2: Straight on\n3: Rembrandt\n\nComment your favorite',
+    caption:'Same person, same camera, three different light positions. Which one do you like? Comment 1, 2, or 3 👇',
+    filmIt:'1. Set up light at 45° - film yourself\n2. Move light straight on - film yourself\n3. Move light for Rembrandt - film yourself\n4. Show all three side-by-side\n5. 25-35 seconds',
+    cta:'Comment 1, 2, or 3',
+    platform:'TikTok, Instagram',
+    length:'25-35 seconds'
+  },
+  {
+    id:18,
+    stage:'MoFu',
+    title:'My editing workflow for headshots',
+    hook:'Here\'s my entire editing workflow from raw file to final export.',
+    overlay:'Import → Basic adjustments → Skin retouching → Color grade → Export',
+    caption:'Natural retouching. Nothing overdone. Here\'s the full workflow from start to finish 💻',
+    filmIt:'1. Screen record: Import RAW file\n2. Basic exposure/color adjustments\n3. Light skin retouching (show before/after)\n4. Final color grade\n5. Export\n6. 45-60 seconds',
+    cta:'Save this',
+    platform:'Instagram, TikTok',
+    length:'45-60 seconds'
+  },
+  {
+    id:19,
+    stage:'MoFu',
+    title:'Recreating a magazine cover look',
+    hook:'Recreating a professional magazine look with basic gear.',
+    overlay:'Magazine cover lighting\n= Two lights + reflector\n\nHere\'s the setup',
+    caption:'You don\'t need a studio in New York. Here\'s how to recreate editorial lighting in a basement 📰',
+    filmIt:'1. Show reference image (magazine cover)\n2. Show your setup (2 lights, reflector)\n3. Light diagram or quick setup explanation\n4. Timer shot of yourself\n5. Show result next to reference\n6. 45-60 seconds',
+    cta:'None or "Link in bio"',
+    platform:'Instagram',
+    length:'45-60 seconds'
+  },
+  {
+    id:20,
+    stage:'MoFu',
+    title:'Why I always use tethered shooting',
+    hook:'Before I used tethered shooting vs after I started using it.',
+    overlay:'Before: Guessing\nAfter: Confidence\n\nThis changed everything',
+    caption:'Game changer for both me and my clients. You see photos instantly. We know we got the shot. No surprises 🎯',
+    filmIt:'1. Explain old way (take photos, hope they\'re good)\n2. Show tethered setup\n3. Demonstrate instant review\n4. Show client confidence (or simulate it)\n5. 30-45 seconds',
+    cta:'Link in bio',
+    platform:'Instagram, TikTok',
+    length:'30-45 seconds'
+  },
+  {
+    id:21,
+    stage:'BoFu',
+    title:'What to wear for professional headshots',
+    hook:'What to wear for a professional headshot - tested on myself.',
+    overlay:'Option 1: Solid color\nOption 2: Subtle pattern\nOption 3: Business casual\n\nWhich works best?',
+    caption:'Tested 3 outfit options. Solid colors usually win. Here\'s why 👔 DM me to book your session.',
+    filmIt:'1. Film yourself in solid color shirt\n2. Film yourself in subtle pattern\n3. Film yourself in business casual\n4. Show all three side-by-side\n5. Point out which works best\n6. 30-45 seconds',
+    cta:'DM me to book',
+    platform:'Instagram, TikTok, Facebook',
+    length:'30-45 seconds'
+  },
+  {
+    id:22,
+    stage:'BoFu',
+    title:'Signature Session breakdown',
+    hook:'Here\'s exactly what you get with a Signature Session.',
+    overlay:'$175\n30 minutes\n10 retouched images\nOnline gallery\nNo surprises',
+    caption:'Clear pricing. No hidden fees. This is what you walk away with. DM me to book 💼',
+    filmIt:'1. Text on screen: pricing\n2. Text on screen: what\'s included\n3. Show example gallery\n4. Show example final images\n5. 20-30 seconds',
+    cta:'DM me to book',
+    platform:'Facebook, Instagram',
+    length:'20-30 seconds'
+  },
+  {
+    id:23,
+    stage:'BoFu',
+    title:'Booking to delivery timeline',
+    hook:'Here\'s what happens from the moment you book to when you get your images.',
+    overlay:'1. Book + deposit\n2. Session (30 min)\n3. You select favorites\n4. I edit\n5. Delivery (3-5 days)',
+    caption:'Full process. No confusion. Book → Session → Selection → Editing → Delivery. Simple as that 📅 Link in bio.',
+    filmIt:'1. Show booking form or DM\n2. Show session (quick clip)\n3. Show selection process (tethered screen)\n4. Show editing software\n5. Show final gallery delivery\n6. 30-45 seconds',
+    cta:'Link in bio to book',
+    platform:'Facebook, Instagram',
+    length:'30-45 seconds'
+  },
+  {
+    id:24,
+    stage:'BoFu',
+    title:'Session availability',
+    hook:'When I have sessions available.',
+    overlay:'Saturday mornings\n9am - 1pm\n\nWednesday evenings\n6pm - 9pm\n\nThat\'s it',
+    caption:'Limited availability. These are the only times I shoot. Book in advance 📆 DM me to book.',
+    filmIt:'1. Simple text on screen (times)\n2. Show your studio/setup\n3. Maybe show calendar\n4. 15-20 seconds',
+    cta:'DM me to book',
+    platform:'Facebook, Instagram',
+    length:'15-20 seconds'
+  },
+  {
+    id:25,
+    stage:'BoFu',
+    title:'Natural retouching explained',
+    hook:'Here\'s what "natural retouching" actually means at Phixo.',
+    overlay:'What changes:\n- Exposure/color\n- Blemishes\n- Flyaways\n\nWhat doesn\'t:\n- Face shape\n- Skin texture\n- You',
+    caption:'You look like you, just polished. No airbrushing. No fake smoothing. Natural retouching means you\'re still you ✨',
+    filmIt:'1. Show before image (straight from camera)\n2. Show after image (retouched)\n3. Zoom in on details\n4. Explain what changed vs what didn\'t\n5. 30-45 seconds',
+    cta:'None or "Link in bio"',
+    platform:'Instagram, Facebook',
+    length:'30-45 seconds'
+  },
+  {
+    id:26,
+    stage:'BoFu',
+    title:'Tethered shooting advantage',
+    hook:'Here\'s why I shoot tethered for every session.',
+    overlay:'You see photos LIVE\nWe adjust TOGETHER\nNo surprises\n\nConfidence',
+    caption:'This is why clients love the process. You\'re not waiting until later to see if we got it. You know right now 💻',
+    filmIt:'1. Show tethered setup\n2. Take photo\n3. Show it appearing on screen immediately\n4. Simulate client reviewing it\n5. 25-35 seconds',
+    cta:'DM to book',
+    platform:'Instagram, Facebook',
+    length:'25-35 seconds'
+  },
+  {
+    id:27,
+    stage:'BoFu',
+    title:'Add-ons explained',
+    hook:'Here are the add-ons available and when they actually make sense.',
+    overlay:'Extra images: +$15 each\nAll digital proofs: +$50\nRush editing: +$75\n\nYou choose',
+    caption:'Most people don\'t need add-ons. But they\'re there if you want them. No pressure 💰 DM to book.',
+    filmIt:'1. Text on screen: add-on options\n2. Explain when each makes sense\n3. "Most people just do standard package"\n4. 20-30 seconds',
+    cta:'DM to book',
+    platform:'Facebook, Instagram',
+    length:'20-30 seconds'
+  },
+  {
+    id:28,
+    stage:'BoFu',
+    title:'Top 3 pre-booking questions',
+    hook:'The 3 questions everyone asks before booking.',
+    overlay:'1. What do I wear?\n2. How long is it?\n3. When do I get photos?\n\nAnswers:',
+    caption:'Answering the big 3. Solid colors, 30 minutes, 3-5 days delivery. Any other questions? DM me 💬',
+    filmIt:'1. Show the 3 questions on screen\n2. Answer each one clearly\n3. Simple, direct, honest\n4. 25-35 seconds',
+    cta:'DM with questions',
+    platform:'Facebook, Instagram',
+    length:'25-35 seconds'
+  },
+  {
+    id:29,
+    stage:'BoFu',
+    title:'Why basement studio works',
+    hook:'Why I shoot in a basement studio (and why it\'s actually better).',
+    overlay:'Controlled environment\nNo distractions\nFocus on you\n\nPrivate, professional, simple',
+    caption:'Not a fancy downtown studio. Just a basement. But it\'s controlled, private, and focused. That\'s what matters 🏠',
+    filmIt:'1. Show your studio space (honest shot)\n2. Explain the advantages (control, privacy, focus)\n3. Show a final headshot made there\n4. 30-40 seconds',
+    cta:'None',
+    platform:'Instagram, Facebook',
+    length:'30-40 seconds'
+  },
+  {
+    id:30,
+    stage:'BoFu',
+    title:'How to book a session',
+    hook:'Here\'s exactly how to book a session with me.',
+    overlay:'Step 1: DM me\nStep 2: Pick a time\nStep 3: Pay deposit\nStep 4: Show up\n\nThat\'s it',
+    caption:'Zero friction. DM me, pick a time, pay deposit, show up. Link in bio or DM me now 📅',
+    filmIt:'1. Show each step on screen\n2. Keep it simple and direct\n3. Show booking form or calendar if you have one\n4. 20-30 seconds',
+    cta:'DM me or link in bio',
+    platform:'Facebook, Instagram',
+    length:'20-30 seconds'
+  }
+];;
 
 let bankFilter = 'all';
 let usedIdeas = JSON.parse(localStorage.getItem('phixo-used-ideas') || '{}');
@@ -2939,19 +3270,52 @@ function renderBank() {
   if (countEl) countEl.textContent = usedCount + ' used · ' + (CONTENT_BANK.length - usedCount) + ' remaining';
   const stageColor = {ToFu:'var(--tof)',MoFu:'var(--mof)',BoFu:'var(--bof)'};
   const stageClass = {ToFu:'fl-tof',MoFu:'fl-mof',BoFu:'fl-bof'};
-  grid.innerHTML = items.map(item => `
-    <div class="bank-card${usedIdeas[item.id]?' used':''}" style="border-left-color:${stageColor[item.stage]}">
+  
+  grid.innerHTML = items.map(item => {
+    const filmSteps = item.filmIt.split('\\n').map(step => `<div style="padding:3px 0;color:var(--text)">${step}</div>`).join('');
+    
+    return `
+    <div class="bank-card${usedIdeas[item.id]?' used':''}" style="border-left:4px solid ${stageColor[item.stage]};cursor:pointer" onclick="toggleScript(${item.id})">
       <div class="bc-top">
         <span class="bc-num">${String(item.id).padStart(2,'0')}</span>
         <span class="bc-title">${item.title}</span>
       </div>
-      <div class="bc-desc">${item.desc}</div>
-      <div class="bc-foot">
+      <div class="bc-meta" style="font-size:11px;color:var(--muted);margin:8px 0;display:flex;gap:12px;align-items:center">
         <span class="funnel-label ${stageClass[item.stage]}">${item.stage}</span>
-        <span class="bc-tag">${item.fmt}</span>
-        <button class="bc-used-btn${usedIdeas[item.id]?' marked':''}" onclick="toggleUsed(${item.id})">${usedIdeas[item.id]?'used':'mark used'}</button>
+        <span>${item.platform}</span>
+        <span>${item.length}</span>
       </div>
-    </div>`).join('');
+      <div id="script-${item.id}" class="bc-script" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <div style="margin-bottom:12px">
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px;font-family:var(--hind)">HOOK (what you say)</div>
+          <div style="font-size:13px;line-height:1.6;color:var(--text);font-style:italic;background:var(--surface-2);padding:10px;border-radius:6px">${item.hook}</div>
+        </div>
+        <div style="margin-bottom:12px">
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px;font-family:var(--hind)">TEXT OVERLAY (on screen)</div>
+          <div style="font-size:13px;line-height:1.6;color:var(--text);white-space:pre-line;background:var(--surface-2);padding:10px;border-radius:6px">${item.overlay}</div>
+        </div>
+        <div style="margin-bottom:12px">
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px;font-family:var(--hind)">CAPTION (post text)</div>
+          <div style="font-size:13px;line-height:1.6;color:var(--text);background:var(--surface-2);padding:10px;border-radius:6px">${item.caption}</div>
+        </div>
+        <div style="margin-bottom:12px">
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px;font-family:var(--hind)">FILM IT (step by step)</div>
+          <div style="font-size:12px;line-height:1.7;background:var(--surface-2);padding:10px;border-radius:6px">${filmSteps}</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;padding-top:8px">
+          <div style="font-size:11px;color:var(--muted)"><strong>CTA:</strong> ${item.cta}</div>
+          <button class="bc-used-btn${usedIdeas[item.id]?' marked':''}" onclick="event.stopPropagation();toggleUsed(${item.id})">${usedIdeas[item.id]?'✓ used':'mark used'}</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleScript(id) {
+  const el = document.getElementById(`script-${id}`);
+  if (el) {
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  }
 }
 
 const FORMATS = [
