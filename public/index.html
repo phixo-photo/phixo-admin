@@ -546,7 +546,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
             <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);display:block;margin-bottom:6px"># of Ideas</label>
             <input id="gen-count" type="number" value="3" min="1" max="5" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px">
           </div>
-          <button class="btn btn-dark" onclick="generateFromVideos()" style="padding:10px 24px">Generate Ideas</button>
+          <button id="gen-ideas-btn" class="btn btn-dark" onclick="generateFromVideos()" style="padding:10px 24px">Generate Ideas</button>
         </div>
         <div id="gen-status" style="margin-top:8px;font-size:12px;color:var(--muted)"></div>
       </div>
@@ -3421,7 +3421,7 @@ async function toggleReference(blockId, isChecked) {
 
 async function generateFromVideos() {
   const statusEl = document.getElementById('gen-status');
-  const button = event.target;
+  const button = document.getElementById('gen-ideas-btn');
   
   button.disabled = true;
   button.textContent = 'Generating...';
