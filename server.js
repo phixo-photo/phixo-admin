@@ -190,22 +190,11 @@ async function initDb() {
     await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS post_type VARCHAR(50) DEFAULT 'photo'`);
     await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS content_structure JSONB DEFAULT '{}'`);
     
-    // v3.45: Video Library for learning from real viral content
-    await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS hook TEXT`);
-    await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS creator_handle TEXT`);
-    await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS platform TEXT`);
-    await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS views INTEGER DEFAULT 0`);
-    await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS saves INTEGER DEFAULT 0`);
-    await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS comments INTEGER DEFAULT 0`);
-    await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS engagement_rate DECIMAL(5,2)`);
-    await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS video_format TEXT`);
-    await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS key_elements TEXT[]`);
-    await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS why_it_worked TEXT`);
-    await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS used_as_inspiration BOOLEAN DEFAULT false`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_blocks_type_video ON blocks(type) WHERE type = 'video_ref'`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_blocks_engagement ON blocks(engagement_rate DESC NULLS LAST)`);
+    // v3.46: Research Library - Video generation
+    await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS is_reference BOOLEAN DEFAULT false`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_blocks_reference ON blocks(is_reference) WHERE is_reference = true`);
     
-    console.log('DB v3.45 ready (Video Library)');
+    console.log('DB v3.46 ready (Research video generation)');
   } catch (err) {
     console.error('DB init error:', err.message);
   } finally { c.release(); }
@@ -311,7 +300,7 @@ app.post('/api/blocks', requireAuth, async (req, res) => {
 app.patch('/api/blocks/:id', requireAuth, async (req, res) => {
   try {
     const allowed = ['title','type','category','tags','funnel_stage','source_url',
-                     'content_payload','thumbnail_url','drive_file_id'];
+                     'content_payload','thumbnail_url','drive_file_id','is_reference'];
     const sets = []; const vals = [];
     for (const k of allowed) {
       if (req.body[k] !== undefined) { vals.push(req.body[k]); sets.push(`${k}=$${vals.length}`); }
@@ -343,6 +332,159 @@ app.delete('/api/blocks/:id', requireAuth, async (req, res) => {
     }
     await pool.query('DELETE FROM blocks WHERE id=$1', [req.params.id]); res.json({ ok: true }); }
   catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// RESEARCH LIBRARY - Generate ideas from reference videos
+// ═══════════════════════════════════════════════════
+
+app.post('/api/research/generate-ideas', requireAuth, async (req, res) => {
+  try {
+    const { funnel_stage, tags, count = 3 } = req.body;
+    
+    // Build query to find reference videos
+    let query = `
+      SELECT id, title, content_payload, metadata, tags, source_url, funnel_stage
+      FROM blocks
+      WHERE type = 'url'
+        AND is_reference = true
+    `;
+    const params = [];
+    
+    // Add funnel stage filter
+    if (funnel_stage) {
+      params.push(funnel_stage);
+      query += ` AND funnel_stage = $${params.length}`;
+    }
+    
+    // Add tags filter if provided
+    if (tags && tags.length > 0) {
+      const tagArray = Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim());
+      params.push(tagArray);
+      query += ` AND tags && $${params.length}::text[]`;
+    }
+    
+    query += ` ORDER BY created_at DESC LIMIT 7`;
+    
+    const videosResult = await pool.query(query, params);
+    
+    if (videosResult.rows.length === 0) {
+      return res.status(404).json({
+        error: 'No reference videos found',
+        message: 'Mark some videos as "reference" first by checking the box in video block details',
+        suggestion: 'Open a video block and check "Use as reference for idea generation"'
+      });
+    }
+    
+    // Build smart summaries from video blocks
+    const videoSummaries = videosResult.rows.map((v, idx) => {
+      const transcript = v.content_payload || '';
+      const metadata = v.metadata || {};
+      const keyPoints = metadata.key_points || [];
+      const hook = transcript.split('\n')[0] || metadata.hook || '';
+      
+      return `
+VIDEO #${v.id}: ${v.title}
+Hook: "${hook}"
+Format: ${metadata.format || 'Standard video'}
+Key Points: ${keyPoints.slice(0, 3).join(' • ') || 'N/A'}
+Source: ${v.source_url || 'N/A'}
+`.trim();
+    });
+    
+    // Phixo context
+    const phixoContext = `
+PHIXO CONTEXT:
+- Ian Green, headshot photographer, West Island Montreal
+- Basement studio, side hustle (10-12 sessions/month max)
+- NO CLIENTS YET - Ian is the subject/model for all content
+- Voice: Warm, real, grounded (not corporate/polished)
+- Target: Professionals, individuals, families needing headshots
+- Constraints: Self-portrait content only, no clients to film
+- Strategy: ToFu (educational), MoFu (process/trust), BoFu (remove friction)
+`.trim();
+    
+    // Claude API call
+    const claudePrompt = `${phixoContext}
+
+REFERENCE VIDEOS (proven ${funnel_stage || 'content'} performers from Research Library):
+
+${videoSummaries.join('\n\n')}
+
+TASK:
+Generate ${count} content ideas for Phixo adapted from these proven patterns.
+
+For each idea, provide:
+1. Title (short, descriptive)
+2. Hook (exact words Ian should say on camera)
+3. Text Overlay (what appears on screen)
+4. Caption (Instagram/TikTok post text)
+5. Film It (step-by-step instructions, numbered)
+6. CTA (call to action)
+7. Platform (TikTok, Instagram, etc.)
+8. Length (seconds)
+9. Source Inspiration (which video block ID inspired this)
+
+Format as JSON array:
+[
+  {
+    "title": "...",
+    "hook": "...",
+    "overlay": "...",
+    "caption": "...",
+    "filmIt": "1. Step one\\n2. Step two...",
+    "cta": "...",
+    "platform": "...",
+    "length": "...",
+    "sourceInspiration": "Based on video block #ID - format_name"
+  }
+]
+
+CRITICAL: Ian films himself. No clients. He is both photographer and subject.
+Make it executable - exact words, exact steps, ready to film TODAY.`;
+
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4000,
+      messages: [
+        { role: 'user', content: claudePrompt }
+      ]
+    });
+    
+    // Parse Claude's response
+    let ideas = [];
+    const responseText = message.content[0].text;
+    
+    // Try to extract JSON from response
+    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+    if (jsonMatch) {
+      try {
+        ideas = JSON.parse(jsonMatch[0]);
+      } catch (parseErr) {
+        console.error('JSON parse error:', parseErr);
+        return res.json({
+          raw: responseText,
+          error: 'Failed to parse JSON, returning raw response'
+        });
+      }
+    } else {
+      return res.json({
+        raw: responseText,
+        error: 'No JSON found in response'
+      });
+    }
+    
+    res.json({
+      ideas,
+      sourcesUsed: videosResult.rows.length,
+      funnelStage: funnel_stage || 'all',
+      tags: tags || []
+    });
+    
+  } catch (err) {
+    console.error('Generate ideas error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Upload file → Drive → create block
@@ -2537,378 +2679,6 @@ const _toolSetup = (async () => {
     console.warn('yt-dlp: download failed:', e.message);
   }
 })();
-
-
-// ═══════════════════════════════════════════════════
-// VIDEO LIBRARY - Learn from real viral content
-// ═══════════════════════════════════════════════════
-
-// Get all video references with smart filtering
-app.get('/api/video-library', requireAuth, async (req, res) => {
-  try {
-    const { funnel_stage, tags, format, min_engagement, limit = 20 } = req.query;
-    
-    let q = `SELECT * FROM blocks WHERE type = 'video_ref'`;
-    const p = [];
-    const w = [];
-    
-    if (funnel_stage) {
-      p.push(funnel_stage);
-      w.push(`funnel_stage = $${p.length}`);
-    }
-    
-    if (tags) {
-      const tagArray = tags.split(',');
-      for (const tag of tagArray) {
-        p.push(tag.trim());
-        w.push(`$${p.length} = ANY(tags)`);
-      }
-    }
-    
-    if (format) {
-      p.push(format);
-      w.push(`video_format = $${p.length}`);
-    }
-    
-    if (min_engagement) {
-      p.push(parseFloat(min_engagement));
-      w.push(`engagement_rate >= $${p.length}`);
-    }
-    
-    if (w.length) {
-      q += ' AND ' + w.join(' AND ');
-    }
-    
-    q += ' ORDER BY engagement_rate DESC NULLS LAST, created_at DESC';
-    
-    if (limit) {
-      p.push(parseInt(limit));
-      q += ` LIMIT $${p.length}`;
-    }
-    
-    const result = await pool.query(q, p);
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Video library fetch error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Add a video reference to library
-app.post('/api/video-library', requireAuth, async (req, res) => {
-  try {
-    const {
-      title,
-      source_url,
-      creator_handle,
-      platform,
-      hook,
-      transcript,
-      tags,
-      funnel_stage,
-      video_format,
-      key_elements,
-      views,
-      saves,
-      comments,
-      why_it_worked,
-      thumbnail_url
-    } = req.body;
-    
-    // Calculate engagement rate if metrics provided
-    let engagement_rate = null;
-    if (views && (saves || comments)) {
-      engagement_rate = ((saves * 10 + comments * 5) / views * 100).toFixed(2);
-    }
-    
-    const result = await pool.query(
-      `INSERT INTO blocks (
-        type, title, source_url, creator_handle, platform, hook,
-        content_payload, tags, funnel_stage, video_format, key_elements,
-        views, saves, comments, engagement_rate, why_it_worked, thumbnail_url
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-      RETURNING *`,
-      [
-        'video_ref',
-        title || 'Untitled Video',
-        source_url,
-        creator_handle,
-        platform || 'TikTok',
-        hook,
-        transcript || '',
-        tags || [],
-        funnel_stage,
-        video_format,
-        key_elements || [],
-        views || 0,
-        saves || 0,
-        comments || 0,
-        engagement_rate,
-        why_it_worked,
-        thumbnail_url
-      ]
-    );
-    
-    res.json(result.rows[0]);
-  } catch (err) {
-    console.error('Video library add error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Bulk upload videos from CSV
-app.post('/api/video-library/bulk', requireAuth, async (req, res) => {
-  try {
-    const { videos } = req.body;
-    
-    if (!Array.isArray(videos)) {
-      return res.status(400).json({ error: 'videos must be an array' });
-    }
-    
-    const inserted = [];
-    
-    for (const video of videos) {
-      const {
-        title, source_url, creator_handle, platform, hook, transcript,
-        tags, funnel_stage, video_format, key_elements, views, saves,
-        comments, why_it_worked, thumbnail_url
-      } = video;
-      
-      // Calculate engagement rate
-      let engagement_rate = null;
-      if (views && (saves || comments)) {
-        engagement_rate = ((saves * 10 + comments * 5) / views * 100).toFixed(2);
-      }
-      
-      const result = await pool.query(
-        `INSERT INTO blocks (
-          type, title, source_url, creator_handle, platform, hook,
-          content_payload, tags, funnel_stage, video_format, key_elements,
-          views, saves, comments, engagement_rate, why_it_worked, thumbnail_url
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)
-        RETURNING id, title, engagement_rate`,
-        [
-          'video_ref', title, source_url, creator_handle, platform, hook,
-          transcript || '', tags || [], funnel_stage, video_format,
-          key_elements || [], views || 0, saves || 0, comments || 0,
-          engagement_rate, why_it_worked, thumbnail_url
-        ]
-      );
-      
-      inserted.push(result.rows[0]);
-    }
-    
-    res.json({ success: true, count: inserted.length, videos: inserted });
-  } catch (err) {
-    console.error('Bulk upload error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Generate ideas from video library using Claude API
-app.post('/api/video-library/generate-ideas', requireAuth, async (req, res) => {
-  try {
-    const { funnel_stage, topic, count = 3 } = req.body;
-    
-    if (!funnel_stage) {
-      return res.status(400).json({ error: 'funnel_stage required' });
-    }
-    
-    // Smart retrieval: Get top 5-7 relevant videos
-    let query = `
-      SELECT id, title, hook, creator_handle, video_format, key_elements,
-             views, saves, engagement_rate, why_it_worked, content_payload
-      FROM blocks
-      WHERE type = 'video_ref'
-        AND funnel_stage = $1
-    `;
-    const params = [funnel_stage];
-    
-    // Add topic filter if provided
-    if (topic) {
-      params.push(topic);
-      query += ` AND $${params.length} = ANY(tags)`;
-    }
-    
-    query += ` ORDER BY engagement_rate DESC NULLS LAST LIMIT 7`;
-    
-    const videosResult = await pool.query(query, params);
-    
-    if (videosResult.rows.length === 0) {
-      return res.status(404).json({
-        error: 'No videos found',
-        message: `Add some ${funnel_stage} videos to the library first`,
-        suggestion: 'Upload videos with this funnel stage'
-      });
-    }
-    
-    // Build smart summaries (token-efficient)
-    const videoSummaries = videosResult.rows.map((v, idx) => {
-      return `
-VIDEO ${idx + 1}: ${v.creator_handle || 'Unknown'} (${v.views?.toLocaleString() || 0} views, ${v.saves || 0} saves)
-Hook: "${v.hook || 'N/A'}"
-Format: ${v.video_format || 'N/A'}
-Key moves: ${(v.key_elements || []).join(', ') || 'N/A'}
-Why it worked: ${v.why_it_worked || 'High engagement'}
-`.trim();
-    });
-    
-    // Phixo context
-    const phixoContext = `
-PHIXO CONTEXT:
-- Ian Green, headshot photographer, West Island Montreal
-- Basement studio, side hustle (10-12 sessions/month max)
-- NO CLIENTS YET - Ian is the subject/model for all content
-- Voice: Warm, real, grounded (not corporate/polished)
-- Target: Professionals, individuals, families needing headshots
-- Constraints: Self-portrait content only, no clients to film
-- Strategy: ToFu (educational), MoFu (process/trust), BoFu (remove friction)
-`.trim();
-    
-    // Claude API call
-    const claudePrompt = `${phixoContext}
-
-REFERENCE VIDEOS (proven ${funnel_stage} performers):
-
-${videoSummaries.join('\n\n')}
-
-TASK:
-Generate ${count} ${funnel_stage} content ideas for Phixo adapted from these proven patterns.
-
-For each idea, provide:
-1. Title (short, descriptive)
-2. Hook (exact words Ian should say on camera)
-3. Text Overlay (what appears on screen)
-4. Caption (Instagram/TikTok post text)
-5. Film It (step-by-step instructions, numbered)
-6. CTA (call to action)
-7. Platform (TikTok, Instagram, etc.)
-8. Length (seconds)
-9. Source Inspiration (which reference video inspired this, mention creator handle + views)
-
-Format as JSON array:
-[
-  {
-    "title": "...",
-    "hook": "...",
-    "overlay": "...",
-    "caption": "...",
-    "filmIt": "1. Step one\\n2. Step two...",
-    "cta": "...",
-    "platform": "...",
-    "length": "...",
-    "sourceInspiration": "Based on @creator (XXX views) - format_name"
-  }
-]
-
-CRITICAL: Ian films himself. No clients. He is both photographer and subject.
-Make it executable - exact words, exact steps, ready to film TODAY.`;
-
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4000,
-      messages: [
-        { role: 'user', content: claudePrompt }
-      ]
-    });
-    
-    // Parse Claude's response
-    let ideas = [];
-    const responseText = message.content[0].text;
-    
-    // Try to extract JSON from response
-    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-      try {
-        ideas = JSON.parse(jsonMatch[0]);
-      } catch (parseErr) {
-        console.error('JSON parse error:', parseErr);
-        return res.json({
-          raw: responseText,
-          error: 'Failed to parse JSON, returning raw response'
-        });
-      }
-    } else {
-      return res.json({
-        raw: responseText,
-        error: 'No JSON found in response'
-      });
-    }
-    
-    res.json({
-      ideas,
-      sourcesUsed: videosResult.rows.length,
-      funnelStage: funnel_stage,
-      topic: topic || 'all'
-    });
-    
-  } catch (err) {
-    console.error('Generate ideas error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Mark video as used for inspiration
-app.patch('/api/video-library/:id/mark-used', requireAuth, async (req, res) => {
-  try {
-    const result = await pool.query(
-      'UPDATE blocks SET used_as_inspiration = true, updated_at = NOW() WHERE id = $1 AND type = $2 RETURNING *',
-      [req.params.id, 'video_ref']
-    );
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Video not found' });
-    }
-    
-    res.json(result.rows[0]);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Delete video from library
-app.delete('/api/video-library/:id', requireAuth, async (req, res) => {
-  try {
-    await pool.query('DELETE FROM blocks WHERE id = $1 AND type = $2', [req.params.id, 'video_ref']);
-    res.json({ ok: true });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Get library stats
-app.get('/api/video-library/stats', requireAuth, async (req, res) => {
-  try {
-    const stats = await pool.query(`
-      SELECT 
-        COUNT(*) as total_videos,
-        COUNT(*) FILTER (WHERE funnel_stage = 'ToFu') as tofu_count,
-        COUNT(*) FILTER (WHERE funnel_stage = 'MoFu') as mofu_count,
-        COUNT(*) FILTER (WHERE funnel_stage = 'BoFu') as bofu_count,
-        COUNT(*) FILTER (WHERE used_as_inspiration = true) as used_count,
-        AVG(engagement_rate) as avg_engagement,
-        MAX(engagement_rate) as max_engagement
-      FROM blocks
-      WHERE type = 'video_ref'
-    `);
-    
-    const topVideos = await pool.query(`
-      SELECT id, title, creator_handle, engagement_rate, views, saves
-      FROM blocks
-      WHERE type = 'video_ref' AND engagement_rate IS NOT NULL
-      ORDER BY engagement_rate DESC
-      LIMIT 5
-    `);
-    
-    res.json({
-      ...stats.rows[0],
-      topPerformers: topVideos.rows
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, async () => {
