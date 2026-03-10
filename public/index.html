@@ -434,16 +434,6 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .fmt-plat-name{font-size:16px;font-weight:800;margin-bottom:8px;padding-bottom:8px;border-bottom:2px solid var(--border)}
 @media(max-width:900px){.wf-grid{grid-template-columns:repeat(4,1fr)}.stat-row{grid-template-columns:repeat(3,1fr)}}
 
-/* Video Library Styles */
-.filter-btn{padding:6px 14px;background:var(--surface);border:1px solid var(--border);border-radius:6px;font-size:12px;cursor:pointer;transition:all .15s;font-family:var(--hind);font-weight:500}
-.filter-btn:hover{border-color:var(--accent);color:var(--accent)}
-.filter-btn.active{background:var(--accent);color:white;border-color:var(--accent)}
-.video-card{transition:transform .2s,box-shadow .2s}
-.video-card:hover{transform:translateY(-2px);box-shadow:var(--sh)}
-.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;text-align:center}
-.stat-val{font-size:28px;font-weight:700;color:var(--accent);margin-bottom:4px;font-family:var(--caslon)}
-.stat-label{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:600}
-
 </style>
 </head>
 <body>
@@ -461,7 +451,6 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
   <button class="nb" data-view="calendar" onclick="showView('calendar',this)"><span class="ico">📅</span> Calendar</button>
   <button class="nb" onclick="openNewPost()"><span class="ico">✏️</span> New Post</button>
   <button class="nb" data-view="strategy" onclick="showView('strategy',this)"><span class="ico">🗺</span> Strategy Hub</button>
-  <button class="nb" data-view="video-library" onclick="showView('video-library',this)"><span class="ico">🎬</span> Video Library</button>
   <div class="nav-foot">
     <span><span class="dot"></span>Connected</span>
     <a href="/auth/logout">Sign out</a>
@@ -533,6 +522,42 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
       <button class="btn btn-ghost btn-sm" id="cleanup-btn" onclick="cleanupDeleted()" title="Remove files that were deleted from Drive">🗑️ Clean Up</button>
       <button class="btn btn-ghost btn-sm" id="repair-btn" onclick="repairThumbnails()" title="Fix broken thumbnails on existing blocks">🔧 Fix Thumbs</button>
     </div>
+    
+    <!-- Generate Ideas from Reference Videos -->
+    <div class="scard" style="margin:20px;background:linear-gradient(135deg, rgba(184,103,62,0.05) 0%, rgba(184,103,62,0.02) 100%)">
+      <div class="scard-body">
+        <h3 style="font-size:16px;margin-bottom:12px;font-family:var(--caslon)">🎬 Generate Ideas from Reference Videos</h3>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Mark videos as "reference" in block details, then generate adapted ideas here.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end">
+          <div>
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);display:block;margin-bottom:6px">Funnel Stage</label>
+            <select id="gen-stage" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px">
+              <option value="">All Stages</option>
+              <option value="tof">ToFu</option>
+              <option value="mof">MoFu</option>
+              <option value="bof">BoFu</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);display:block;margin-bottom:6px">Topic Tags</label>
+            <input id="gen-tags" type="text" placeholder="lighting, setup, pricing..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px">
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);display:block;margin-bottom:6px"># of Ideas</label>
+            <input id="gen-count" type="number" value="3" min="1" max="5" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px">
+          </div>
+          <button class="btn btn-dark" onclick="generateFromVideos()" style="padding:10px 24px">Generate Ideas</button>
+        </div>
+        <div id="gen-status" style="margin-top:8px;font-size:12px;color:var(--muted)"></div>
+      </div>
+    </div>
+    
+    <!-- Generated Ideas Display -->
+    <div id="generated-ideas" style="display:none;margin:20px">
+      <h3 style="font-size:16px;margin-bottom:12px;font-family:var(--hind);font-weight:700">Generated Ideas</h3>
+      <div id="generated-ideas-grid" style="display:grid;gap:14px"></div>
+    </div>
+    
     <div id="research-grid" class="block-grid"></div>
   </div>
 </div>
@@ -824,133 +849,6 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
   </div>
 
 </div>
-
-<!-- ══════════════════════════════════════════════════ -->
-<!-- VIDEO LIBRARY VIEW -->
-<!-- ══════════════════════════════════════════════════ -->
-<div id="v-video-library" class="view">
-  <div class="ph">
-    <h1>Video Library <em>— Learn from Real Viral Content</em></h1>
-    <p>Upload viral photography videos. Generate ideas adapted to Phixo voice.</p>
-  </div>
-
-  <!-- Stats Dashboard -->
-  <div id="library-stats" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:24px">
-    <div class="stat-card">
-      <div class="stat-val" id="stat-total">0</div>
-      <div class="stat-label">Total Videos</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-val" id="stat-tofu">0</div>
-      <div class="stat-label">ToFu</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-val" id="stat-mofu">0</div>
-      <div class="stat-label">MoFu</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-val" id="stat-bofu">0</div>
-      <div class="stat-label">BoFu</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-val" id="stat-used">0</div>
-      <div class="stat-label">Used</div>
-    </div>
-  </div>
-
-  <!-- Generate Ideas Section -->
-  <div class="scard" style="margin-bottom:24px;background:linear-gradient(135deg, rgba(184,103,62,0.05) 0%, rgba(184,103,62,0.02) 100%)">
-    <div class="scard-body">
-      <h3 style="font-size:18px;margin-bottom:16px;font-family:var(--caslon)">Generate Ideas from Library</h3>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end">
-        <div>
-          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);display:block;margin-bottom:6px">Funnel Stage</label>
-          <select id="gen-funnel-stage" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-family:var(--hind)">
-            <option value="ToFu">ToFu</option>
-            <option value="MoFu">MoFu</option>
-            <option value="BoFu">BoFu</option>
-          </select>
-        </div>
-        <div>
-          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);display:block;margin-bottom:6px">Topic (optional)</label>
-          <input id="gen-topic" type="text" placeholder="lighting, setup, pricing..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-family:var(--hind)">
-        </div>
-        <div>
-          <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);display:block;margin-bottom:6px"># of Ideas</label>
-          <input id="gen-count" type="number" value="3" min="1" max="5" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px;font-family:var(--hind)">
-        </div>
-        <button onclick="generateIdeasFromLibrary()" style="padding:10px 24px;background:var(--accent);color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer;font-family:var(--hind)">
-          Generate Ideas
-        </button>
-      </div>
-      <div id="gen-status" style="margin-top:12px;font-size:13px;color:var(--muted)"></div>
-    </div>
-  </div>
-
-  <!-- Generated Ideas Display -->
-  <div id="generated-ideas-container" style="display:none;margin-bottom:24px">
-    <h3 style="font-size:16px;margin-bottom:12px;font-family:var(--hind);font-weight:700">Generated Ideas</h3>
-    <div id="generated-ideas-grid" style="display:grid;gap:14px"></div>
-  </div>
-
-  <!-- Add Video Button & Filters -->
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
-    <div style="display:flex;gap:8px">
-      <button onclick="showAddVideoForm()" style="padding:8px 16px;background:var(--accent);color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer">+ Add Video</button>
-      <button onclick="loadVideoLibrary()" style="padding:8px 16px;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer">Refresh</button>
-    </div>
-    <div style="display:flex;gap:6px">
-      <button class="filter-btn active" data-filter="all" onclick="filterVideos('all',this)">All</button>
-      <button class="filter-btn" data-filter="ToFu" onclick="filterVideos('ToFu',this)">ToFu</button>
-      <button class="filter-btn" data-filter="MoFu" onclick="filterVideos('MoFu',this)">MoFu</button>
-      <button class="filter-btn" data-filter="BoFu" onclick="filterVideos('BoFu',this)">BoFu</button>
-    </div>
-  </div>
-
-  <!-- Add Video Form (Hidden by default) -->
-  <div id="add-video-form" style="display:none;margin-bottom:24px">
-    <div class="scard">
-      <div class="scard-body">
-        <h3 style="font-size:16px;margin-bottom:16px">Add Video to Library</h3>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-          <input id="video-url" type="text" placeholder="Video URL" style="grid-column:1/-1;padding:8px;border:1px solid var(--border);border-radius:6px">
-          <input id="video-title" type="text" placeholder="Title" style="grid-column:1/-1;padding:8px;border:1px solid var(--border);border-radius:6px">
-          <input id="video-creator" type="text" placeholder="Creator Handle (@username)" style="padding:8px;border:1px solid var(--border);border-radius:6px">
-          <select id="video-platform" style="padding:8px;border:1px solid var(--border);border-radius:6px">
-            <option value="TikTok">TikTok</option>
-            <option value="Instagram">Instagram</option>
-            <option value="YouTube">YouTube</option>
-          </select>
-          <textarea id="video-hook" placeholder="Hook (first line of video)" style="grid-column:1/-1;padding:8px;border:1px solid var(--border);border-radius:6px;height:60px;resize:vertical"></textarea>
-          <textarea id="video-transcript" placeholder="Transcript (optional)" style="grid-column:1/-1;padding:8px;border:1px solid var(--border);border-radius:6px;height:80px;resize:vertical"></textarea>
-          <input id="video-tags" type="text" placeholder="Tags (comma-separated)" style="grid-column:1/-1;padding:8px;border:1px solid var(--border);border-radius:6px">
-          <select id="video-funnel-stage" style="padding:8px;border:1px solid var(--border);border-radius:6px">
-            <option value="ToFu">ToFu</option>
-            <option value="MoFu">MoFu</option>
-            <option value="BoFu">BoFu</option>
-          </select>
-          <input id="video-format" type="text" placeholder="Video Format (e.g. Side-by-side)" style="padding:8px;border:1px solid var(--border);border-radius:6px">
-          <input id="video-views" type="number" placeholder="Views" style="padding:8px;border:1px solid var(--border);border-radius:6px">
-          <input id="video-saves" type="number" placeholder="Saves" style="padding:8px;border:1px solid var(--border);border-radius:6px">
-          <input id="video-comments" type="number" placeholder="Comments" style="padding:8px;border:1px solid var(--border);border-radius:6px">
-          <textarea id="video-why-worked" placeholder="Why it worked (optional)" style="grid-column:1/-1;padding:8px;border:1px solid var(--border);border-radius:6px;height:60px;resize:vertical"></textarea>
-        </div>
-        <div style="display:flex;gap:12px;margin-top:16px">
-          <button onclick="saveVideo()" style="padding:10px 24px;background:var(--accent);color:white;border:none;border-radius:6px;font-weight:600;cursor:pointer">Save Video</button>
-          <button onclick="hideAddVideoForm()" style="padding:10px 24px;background:var(--surface);border:1px solid var(--border);border-radius:6px;cursor:pointer">Cancel</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Video Grid -->
-  <div id="video-library-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px"></div>
-  <div id="video-library-empty" style="display:none;text-align:center;padding:60px 20px;color:var(--muted)">
-    <p style="font-size:16px;margin-bottom:8px">No videos in library yet</p>
-    <p style="font-size:13px">Add viral photography videos to start generating ideas</p>
-  </div>
-</div>
-
 </div>
 <!-- MODALS -->
 <div class="mbg off" id="m-client"><div class="modal">
@@ -1272,7 +1170,6 @@ function showView(name,navEl){
   else if(name==='discovery')loadDiscovery();
   else if(name==='calendar')loadCalendar();
   else if(name==='strategy'){renderBank();renderWeekly();renderFormats();}
-  else if(name==='video-library')loadVideoLibrary();
 }
 
 // ── Ask Library ──────────────────────────────────────────────────────────────
@@ -2843,6 +2740,12 @@ function renderVideoBlock(b){
         ${b.funnel_stage?`<span class="tag t-lead">${b.funnel_stage.toUpperCase()}</span>`:''}
         ${b.category?`<span class="tag t-lead">${esc(b.category)}</span>`:''}
       </div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+          <input type="checkbox" id="block-is-reference" ${b.is_reference ? 'checked' : ''} onchange="toggleReference(${b.id}, this.checked)">
+          <span>Use as reference for idea generation</span>
+        </label>
+      </div>
       <div style="margin-top:12px;display:flex;gap:8px">
         <button class="btn btn-danger btn-sm" onclick="deleteBlock(${b.id})">Delete Block</button>
       </div>
@@ -3503,169 +3406,35 @@ function renderFormats() {
 }
 
 // ═══════════════════════════════════════════════════
-// VIDEO LIBRARY
+// RESEARCH LIBRARY - Video Generation
 // ═══════════════════════════════════════════════════
 
-let videoLibrary = [];
-let videoFilter = 'all';
-
-async function loadVideoLibrary() {
+async function toggleReference(blockId, isChecked) {
   try {
-    const params = new URLSearchParams();
-    if (videoFilter !== 'all') {
-      params.append('funnel_stage', videoFilter);
-    }
-    
-    const response = await fetch(`/api/video-library?${params}`);
-    videoLibrary = await response.json();
-    
-    renderVideoLibrary();
-    loadLibraryStats();
+    await api('PATCH', `/api/blocks/${blockId}`, { is_reference: isChecked });
+    toast(isChecked ? 'Marked as reference' : 'Unmarked as reference', 'ok');
   } catch (err) {
-    console.error('Load library error:', err);
+    console.error('Toggle reference error:', err);
+    toast('Error updating reference status');
   }
 }
 
-async function loadLibraryStats() {
-  try {
-    const response = await fetch('/api/video-library/stats');
-    const stats = await response.json();
-    
-    document.getElementById('stat-total').textContent = stats.total_videos || 0;
-    document.getElementById('stat-tofu').textContent = stats.tofu_count || 0;
-    document.getElementById('stat-mofu').textContent = stats.mofu_count || 0;
-    document.getElementById('stat-bofu').textContent = stats.bofu_count || 0;
-    document.getElementById('stat-used').textContent = stats.used_count || 0;
-  } catch (err) {
-    console.error('Load stats error:', err);
-  }
-}
-
-function renderVideoLibrary() {
-  const grid = document.getElementById('video-library-grid');
-  const empty = document.getElementById('video-library-empty');
-  
-  if (videoLibrary.length === 0) {
-    grid.style.display = 'none';
-    empty.style.display = 'block';
-    return;
-  }
-  
-  grid.style.display = 'grid';
-  empty.style.display = 'none';
-  
-  grid.innerHTML = videoLibrary.map(video => `
-    <div class="video-card" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;position:relative">
-      <div style="position:absolute;top:12px;right:12px">
-        <button onclick="deleteVideo(${video.id})" style="background:none;border:none;cursor:pointer;opacity:0.5;font-size:16px" title="Delete">🗑️</button>
-      </div>
-      <div style="margin-bottom:8px">
-        <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--accent)">${video.funnel_stage || 'N/A'}</span>
-        ${video.used_as_inspiration ? '<span style="font-size:10px;margin-left:8px;color:var(--muted)">✓ Used</span>' : ''}
-      </div>
-      <h4 style="font-size:14px;font-weight:600;margin-bottom:8px;line-height:1.4">${video.title || 'Untitled'}</h4>
-      <div style="font-size:12px;color:var(--muted);margin-bottom:8px">
-        ${video.creator_handle || 'Unknown'} • ${video.platform || 'TikTok'}
-      </div>
-      ${video.hook ? `<div style="font-size:12px;font-style:italic;color:var(--text);margin-bottom:8px;line-height:1.5">"${video.hook}"</div>` : ''}
-      <div style="display:flex;gap:12px;font-size:11px;color:var(--muted);margin-bottom:8px">
-        <span>👁️ ${(video.views || 0).toLocaleString()}</span>
-        <span>💾 ${video.saves || 0}</span>
-        ${video.engagement_rate ? `<span style="color:var(--accent);font-weight:600">${video.engagement_rate}%</span>` : ''}
-      </div>
-      ${video.video_format ? `<div style="font-size:11px;color:var(--muted)">Format: ${video.video_format}</div>` : ''}
-      ${video.source_url ? `<a href="${video.source_url}" target="_blank" style="font-size:11px;color:var(--accent);text-decoration:none;display:block;margin-top:8px">View Original →</a>` : ''}
-    </div>
-  `).join('');
-}
-
-function filterVideos(filter, button) {
-  videoFilter = filter;
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-  button.classList.add('active');
-  loadVideoLibrary();
-}
-
-function showAddVideoForm() {
-  document.getElementById('add-video-form').style.display = 'block';
-}
-
-function hideAddVideoForm() {
-  document.getElementById('add-video-form').style.display = 'none';
-  ['video-url', 'video-title', 'video-creator', 'video-hook', 'video-transcript', 
-   'video-tags', 'video-format', 'video-views', 'video-saves', 'video-comments', 
-   'video-why-worked'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.value = '';
-  });
-}
-
-async function saveVideo() {
-  try {
-    const tags = document.getElementById('video-tags').value.split(',').map(t => t.trim()).filter(Boolean);
-    
-    const data = {
-      title: document.getElementById('video-title').value,
-      source_url: document.getElementById('video-url').value,
-      creator_handle: document.getElementById('video-creator').value,
-      platform: document.getElementById('video-platform').value,
-      hook: document.getElementById('video-hook').value,
-      transcript: document.getElementById('video-transcript').value,
-      tags: tags,
-      funnel_stage: document.getElementById('video-funnel-stage').value,
-      video_format: document.getElementById('video-format').value,
-      views: parseInt(document.getElementById('video-views').value) || 0,
-      saves: parseInt(document.getElementById('video-saves').value) || 0,
-      comments: parseInt(document.getElementById('video-comments').value) || 0,
-      why_it_worked: document.getElementById('video-why-worked').value
-    };
-    
-    const response = await fetch('/api/video-library', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    
-    if (response.ok) {
-      hideAddVideoForm();
-      loadVideoLibrary();
-      toast('Video added to library');
-    } else {
-      toast('Error saving video');
-    }
-  } catch (err) {
-    console.error('Save video error:', err);
-    toast('Error saving video');
-  }
-}
-
-async function deleteVideo(id) {
-  if (!confirm('Delete this video from library?')) return;
-  
-  try {
-    await fetch(`/api/video-library/${id}`, { method: 'DELETE' });
-    loadVideoLibrary();
-    toast('Video deleted');
-  } catch (err) {
-    console.error('Delete error:', err);
-  }
-}
-
-async function generateIdeasFromLibrary() {
+async function generateFromVideos() {
   const statusEl = document.getElementById('gen-status');
   const button = event.target;
   
   button.disabled = true;
   button.textContent = 'Generating...';
-  statusEl.textContent = 'Searching library and generating ideas...';
+  statusEl.textContent = 'Searching reference videos and generating ideas...';
   
   try {
-    const response = await fetch('/api/video-library/generate-ideas', {
+    const tags = document.getElementById('gen-tags').value.trim();
+    const response = await fetch('/api/research/generate-ideas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        funnel_stage: document.getElementById('gen-funnel-stage').value,
-        topic: document.getElementById('gen-topic').value || null,
+        funnel_stage: document.getElementById('gen-stage').value || null,
+        tags: tags ? tags.split(',').map(t => t.trim()) : null,
         count: parseInt(document.getElementById('gen-count').value)
       })
     });
@@ -3677,8 +3446,11 @@ async function generateIdeasFromLibrary() {
       renderGeneratedIdeas(result.ideas);
     } else if (result.error) {
       statusEl.textContent = `Error: ${result.message || result.error}`;
+      if (result.suggestion) {
+        statusEl.innerHTML += `<br><span style="color:var(--accent)">${result.suggestion}</span>`;
+      }
     } else {
-      statusEl.textContent = 'No ideas generated. Try adding more videos to library.';
+      statusEl.textContent = 'No ideas generated. Mark some videos as reference first.';
     }
   } catch (err) {
     console.error('Generate error:', err);
@@ -3690,7 +3462,7 @@ async function generateIdeasFromLibrary() {
 }
 
 function renderGeneratedIdeas(ideas) {
-  const container = document.getElementById('generated-ideas-container');
+  const container = document.getElementById('generated-ideas');
   const grid = document.getElementById('generated-ideas-grid');
   
   container.style.display = 'block';
@@ -3699,35 +3471,38 @@ function renderGeneratedIdeas(ideas) {
     <div class="bank-card" style="border-left:4px solid var(--accent);cursor:pointer" onclick="toggleGeneratedIdea(${idx})">
       <div class="bc-top">
         <span class="bc-num">${String(idx + 1).padStart(2, '0')}</span>
-        <span class="bc-title">${idea.title}</span>
+        <span class="bc-title">${esc(idea.title)}</span>
       </div>
       <div style="font-size:11px;color:var(--muted);margin:8px 0">
-        ${idea.platform} • ${idea.length}
+        ${esc(idea.platform)} • ${esc(idea.length)}
       </div>
       <div id="gen-idea-${idx}" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
         <div style="margin-bottom:12px">
           <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px">HOOK</div>
-          <div style="font-size:13px;font-style:italic;background:var(--surface-2);padding:10px;border-radius:6px">${idea.hook}</div>
+          <div style="font-size:13px;font-style:italic;background:var(--surface-2);padding:10px;border-radius:6px">${esc(idea.hook)}</div>
         </div>
         <div style="margin-bottom:12px">
           <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px">TEXT OVERLAY</div>
-          <div style="font-size:13px;white-space:pre-line;background:var(--surface-2);padding:10px;border-radius:6px">${idea.overlay}</div>
+          <div style="font-size:13px;white-space:pre-line;background:var(--surface-2);padding:10px;border-radius:6px">${esc(idea.overlay)}</div>
         </div>
         <div style="margin-bottom:12px">
           <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px">CAPTION</div>
-          <div style="font-size:13px;background:var(--surface-2);padding:10px;border-radius:6px">${idea.caption}</div>
+          <div style="font-size:13px;background:var(--surface-2);padding:10px;border-radius:6px">${esc(idea.caption)}</div>
         </div>
         <div style="margin-bottom:12px">
           <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px">FILM IT</div>
-          <div style="font-size:12px;white-space:pre-line;background:var(--surface-2);padding:10px;border-radius:6px">${idea.filmIt}</div>
+          <div style="font-size:12px;white-space:pre-line;background:var(--surface-2);padding:10px;border-radius:6px">${esc(idea.filmIt)}</div>
         </div>
         <div style="font-size:11px;color:var(--muted);margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
-          <strong>CTA:</strong> ${idea.cta}<br>
-          <strong>Inspiration:</strong> ${idea.sourceInspiration || 'N/A'}
+          <strong>CTA:</strong> ${esc(idea.cta)}<br>
+          <strong>Inspiration:</strong> ${esc(idea.sourceInspiration || 'N/A')}
         </div>
       </div>
     </div>
   `).join('');
+  
+  // Scroll to generated ideas
+  container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 function toggleGeneratedIdea(idx) {
