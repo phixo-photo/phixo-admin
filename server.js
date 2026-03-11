@@ -289,6 +289,79 @@ const oauth2Client = new google.auth.OAuth2(
 );
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
+// ── PHIXO STRATEGY SYSTEM PROMPT ─────────────────────────────────────────────
+// This is the single source of truth for all content ideation API calls.
+// Every idea generated must pass through this context. Nothing is invented
+// outside these rules.
+const PHIXO_STRATEGY_SYSTEM = `
+You are a content ideation assistant for Phixo, a portrait photography studio in West Island Montreal run by Ian Green as a side hustle. You generate content ideas EXCLUSIVELY based on the strategy rules below. You never invent outside these rules.
+
+━━━ WHO IAN IS ━━━
+- Portrait photographer, West Island Montreal, basement studio
+- Full-time IT job (6 figures), Phixo is capped at 10–12 sessions/month
+- Studied digital photography at Algonquin College 10+ years ago, returned after a decade in IT
+- No staff. Ian is the subject in all content — no clients can be filmed without consent.
+- New to Montreal — nobody knows his name yet. Content builds familiarity from scratch.
+
+━━━ THE ONE TRUE THING ━━━
+People want a photo that actually looks like them. Some need help getting there. Some just show up ready. Either way, the job is the same — create the conditions where that can happen, and let them see it in real time. Every piece of content either connects back to that or it doesn't.
+
+━━━ VOICE RULES (NON-NEGOTIABLE) ━━━
+- Warm. Real. Like a friend who knows his stuff but isn't making a thing of it.
+- Write like Ian talks. Sentences can start with "and" or "but." Casual rhythm is fine.
+- "I" = Ian personally. "We" = the studio experience with a client. Never reversed.
+- NEVER use: stunning, perfect, gorgeous, transformative, journey, authentic journey, or any AI hype language
+- NEVER pain-point fish — not everyone is struggling, some people just want a good photo
+- NEVER corporate polish, fake urgency, scarcity tactics
+- When selling, it sounds like "come by, I'll take care of you" — not a funnel
+- No emojis in scripts or captions unless the brief explicitly calls for one strategically
+
+━━━ CONTENT FORMAT ━━━
+The default format is a talking-head vertical video. Ian films himself in a car, a chair, on the edge of a desk — wherever he is. No production required. No ring light needed. A window works. This casual, direct format IS the brand — it tells people before they ever book what a session with Ian feels like.
+- 30–60 seconds
+- Start mid-thought — no "hey guys" or long intros
+- One idea per video. Get in, get out.
+- Look at the camera, not the screen
+- Notes are fine. Reading a script is not.
+
+━━━ CONTENT PILLARS + FUNNEL MAPPING ━━━
+
+EDUCATE (ToFu + MoFu)
+Teach something anyone could use — lighting, posing, what to wear, how to prepare, what makes a portrait work, how the camera sees vs the eye sees. Give something away free that makes people think: this person actually knows what they're doing. Works at ToFu (strangers find you) AND MoFu (deepens trust with warm audiences).
+
+ENTERTAIN (ToFu)
+Make someone stop scrolling. Relatable photography moments, light observations about the process or industry. Doesn't have to be a joke — just something that lands human. Pure ToFu — not building toward a booking yet, earning attention and showing personality.
+
+TELL (MoFu)
+Stories. A moment from a session, something that happened, something Ian noticed. First person, specific, real. Not a case study — a moment told simply. Almost pure MoFu. Someone already knows Ian exists. A real story builds trust better than any credential.
+
+PROMOTE (BoFu)
+Direct, honest info for someone who's already thinking about booking. Pricing, what's included, how to book, what the session looks like. No fake urgency. Just answer the question they already have and make it easy to say yes.
+
+━━━ FUNNEL STAGES ━━━
+ToFu — Strangers scrolling who don't know Ian exists. Best pillars: Educate, Entertain.
+MoFu — Someone who found Ian and is looking around. Best pillars: Educate, Tell.
+BoFu — Someone basically decided, just needs the practical info. Best pillar: Promote.
+
+━━━ THREE CLIENT LANES (ALL EQUAL) ━━━
+Lane 1 — Career & Professional: Professionals in transition, job seekers, leaders, founders. Want a photo that matches where they're headed. Busy, efficient, want real-time review. Show up for: new job, promotion, rebrand, speaking engagement.
+Lane 2 — Personal & Milestone: Graduates, young women, creatives. Want a portrait that feels like them — not stiff, not fake. Some are camera-shy, some come in confident. Either works. Show up for: graduation, birthday, creative project, just feeling good.
+Lane 3 — Family & Legacy: Families, couples, multi-generational groups. Want to preserve a connection or season of life. Challenge is coordination, not the photography. Show up for: birthdays, anniversaries, reunions, holidays, before a kid leaves for school.
+
+━━━ PROOF PHRASES (evidence only, never taglines) ━━━
+Tethered Shooting — always followed by: "images appear on screen in real time so you can see and adjust as we go"
+Natural Retouching — cleans things up without replacing you
+Guided Experience — structured session, Ian leads, client relaxes
+
+━━━ WHAT GOOD CONTENT LOOKS LIKE ━━━
+- Connects to the viewer's experience first, Ian's expertise second
+- Shows technical knowledge warmly — teaches, doesn't just demonstrate
+- Every script has its own structure — no repeated templates
+- Art is subjective — never position any tool or approach as objectively better
+- Hooks connect to the viewer's reality, not to Phixo's services
+`.trim();
+
+
 function requireAuth(req, res, next) {
   if (req.session?.tokens) { oauth2Client.setCredentials(req.session.tokens); return next(); }
   res.redirect('/auth/login');
@@ -550,9 +623,10 @@ CRITICAL:
 
 
     const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 4000,
-      temperature: 1.0, // Maximum creativity for unique ideas
+      temperature: 1.0,
+      system: PHIXO_STRATEGY_SYSTEM,
       messages: [
         { role: 'user', content: claudePrompt }
       ]
@@ -593,6 +667,87 @@ CRITICAL:
     res.status(500).json({ error: err.message });
   }
 });
+
+
+// ── CONTENT IDEATION — Strategy Hub as the only data source ─────────────────
+app.post('/api/content/ideate', requireAuth, async (req, res) => {
+  try {
+    const {
+      mode = 'scratch',
+      funnel_stage,
+      pillar,
+      lane,
+      seed_idea,
+      block_id,
+      count = 3
+    } = req.body;
+
+    let userPrompt = '';
+
+    if (mode === 'scratch') {
+      if (!funnel_stage || !pillar) {
+        return res.status(400).json({ error: 'funnel_stage and pillar are required for scratch mode' });
+      }
+      userPrompt = `Generate ${count} original Phixo content ideas.\n\nPARAMETERS:\n- Funnel Stage: ${funnel_stage}\n- Content Pillar: ${pillar}\n- Client Lane Focus: ${lane || 'any - mix across all three lanes'}\n\nThese ideas must come entirely from the strategy rules in the system prompt. No generic photography content. Every idea must feel like Ian talking - warm, casual, real.\n\nFor each idea provide:\n1. title\n2. pillar\n3. funnelStage\n4. lane\n5. hook - opening line said to camera, no hey guys, start mid-thought\n6. script - what Ian actually says, 4-8 sentences, his voice, no hype language\n7. overlay - optional on-screen text, can be empty string\n8. caption - Instagram/TikTok caption, minimal emojis\n9. filmIt - numbered steps, where to sit, what to do, how long\n10. cta - call to action if any\n11. length - estimated seconds\n\nReturn as a JSON array only. No preamble, no markdown fences.`;
+
+    } else if (mode === 'riff') {
+      if (!seed_idea) {
+        return res.status(400).json({ error: 'seed_idea is required for riff mode' });
+      }
+      userPrompt = `Build ${count} variations from this existing Phixo content idea. Each variation must be meaningfully different - different angle, different lane, different hook structure.\n\nSEED IDEA:\n${seed_idea}\n\nRules:\n- Stay completely within the strategy system prompt voice rules\n- At least one variation should shift the funnel stage\n- At least one variation should target a different client lane\n\nFor each variation provide:\n1. title\n2. pillar\n3. funnelStage\n4. lane\n5. hook\n6. script\n7. overlay\n8. caption\n9. filmIt\n10. cta\n11. length\n12. variationNote - one sentence explaining what is different about this angle\n\nReturn as a JSON array only. No preamble, no markdown fences.`;
+
+    } else if (mode === 'research') {
+      if (!block_id) {
+        return res.status(400).json({ error: 'block_id is required for research mode' });
+      }
+      const blockResult = await pool.query(
+        'SELECT id, title, content_payload, metadata, tags, source_url, type FROM blocks WHERE id = $1',
+        [block_id]
+      );
+      if (blockResult.rows.length === 0) {
+        return res.status(404).json({ error: 'Block not found' });
+      }
+      const block = blockResult.rows[0];
+      const meta = block.metadata || {};
+      const transcript = block.content_payload || '';
+      const keyPoints = (meta.key_points || []).slice(0, 5).join('\n- ');
+      const hook = transcript.split('\n')[0] || meta.hook || '';
+
+      userPrompt = `Generate ${count} Phixo content ideas inspired by this research block. Everything must pass through the strategy system prompt - voice, pillars, lanes, funnel mapping, format rules.\n\nRESEARCH BLOCK:\nTitle: ${block.title}\nType: ${block.type}\nSource: ${block.source_url || 'N/A'}\nOpening hook: "${hook}"\nKey points:\n- ${keyPoints || 'See transcript'}\n\nTranscript excerpt:\n${transcript.slice(0, 800)}\n\nTASK: Adapt the format, structure, or concept from this source into original Phixo content. Ian is always the subject. The content should feel like Ian, not like the original source creator.\n\nFor each idea provide:\n1. title\n2. pillar\n3. funnelStage\n4. lane\n5. hook\n6. script\n7. overlay\n8. caption\n9. filmIt\n10. cta\n11. length\n12. sourceAdaptation - one sentence on what was borrowed from the research block\n\nReturn as a JSON array only. No preamble, no markdown fences.`;
+
+    } else {
+      return res.status(400).json({ error: 'mode must be scratch, riff, or research' });
+    }
+
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 4000,
+      temperature: 1.0,
+      system: PHIXO_STRATEGY_SYSTEM,
+      messages: [{ role: 'user', content: userPrompt }]
+    });
+
+    const responseText = message.content[0].text;
+    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      return res.status(500).json({ error: 'No JSON in response', raw: responseText });
+    }
+
+    let ideas;
+    try {
+      ideas = JSON.parse(jsonMatch[0]);
+    } catch (e) {
+      return res.status(500).json({ error: 'Failed to parse ideas JSON', raw: responseText });
+    }
+
+    res.json({ ideas, mode, count: ideas.length });
+
+  } catch (err) {
+    console.error('Ideation error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // Upload file → Drive → create block
 app.post('/api/blocks/upload', requireAuth, upload.single('file'), async (req, res) => {
