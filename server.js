@@ -284,68 +284,96 @@ function getRelevantHooks(funnelStage, count = 25) {
 // Returns a formatted block of REAL hooks for Claude to choose from.
 // Claude picks from these — it does not invent hooks.
 // ── TWO-CALL HOOK SYSTEM ────────────────────────────────────────────────────
-// Call 1: Haiku reads all 1004 hooks + context, returns real IDs only.
-// Node validates every ID against VIRAL_HOOKS before Call 2 touches them.
-// Claude never selects or invents hooks in the ideation call.
+// Call 1 (Haiku): reads all 1003 hooks + context.
+//   Returns JSON array of objects: [{id, filledHook}]
+//   Haiku selects the best IDs AND fills the template placeholders.
+//   Node validates every ID — if it's not in VIRAL_HOOKS it's rejected.
+//   Locks {id, template, filledHook} before Call 2 ever runs.
+//
+// Call 2 (Sonnet): receives pre-locked hook objects.
+//   Writes ONLY: script, caption, filmIt, cta, overlay, title, platform, length.
+//   Never asked to return hookId or hook text — those come from Node.
+//   Node merges at the end: hookId/hook from Node, content from Sonnet.
+//   EDU_004730 is structurally impossible.
 
-async function selectHooksViaHaiku(count, context) {
+async function selectAndFillHooksViaHaiku(count, context) {
   if (VIRAL_HOOKS.length === 0) return [];
 
-  // Full CSV as text — all 1004 hooks, Haiku reads everything
   const csvText = VIRAL_HOOKS.map(h =>
-    `${h.id},${h.category},"${h.template}",${h.exampleUrl}`
+    `${h.id}|${h.category}|${h.template}`
   ).join('\n');
 
-  const selectionPrompt = `You are selecting hooks for a content creator named Ian Green.
+  const selectionPrompt = `You are selecting and filling hooks for a content creator named Ian Green.
 
 ABOUT IAN:
 ${context}
 
 TASK:
-Read all 1004 hooks below. Return exactly ${count} hook IDs that would work best for this specific request.
-Consider Ian's voice (warm, direct, no hype), his subject matter (portrait photography, Montreal, side hustle), and his audience.
-Think about which hooks a real person would actually stop scrolling for.
+1. Read all hooks below.
+2. Select exactly ${count} hooks that fit Ian's content best.
+3. For each selected hook, fill in all placeholder text (anything in parentheses like "(insert age)" or "(insert pain point)") with specific portrait photography context that fits Ian.
 
 RULES:
-- Return ONLY a JSON array of ID strings. Nothing else. No explanation.
-- Every ID you return MUST exist exactly in the list below.
-- Do not invent, modify, or combine IDs.
-- Example valid response: ["STO_0012","EDU_0047","AUT_0003"]
+- Return ONLY a JSON array. No explanation, no preamble, no markdown.
+- Every "id" you return MUST exist exactly in the database below — copy it character for character.
+- Do not invent IDs. Do not modify IDs. Do not combine IDs.
+- "filledHook" is the template with ALL placeholders replaced with portrait photography context.
+- Keep the sentence structure of the template — only replace the placeholder parts.
 
-HOOK DATABASE (Hook ID, Category, Template, Example URL):
+RETURN FORMAT (JSON array, nothing else):
+[
+  {"id": "EDU_0047", "filledHook": "If you just booked your first headshot session and you don't want to look stiff and uncomfortable in front of the camera, here are 3 things to do immediately."},
+  {"id": "STO_0012", "filledHook": "...filled template..."}
+]
+
+HOOK DATABASE (ID|Category|Template):
 ${csvText}`;
 
-  const msg = await anthropic.messages.create({
-    model: 'claude-haiku-4-5-20251001',
-    max_tokens: 200,
-    temperature: 0.7,
-    messages: [{ role: 'user', content: selectionPrompt }]
-  });
-
-  const text = msg.content[0].text.trim();
-
-  // Parse the returned IDs
-  let returnedIds = [];
+  let msg;
   try {
-    const match = text.match(/\[.*\]/s);
-    if (match) returnedIds = JSON.parse(match[0]);
+    msg = await anthropic.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 600,
+      temperature: 0.7,
+      messages: [{ role: 'user', content: selectionPrompt }]
+    });
   } catch (e) {
-    console.error('Haiku hook selection parse error:', e.message);
+    console.error('Haiku hook selection API error:', e.message);
     return [];
   }
 
-  // Validate every ID against the actual in-memory array
-  const validIdSet = new Set(VIRAL_HOOKS.map(h => h.id));
-  const validatedIds = returnedIds.filter(id => validIdSet.has(id));
+  const text = msg.content[0].text.trim();
 
-  console.log(`Hook selection: Haiku returned ${returnedIds.length}, ${validatedIds.length} validated`);
+  // Parse returned objects
+  let returned = [];
+  try {
+    const match = text.match(/\[.*\]/s);
+    if (match) returned = JSON.parse(match[0]);
+  } catch (e) {
+    console.error('Haiku hook parse error:', e.message, '| raw:', text.slice(0, 200));
+    return [];
+  }
 
-  // Map validated IDs to full hook objects
+  // Build valid ID set from actual in-memory CSV data
   const hookMap = Object.fromEntries(VIRAL_HOOKS.map(h => [h.id, h]));
-  return validatedIds.map(id => hookMap[id]);
+  const validIdSet = new Set(VIRAL_HOOKS.map(h => h.id));
+
+  // Validate every returned ID — reject anything not in the real CSV
+  const validated = returned
+    .filter(item => item && typeof item.id === 'string' && validIdSet.has(item.id.trim()))
+    .map(item => ({
+      id: item.id.trim(),                          // from real CSV, not from Claude
+      category: hookMap[item.id.trim()].category,  // from real CSV
+      template: hookMap[item.id.trim()].template,  // from real CSV
+      exampleUrl: hookMap[item.id.trim()].exampleUrl, // from real CSV
+      filledHook: item.filledHook || hookMap[item.id.trim()].template // filled by Haiku, fallback to raw
+    }));
+
+  console.log(`Hook selection: Haiku returned ${returned.length}, ${validated.length} validated`);
+  return validated;
 }
 
-// Fallback: random sample from filtered pool (used only if Haiku call fails)
+// Fallback: random sample when Haiku fails completely
 function randomHooks(count, funnelStage, pillar) {
   const categoryMap = {
     'Educate':   ['EDUCATIONAL', 'MYTH BUSTING', 'AUTHORITY'],
@@ -360,14 +388,19 @@ function randomHooks(count, funnelStage, pillar) {
   };
   const categories = categoryMap[pillar] || stageFallback[funnelStage] || ['EDUCATIONAL', 'STORYTELLING'];
   const filtered = VIRAL_HOOKS.filter(h => categories.includes(h.category));
-  return [...filtered].sort(() => Math.random() - 0.5).slice(0, count);
+  const sample = [...filtered].sort(() => Math.random() - 0.5).slice(0, count);
+  // For fallback hooks, filledHook = raw template (no fill — Sonnet will handle it)
+  return sample.map(h => ({ ...h, filledHook: h.template }));
 }
 
-// Format validated hook objects into the prompt block for Call 2
-function formatHooksForIdeation(hooks) {
-  return hooks.map((h, i) =>
-    `Idea ${i + 1} — Hook assigned:\n  ID: ${h.id}\n  Category: ${h.category}\n  Template: "${h.template}"\n  Example: ${h.exampleUrl}\n  Instructions: Fill in the template placeholders with Ian's portrait photography context. Do not alter the template structure.`
-  ).join('\n\n');
+// Format locked hook objects for the Sonnet prompt.
+// Sonnet sees the pre-filled hook text and is told NOT to change it or return hookId.
+function formatLockedHooks(hooks) {
+  return hooks.map((h, i) => [
+    `--- IDEA ${i + 1} HOOK (LOCKED — do not change this) ---`,
+    `Hook text: "${h.filledHook}"`,
+    `Hook ID: ${h.id} (do not include this in your JSON — Node will attach it)`,
+  ].join('\n')).join('\n\n');
 }
 
 // ═══════════════════════════════════════════════════
@@ -655,11 +688,11 @@ Source: ${v.source_url || 'N/A'}
 `.trim();
     });
     
-    // Call 1: Haiku selects real hook IDs from all 1004
+    // Call 1: Haiku selects IDs from all 1003 hooks AND fills template placeholders
     const hookContext = `Ian Green, portrait photographer, West Island Montreal. Side hustle, 10-12 sessions/month. Warm direct voice, no hype. Funnel stage: ${funnel_stage || 'ToFu'}. Content type: reference video adaptation.`;
     let selectedHooks = [];
     try {
-      selectedHooks = await selectHooksViaHaiku(count, hookContext);
+      selectedHooks = await selectAndFillHooksViaHaiku(count, hookContext);
     } catch (e) {
       console.error('Hook selection failed, using random fallback:', e.message);
     }
@@ -667,34 +700,36 @@ Source: ${v.source_url || 'N/A'}
       const fallback = randomHooks(count - selectedHooks.length, funnel_stage || 'ToFu', '');
       selectedHooks = [...selectedHooks, ...fallback].slice(0, count);
     }
-    const hooksBlock = formatHooksForIdeation(selectedHooks);
+    const lockedHooks = formatLockedHooks(selectedHooks);
 
-    // Call 2: Sonnet ideates with pre-assigned real hooks
+    // Call 2: Sonnet writes content only — hook text already locked by Node
     const claudePrompt = `
 REFERENCE VIDEOS (proven ${funnel_stage || 'content'} performers from Research Library):
 
 ${videoSummaries.join('\n\n')}
 
-HOOKS ASSIGNED — one real hook per idea, validated from the 1004-hook library:
-${hooksBlock}
+${lockedHooks}
 
 TASK:
 Generate ${count} content ideas for Phixo adapted from these reference videos.
-Each idea has a hook already assigned above. Fill in the template placeholders with Ian's portrait photography context. Do not alter the template structure.
 Timestamp: ${Date.now()}
 
-For each idea return:
+CRITICAL: Each idea's hook text is already written above and LOCKED. 
+Do NOT include hookId or hookTemplate in your JSON — Node will attach those.
+Do NOT rewrite or change the hook text.
+Your job: write everything else.
+
+For each idea return (JSON array, in order matching the IDEA numbers above):
 1. title — short, what the video is about
-2. hook — the template filled in with Ian's portrait context
-3. hookTemplate — raw template text as assigned
-4. hookId — the ID assigned above
-5. overlay — text that appears on screen (can be empty)
-6. caption — in Ian's voice
-7. filmIt — numbered steps, where to sit, what to do, how long
-8. cta — call to action if any
-9. platform — TikTok, Instagram, etc.
-10. length — estimated seconds
-11. sourceInspiration — which video block inspired this
+2. hook — copy the locked hook text exactly as written above for that idea number
+3. script — what Ian says after the hook. Read the WRONG/RIGHT voice examples in your instructions and write RIGHT. 4-8 sentences. Moves forward, no wrap-up.
+4. overlay — text on screen, empty string if none
+5. caption — in Ian's voice, no emojis
+6. filmIt — numbered steps: where to sit, what to do, how long
+7. cta — call to action if any
+8. platform — TikTok, Instagram, etc.
+9. length — estimated seconds
+10. sourceInspiration — which video block inspired this
 
 Format as JSON array only. No preamble, no markdown fences.`;
 
@@ -729,6 +764,19 @@ Format as JSON array only. No preamble, no markdown fences.`;
       });
     }
     
+    // Node merge: attach real hookId/hookTemplate from validated CSV
+    ideas = ideas.map((idea, i) => {
+      const hook = selectedHooks[i];
+      if (!hook) return idea;
+      return {
+        ...idea,
+        hook: idea.hook || hook.filledHook,
+        hookId: hook.id,
+        hookTemplate: hook.template,
+        exampleUrl: hook.exampleUrl
+      };
+    });
+
     res.json({
       ideas,
       sourcesUsed: videosResult.rows.length,
@@ -749,11 +797,13 @@ app.post('/api/content/ideate', requireAuth, async (req, res) => {
     const { mode = 'scratch', funnel_stage, pillar, lane, seed_idea, block_ids, count = 3 } = req.body;
     let userPrompt = '';
 
-    // ── CALL 1: Hook selection via Haiku (all modes) ──────────────────────────
+    // ── CALL 1: Haiku selects IDs + fills template placeholders ─────────────────
+    // Node validates every ID. lockedHooks = [{id, template, filledHook}] from real CSV.
+    // Sonnet never touches hookId or hook text — those are set here and merged after Call 2.
     const hookContext = `Ian Green, portrait photographer, West Island Montreal. Side hustle 10-12 sessions/month. Warm direct voice, no hype. Mode: ${mode}. Pillar: ${pillar || 'mixed'}. Funnel: ${funnel_stage || 'mixed'}. Lane: ${lane || 'any'}.`;
     let selectedHooks = [];
     try {
-      selectedHooks = await selectHooksViaHaiku(count, hookContext);
+      selectedHooks = await selectAndFillHooksViaHaiku(count, hookContext);
     } catch (e) {
       console.error('Hook selection failed, using random fallback:', e.message);
     }
@@ -761,7 +811,7 @@ app.post('/api/content/ideate', requireAuth, async (req, res) => {
       const fallback = randomHooks(count - selectedHooks.length, funnel_stage || 'ToFu', pillar || '');
       selectedHooks = [...selectedHooks, ...fallback].slice(0, count);
     }
-    const hooksBlock = formatHooksForIdeation(selectedHooks);
+    const lockedHooks = formatLockedHooks(selectedHooks);
 
     // ── BUILD PROMPT per mode ─────────────────────────────────────────────────
     if (mode === 'scratch') {
@@ -774,23 +824,24 @@ PARAMETERS:
 - Client Lane Focus: ${lane || 'any - mix across all three lanes'}
 - Timestamp: ${Date.now()}
 
-HOOKS ASSIGNED — one real hook per idea, already validated from the 1004-hook library:
-${hooksBlock}
+${lockedHooks}
 
-For each idea return:
+CRITICAL: Each idea's hook text is already written above and LOCKED.
+Do NOT include hookId or hookTemplate in your JSON — Node attaches those automatically.
+Do NOT rewrite or modify the hook text. Copy it exactly as written for that idea number.
+
+For each idea return (in order matching IDEA numbers above):
 1. title
 2. pillar
 3. funnelStage
 4. lane
-5. hook — the assigned template filled in with Ian's portrait photography context
-6. hookTemplate — raw template text as assigned
-7. hookId — the ID assigned above
-8. script — what Ian actually says. 4-8 sentences. Read the voice examples in the system prompt and write like those RIGHT examples, not the WRONG ones.
-9. overlay — optional on-screen text, empty string if none
-10. caption — in Ian's voice, no emojis
-11. filmIt — numbered steps: where to sit, what to do, how long
-12. cta — none for ToFu, soft trail for MoFu, direct for BoFu
-13. length — estimated seconds
+5. hook — copy the locked hook text exactly as written above for that idea number
+6. script — what Ian actually says. 4-8 sentences. Write like the RIGHT examples in the system prompt, not the WRONG ones. Moves forward, no wrap-up, no announced conclusion.
+7. overlay — optional on-screen text, empty string if none
+8. caption — in Ian's voice, no emojis
+9. filmIt — numbered steps: where to sit, what to do, how long
+10. cta — none for ToFu, soft trail for MoFu, direct for BoFu
+11. length — estimated seconds
 
 Return as a JSON array only. No preamble, no markdown fences.`;
 
@@ -801,29 +852,28 @@ Return as a JSON array only. No preamble, no markdown fences.`;
 SEED IDEA:
 ${seed_idea}
 
-HOOKS ASSIGNED — one real hook per variation, validated from the 1004-hook library:
-${hooksBlock}
+${lockedHooks}
 
 Rules:
 - At least one variation must shift the funnel stage from the seed
 - At least one variation must target a different client lane
-- Use the assigned hook for each variation. Fill in the template, do not alter its structure.
+- Each variation's hook is already locked above. Do not change it.
 
-For each variation return:
+CRITICAL: Do NOT include hookId or hookTemplate in your JSON — Node attaches those.
+
+For each variation return (in order matching IDEA numbers above):
 1. title
 2. pillar
 3. funnelStage
 4. lane
-5. hook — assigned template filled in with Ian's portrait context
-6. hookTemplate — raw template as assigned
-7. hookId
-8. script — write like the RIGHT examples in the system prompt, not the WRONG ones
-9. overlay
-10. caption
-11. filmIt
-12. cta
-13. length
-14. variationNote — one sentence: what is different about this angle
+5. hook — copy the locked hook text exactly as written above for that idea number
+6. script — write like the RIGHT examples in the system prompt, not the WRONG ones
+7. overlay
+8. caption
+9. filmIt
+10. cta
+11. length
+12. variationNote — one sentence: what is different about this angle
 
 Return as a JSON array only. No preamble, no markdown fences.`;
 
@@ -855,24 +905,23 @@ Transcript excerpt: ${transcript.slice(0, 600)}`;
 RESEARCH BLOCKS:
 ${blockSummaries}
 
-HOOKS ASSIGNED — one real hook per idea, validated from the 1004-hook library:
-${hooksBlock}
+${lockedHooks}
 
-For each idea return:
+CRITICAL: Each idea's hook is already locked above. Do NOT include hookId or hookTemplate in your JSON — Node attaches those.
+
+For each idea return (in order matching IDEA numbers above):
 1. title
 2. pillar
 3. funnelStage
 4. lane
-5. hook — assigned template filled in with Ian's portrait context
-6. hookTemplate — raw template as assigned
-7. hookId
-8. script — write like the RIGHT examples in the system prompt, not the WRONG ones
-9. overlay
-10. caption
-11. filmIt
-12. cta
-13. length
-14. sourceAdaptation — one sentence: what format or concept came from the block
+5. hook — copy the locked hook text exactly as written above for that idea number
+6. script — write like the RIGHT examples in the system prompt, not the WRONG ones
+7. overlay
+8. caption
+9. filmIt
+10. cta
+11. length
+12. sourceAdaptation — one sentence: what format or concept came from the block
 
 Return as a JSON array only. No preamble, no markdown fences.`;
 
@@ -896,6 +945,21 @@ Return as a JSON array only. No preamble, no markdown fences.`;
     let ideas;
     try { ideas = JSON.parse(jsonMatch[0]); }
     catch (e) { return res.status(500).json({ error: 'Failed to parse ideas JSON', raw: responseText }); }
+
+    // ── NODE MERGE: attach real hookId, hookTemplate, exampleUrl from validated CSV ──
+    // Sonnet was never asked to return these — we set them here from selectedHooks.
+    // This is the structural guarantee that hookId is always real and always correct.
+    ideas = ideas.map((idea, i) => {
+      const hook = selectedHooks[i];
+      if (!hook) return idea;
+      return {
+        ...idea,
+        hook: idea.hook || hook.filledHook,   // use Sonnet's copy, fallback to Haiku's fill
+        hookId: hook.id,                       // always from real CSV — never from Sonnet
+        hookTemplate: hook.template,           // always from real CSV — never from Sonnet
+        exampleUrl: hook.exampleUrl            // always from real CSV
+      };
+    });
 
     res.json({ ideas, mode, count: ideas.length });
 
