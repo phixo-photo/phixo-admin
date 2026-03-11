@@ -6,6 +6,7 @@ const cookieSession = require('cookie-session');
 const path = require('path');
 const { Pool } = require('pg');
 const { Readable } = require('stream');
+const fs = require('fs');
 
 // Optional dependencies for document reading
 let pdfParse, mammoth;
@@ -201,6 +202,84 @@ async function initDb() {
 }
 
 // ═══════════════════════════════════════════════════
+// VIRAL HOOKS - Load CSV on startup
+// ═══════════════════════════════════════════════════
+let VIRAL_HOOKS = [];
+
+function loadViralHooks() {
+  try {
+    // Try multiple possible locations
+    const possiblePaths = [
+      path.join(__dirname, 'viral_hooks.csv'),
+      path.join(__dirname, 'viral_hooks__1_.csv'),
+      '/mnt/user-data/uploads/viral_hooks__1_.csv',
+      '/mnt/user-data/uploads/viral_hooks.csv'
+    ];
+    
+    let csvPath = null;
+    for (const p of possiblePaths) {
+      if (fs.existsSync(p)) {
+        csvPath = p;
+        break;
+      }
+    }
+    
+    if (!csvPath) {
+      console.warn('⚠️  viral_hooks.csv not found — hook suggestions disabled');
+      return;
+    }
+    
+    const csvContent = fs.readFileSync(csvPath, 'utf-8');
+    const lines = csvContent.split('\n').slice(1); // Skip header
+    
+    VIRAL_HOOKS = lines
+      .filter(line => line.trim())
+      .map(line => {
+        // Simple CSV parsing (handles quoted fields)
+        const matches = line.match(/(?:\"([^\"]*)\"|([^,]*))/g);
+        if (!matches || matches.length < 3) return null;
+        
+        const clean = (str) => str ? str.replace(/^"|"$/g, '').trim() : '';
+        
+        return {
+          id: clean(matches[0]),
+          category: clean(matches[1]),
+          template: clean(matches[2]),
+          exampleUrl: clean(matches[3]),
+          notes: clean(matches[4])
+        };
+      })
+      .filter(Boolean);
+    
+    console.log(`✓ Loaded ${VIRAL_HOOKS.length} viral hooks from CSV`);
+  } catch (err) {
+    console.error('Failed to load viral hooks:', err.message);
+  }
+}
+
+function getRelevantHooks(funnelStage, count = 25) {
+  if (VIRAL_HOOKS.length === 0) return [];
+  
+  // Map funnel stages to hook categories
+  const categoryMap = {
+    'tof': ['EDUCATIONAL', 'MYTH BUSTING', 'DAY IN THE LIFE'],
+    'mof': ['EDUCATIONAL', 'AUTHORITY', 'COMPARISON'],
+    'bof': ['STORYTELLING', 'AUTHORITY', 'COMPARISON']
+  };
+  
+  const categories = categoryMap[funnelStage] || ['EDUCATIONAL', 'STORYTELLING'];
+  
+  // Filter hooks by categories
+  const filtered = VIRAL_HOOKS.filter(hook => 
+    categories.includes(hook.category)
+  );
+  
+  // Shuffle and return count
+  const shuffled = filtered.sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+}
+
+// ═══════════════════════════════════════════════════
 // AUTH
 // ═══════════════════════════════════════════════════
 const oauth2Client = new google.auth.OAuth2(
@@ -392,6 +471,18 @@ Source: ${v.source_url || 'N/A'}
 `.trim();
     });
     
+    // Get relevant viral hooks from CSV
+    const relevantHooks = getRelevantHooks(funnel_stage || 'tof', 25);
+    const hooksSection = relevantHooks.length > 0 ? `
+
+PROVEN VIRAL HOOKS (use these exact templates):
+
+${relevantHooks.map((h, i) => `${i+1}. [${h.category}] ${h.template}
+   Example: ${h.exampleUrl}`).join('\n\n')}
+
+CRITICAL: Use these ACTUAL proven hooks, don't invent new ones. Pick the best template for each idea and fill in the placeholders.
+` : '';
+    
     // Phixo context
     const phixoContext = `
 PHIXO CONTEXT:
@@ -410,13 +501,14 @@ PHIXO CONTEXT:
 REFERENCE VIDEOS (proven ${funnel_stage || 'content'} performers from Research Library):
 
 ${videoSummaries.join('\n\n')}
+${hooksSection}
 
 TASK:
 Generate ${count} content ideas for Phixo adapted from these proven patterns.
 
 For each idea, provide:
 1. Title (short, descriptive)
-2. Hook (exact words Ian should say on camera)
+2. Hook (use one of the PROVEN VIRAL HOOKS above - pick the best template and fill in placeholders for portrait photography)
 3. Text Overlay (what appears on screen)
 4. Caption (Instagram/TikTok post text)
 5. Film It (step-by-step instructions, numbered)
@@ -424,12 +516,14 @@ For each idea, provide:
 7. Platform (TikTok, Instagram, etc.)
 8. Length (seconds)
 9. Source Inspiration (which video block ID inspired this)
+10. hookTemplate (the exact template you used from PROVEN VIRAL HOOKS, e.g., "This is what X looks like when...")
 
 Format as JSON array:
 [
   {
     "title": "...",
     "hook": "...",
+    "hookTemplate": "...",
     "overlay": "...",
     "caption": "...",
     "filmIt": "1. Step one\\n2. Step two...",
@@ -440,8 +534,11 @@ Format as JSON array:
   }
 ]
 
-CRITICAL: Ian films himself. No clients. He is both photographer and subject.
-Make it executable - exact words, exact steps, ready to film TODAY.`;
+CRITICAL: 
+- Ian films himself. No clients. He is both photographer and subject.
+- Use ACTUAL hooks from PROVEN VIRAL HOOKS list - don't create new hooks
+- Make it executable - exact words, exact steps, ready to film TODAY.`;
+
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -2685,6 +2782,7 @@ app.listen(PORT, async () => {
   console.log(`Phixo Admin v3 — port ${PORT}`);
   if (process.env.DATABASE_URL) {
     await initDb();
+    loadViralHooks(); // Load proven viral hooks from CSV
     // Auto-repair thumbnail URLs on every startup
     try {
       // Fix image/pose blocks
