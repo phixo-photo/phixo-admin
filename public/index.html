@@ -583,6 +583,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
         <option value="">All platforms</option>
         <option>Instagram</option><option>TikTok</option><option>LinkedIn</option>
       </select>
+      <button class="btn btn-ghost btn-sm" onclick="deleteUntitledPosts()" title="Delete all untitled/empty posts">🗑️ Clean Untitled</button>
       <button class="btn btn-dark btn-sm" onclick="openNewPost()">+ New Post</button>
     </div>
   </div>
@@ -3517,13 +3518,23 @@ function renderGeneratedIdeas(ideas) {
           <strong>CTA:</strong> ${esc(idea.cta)}<br>
           <strong>Inspiration:</strong> ${esc(idea.sourceInspiration || 'N/A')}
         </div>
-        <button 
-          class="bb bb-main" 
-          id="save-idea-${idx}"
-          onclick="event.stopPropagation();saveIdeaAsDraft(${idx})" 
-          style="width:100%;margin-top:12px">
-          Save as Idea
-        </button>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button 
+            class="bb bb-sec" 
+            id="regen-idea-${idx}"
+            onclick="event.stopPropagation();regenerateSingleIdea(${idx})" 
+            style="flex:1"
+            title="Regenerate just this one idea">
+            ↻ Regenerate
+          </button>
+          <button 
+            class="bb bb-main" 
+            id="save-idea-${idx}"
+            onclick="event.stopPropagation();saveIdeaAsDraft(${idx})" 
+            style="flex:1">
+            Save as Idea
+          </button>
+        </div>
       </div>
     </div>
   `).join('');
@@ -3552,20 +3563,24 @@ async function saveIdeaAsDraft(idx) {
   button.textContent = 'Saving...';
   
   try {
-    // Create idea post with proper field mapping
+    // Map generated idea to post builder structure
     const postData = {
-      post_goal: idea.title, // Maps to post_goal column (displayed in calendar)
+      post_goal: idea.title,
       platform: idea.platform || 'Instagram',
       funnel_stage: lastGenerateParams.funnel_stage || null,
       post_type: 'video',
       status: 'idea',
       content_structure: {
+        // Post builder fields (what it reads)
         hook: idea.hook,
-        hookTemplate: idea.hookTemplate,
-        overlay: idea.overlay,
-        caption: idea.caption,
-        filmIt: idea.filmIt,
+        body: idea.caption,  // Caption becomes the body text
         cta: idea.cta,
+        hashtags: '',  // Extract from caption or leave empty for now
+        
+        // Additional generated content (preserved for reference)
+        overlay: idea.overlay,
+        filmIt: idea.filmIt,
+        hookTemplate: idea.hookTemplate,
         platform: idea.platform,
         length: idea.length,
         sourceInspiration: idea.sourceInspiration,
@@ -3642,6 +3657,69 @@ async function regenerateIdeas() {
   } finally {
     button.disabled = false;
     button.textContent = 'Generate Ideas';
+  }
+}
+
+async function regenerateSingleIdea(idx) {
+  if (!lastGenerateParams.funnel_stage && !lastGenerateParams.tags) {
+    toast('No previous generate request found');
+    return;
+  }
+  
+  const button = document.getElementById(`regen-idea-${idx}`);
+  
+  button.disabled = true;
+  button.textContent = 'Regenerating...';
+  
+  try {
+    // Request just 1 idea
+    const response = await fetch('/api/research/generate-ideas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...lastGenerateParams,
+        count: 1  // Only generate 1 new idea
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Generation failed');
+    }
+    
+    if (data.ideas && data.ideas.length > 0) {
+      // Replace this specific idea with the new one
+      currentIdeas[idx] = data.ideas[0];
+      renderGeneratedIdeas(currentIdeas);
+      toast('Idea regenerated!', 'ok');
+    } else {
+      throw new Error('No idea returned');
+    }
+  } catch (err) {
+    console.error('Regenerate single error:', err);
+    toast('Failed to regenerate idea');
+    button.disabled = false;
+    button.textContent = '↻ Regenerate';
+  }
+}
+
+async function deleteUntitledPosts() {
+  if (!confirm('Delete all untitled/empty posts? This cannot be undone.')) {
+    return;
+  }
+  
+  try {
+    const result = await api('DELETE', '/api/posts/cleanup-untitled');
+    if (result.deleted > 0) {
+      toast(`Deleted ${result.deleted} untitled posts`, 'ok');
+      await loadCalendar();  // Reload calendar to show changes
+    } else {
+      toast('No untitled posts found', 'ok');
+    }
+  } catch (err) {
+    console.error('Cleanup error:', err);
+    toast('Failed to cleanup untitled posts');
   }
 }
 
