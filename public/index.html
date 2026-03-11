@@ -617,6 +617,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
   <!-- SUB-NAV TABS -->
   <div style="display:flex;gap:6px;margin-bottom:28px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:0">
     <button class="stab on" data-stab="voice" onclick="showStab('voice',this)">Voice & Values</button>
+    <button class="stab" data-stab="pillars" onclick="showStab('pillars',this)">Content Pillars</button>
     <button class="stab" data-stab="lanes" onclick="showStab('lanes',this)">Client Lanes</button>
     <button class="stab" data-stab="objections" onclick="showStab('objections',this)">Objections</button>
     <button class="stab" data-stab="model" onclick="showStab('model',this)">Business Model</button>
@@ -628,75 +629,153 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 
   <!-- ── VOICE & VALUES ── -->
   <div class="spanel on" id="sp-voice">
-    <div class="sh2">Four Core Voice Traits</div>
-    <div class="scard-grid">
-      <div class="scard sl-accent"><div class="scard-label">Reflective & Insightful</div><div class="scard-body">Write with depth and deliberation. Explore the meaning and purpose of each portrait. Anchor the art in real relevance.</div></div>
-      <div class="scard sl-accent"><div class="scard-label">Warm & Empathetic</div><div class="scard-body">Lead with understanding and steadiness. Acknowledge the vulnerability of being photographed. Supportive, not sentimental.</div></div>
-      <div class="scard sl-accent"><div class="scard-label">Confident & Controlled</div><div class="scard-body">Mastery through discipline and clarity, not bravado. Language is precise, declarative, and process-oriented.</div></div>
-      <div class="scard sl-accent"><div class="scard-label">Grounded & Authentic</div><div class="scard-body">Rooted in lived experience and practical examples. No jargon, no generic claims. Every statement is purposeful and credible.</div></div>
+    <div class="sh2">How Phixo Sounds</div>
+    <div class="scard sl-accent" style="margin-bottom:14px">
+      <div class="scard-body">Warm. Real. Like a friend who knows his stuff but isn't making a thing of it. There's skill underneath everything but it doesn't announce itself — it just shows up in how things go.<br><br>Write like Ian talks. Sentences can start with "and" or "but." Thoughts can land casually. Clear and professional, just human.<br><br>When it's time to sell, it sounds like "come by, I'll take care of you" — not a funnel.</div>
     </div>
-    <div class="sh2" style="margin-top:24px">Never Say or Use</div>
+    <div class="sh2" style="margin-top:24px">The One True Thing</div>
+    <div class="scard sl-accent" style="margin-bottom:14px">
+      <div class="scard-body">People want a photo that actually looks like them. Some need help getting there. Some just show up ready. Either way, the job is the same — create the conditions where that can happen, and let them see it in real time.<br><br>That's the filter. Every piece of content either connects back to that or it doesn't.</div>
+    </div>
+    <div class="sh2" style="margin-top:24px">Never</div>
     <div class="scard sl-red">
       <div class="scard-body">
-        <div class="dont-item">Stunning, perfect, gorgeous — no hype words ever</div>
-        <div class="dont-item">Vague promises or undefined jargon</div>
-        <div class="dont-item">"We" unless referring to Phixo as the studio. "I" = Ian. "We" = Phixo.</div>
-        <div class="dont-item">Proof phrases like "Engineered Presence" as taglines — evidence only, always in context</div>
-        <div class="dont-item">Overly casual slang or emojis</div>
+        <div class="dont-item">Stunning, perfect, gorgeous — none of it</div>
+        <div class="dont-item">Pain-point fishing — not everyone is struggling, some people just want a good photo</div>
+        <div class="dont-item">AI hype language or corporate polish</div>
+        <div class="dont-item">Big statements about journeys or transformations</div>
+        <div class="dont-item">"We" unless it's the studio experience with a client. "I" is Ian. Emojis: never.</div>
       </div>
     </div>
     <div class="sh2" style="margin-top:24px">Proof Phrases — Evidence Only, Never Taglines</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
-      <span class="proof-pill">Engineered Presence</span>
-      <span class="proof-pill">Guided Experience</span>
       <span class="proof-pill">Tethered Shooting</span>
       <span class="proof-pill">Natural Retouching</span>
+      <span class="proof-pill">Guided Experience</span>
       <span class="proof-pill">Color-Managed Workflow</span>
     </div>
-    <div class="scard" style="margin-top:12px"><div class="scard-body" style="color:var(--muted);font-size:12px">These are evidence phrases, not slogans. Always defined and tied directly to client benefit on first use. Tethered Shooting, for example, is always followed by what it means: "images appear on screen in real time so you can review and adjust with confidence."</div></div>
-    <div class="sh2" style="margin-top:24px">Three Writing Modes</div>
-    <table class="stab-table">
-      <thead><tr><th>Mode</th><th>Use When</th><th>Example</th></tr></thead>
-      <tbody>
-        <tr><td><strong>Manifesto Mode</strong></td><td>Philosophical content. For About pages, brand statements.</td><td style="font-style:italic;color:var(--muted)">"A portrait is a scaffold for identity. Structure allows presence to emerge."</td></tr>
-        <tr><td><strong>Guidance Mode</strong></td><td>Process and education. Stepwise clarity.</td><td style="font-style:italic;color:var(--muted)">"We shoot tethered so you can see images in real time and adjust with confidence."</td></tr>
-        <tr><td><strong>Conversion Mode</strong></td><td>CTAs and booking. Short, direct, scannable.</td><td style="font-style:italic;color:var(--muted)">"Book a consultation."</td></tr>
-      </tbody>
-    </table>
+    <div class="scard" style="margin-top:12px"><div class="scard-body" style="color:var(--muted);font-size:12px">These are evidence phrases, not slogans. Define them in context on first use only. Tethered Shooting always gets its definition: "images appear on screen in real time so you can see and adjust as we go."</div></div>
   </div>
 
-  <!-- ── CLIENT LANES ── -->
+  <!-- ── CONTENT PILLARS ── -->
+  <div class="spanel" id="sp-pillars">
+    <div class="snotice">Two systems, one content. <strong>Pillars</strong> answer: what am I making? <strong>ToFu / MoFu / BoFu</strong> answer: who am I talking to? Use both. Every post has a pillar and a funnel stage — and once you know which is which, making content gets a lot easier.</div>
+
+    <div class="sh2" style="margin-bottom:14px">How They Work Together</div>
+    <table class="stab-table" style="margin-bottom:28px">
+      <thead><tr><th>Funnel Stage</th><th>Who They Are</th><th>Best Pillars</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="funnel-label fl-tof">ToFu</span></td>
+          <td>Strangers scrolling. Don't know you exist.</td>
+          <td><strong>Educate</strong> + <strong>Entertain</strong></td>
+          <td>They're not looking for a photographer. You earn their attention by being useful or relatable — not by pitching.</td>
+        </tr>
+        <tr>
+          <td><span class="funnel-label fl-mof">MoFu</span></td>
+          <td>Someone who found you and is looking around.</td>
+          <td><strong>Educate</strong> + <strong>Tell</strong></td>
+          <td>They're asking: can this person actually do it? What's working with them like? Education shows expertise. Stories show personality.</td>
+        </tr>
+        <tr>
+          <td><span class="funnel-label fl-bof">BoFu</span></td>
+          <td>Someone who's basically decided. Just needs the practical info.</td>
+          <td><strong>Promote</strong></td>
+          <td>They want pricing, process, and what to expect. Honest and direct removes the last bit of friction before they book.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="sh2" style="margin-bottom:14px">The Four Pillars</div>
+    <div class="scard-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:24px">
+      <div class="scard sl-accent">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div class="scard-label" style="margin-bottom:0">Educate</div>
+          <span class="funnel-label fl-tof" style="font-size:10px">ToFu</span>
+          <span class="funnel-label fl-mof" style="font-size:10px">MoFu</span>
+        </div>
+        <div class="scard-body">Teach something anyone could use. Lighting, posing, what to wear, how to prepare, what makes a good portrait, how the camera sees versus how the eye sees.<br><br>The point is to give something away for free that makes people think: <em>this person actually knows what they're doing.</em> Works at both ToFu (new people find you) and MoFu (deepens trust with warm audiences).<br><br><span style="font-size:12px;color:var(--muted)">Why you look different in photos than in the mirror · One change that makes any portrait better · What soft light actually does to your face</span></div>
+      </div>
+      <div class="scard sl-accent">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div class="scard-label" style="margin-bottom:0">Entertain</div>
+          <span class="funnel-label fl-tof" style="font-size:10px">ToFu</span>
+        </div>
+        <div class="scard-body">Make someone stop scrolling. Relatable photography moments, light memes, quick observations about the process. Doesn't have to be a joke — just something that lands and feels human.<br><br>This is almost pure ToFu. You're not building toward a booking yet — you're earning attention and showing personality. That's the whole job.<br><br><span style="font-size:12px;color:var(--muted)">When a client says they hate photos and then absolutely delivers · The before and after of just fixing someone's posture · Every person who's ever had their photo taken</span></div>
+      </div>
+      <div class="scard sl-accent">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div class="scard-label" style="margin-bottom:0">Tell</div>
+          <span class="funnel-label fl-mof" style="font-size:10px">MoFu</span>
+        </div>
+        <div class="scard-body">Stories. A moment from a session, something that happened, something you noticed about a client or the work. First person, personal, specific. Not a case study — just a real moment told simply.<br><br>This is almost pure MoFu. Someone already knows you exist. They're deciding if they trust you. A real story does more here than any amount of credentials.<br><br><span style="font-size:12px;color:var(--muted)">Had a client last week who almost cancelled · Something I noticed after shooting my first self-portrait in the studio · Why I show every client their photos in real time</span></div>
+      </div>
+      <div class="scard sl-accent">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div class="scard-label" style="margin-bottom:0">Promote</div>
+          <span class="funnel-label fl-bof" style="font-size:10px">BoFu</span>
+        </div>
+        <div class="scard-body">Be direct about what Phixo is and what it costs. Pricing, what's included, how to book, what the session looks like. No pressure tactics. No fake urgency. Just honest information for someone who's already thinking about it.<br><br>This is almost pure BoFu. The person is at the door. They just need the handle. Give them the practical info and make it easy to say yes.<br><br><span style="font-size:12px;color:var(--muted)">Here's exactly what you get in a Signature Session · What to expect start to finish · Saturday sessions are open — here's how it works</span></div>
+      </div>
+    </div>
+
+    <div class="sh2">Content Style — How to Actually Film It</div>
+    <div class="scard sl-accent" style="margin-bottom:12px">
+      <div class="scard-label">The Format: Talking Head. Vertical. Casual Setting.</div>
+      <div class="scard-body">Film yourself talking into the camera. Sit in your car. Sit in a chair. Sit on the edge of your desk. Put the phone on a stack of books. Hold it yourself. It doesn't need a ring light. It doesn't need a backdrop. It doesn't need to look produced.<br><br>The whole pitch is that sessions are warm, relaxed, and feel like talking to someone who knows what they're doing. If your content looks like that too — casual, direct, real — people already know what they're getting before they ever book. <strong>The content is the proof.</strong><br><br>A car video or a chair video says "this is a real person talking to you" in a way that a produced studio piece never will. And for a one-person studio in a new city where nobody knows your name yet, that feeling of familiarity is everything.</div>
+    </div>
+    <div class="scard-grid">
+      <div class="scard">
+        <div class="scard-label" style="color:#2a7a2a">What Good Looks Like</div>
+        <div class="scard-body" style="font-size:13px">
+          <div style="padding:4px 0;border-bottom:1px solid var(--bg)">30–60 seconds</div>
+          <div style="padding:4px 0;border-bottom:1px solid var(--bg)">Start mid-thought — no "hey guys" or long intros</div>
+          <div style="padding:4px 0;border-bottom:1px solid var(--bg)">One idea per video. Get in, get out.</div>
+          <div style="padding:4px 0;border-bottom:1px solid var(--bg)">Natural light is fine — a window works</div>
+          <div style="padding:4px 0;border-bottom:1px solid var(--bg)">Look at the camera, not at yourself on screen</div>
+          <div style="padding:4px 0">Talk like you'd talk to someone sitting across from you</div>
+        </div>
+      </div>
+      <div class="scard sl-red">
+        <div class="scard-label">What to Avoid</div>
+        <div class="scard-body" style="font-size:13px">
+          <div class="dont-item">Over-produced intros or outros</div>
+          <div class="dont-item">Text-heavy graphics as the main content</div>
+          <div class="dont-item">Reading off a script (notes are fine, reading is not)</div>
+          <div class="dont-item">Switching settings mid-video for no reason</div>
+          <div class="dont-item">Treating it like a photoshoot — it's a conversation</div>
+        </div>
+      </div>
+    </div>
+  </div>
   <div class="spanel" id="sp-lanes">
-    <div class="snotice">All three lanes are equal. No lane is subordinate. The studio's strength is its wide net and consistent method across all groups.</div>
+    <div class="snotice">All three lanes are equal. No lane is subordinate. The studio's strength is a wide net and a consistent approach across all of them. Not everyone walks in with a problem — some people just want a good photo and that's enough.</div>
     <div class="scard-grid" style="grid-template-columns:repeat(3,1fr)">
       <div class="scard sl-accent">
-        <div class="scard-label">Lane 1 — Career & Authority</div>
-        <div class="scard-body"><em>Professionals in transition, job seekers, leaders, founders building a personal brand.</em><br><br>
-        <strong>Primary pain:</strong> Misalignment — photo doesn't match ambitions<br>
-        <strong>Secondary:</strong> Uncertainty about personal branding, limited time<br>
-        <strong>Tertiary:</strong> Nerves about posing, appearing awkward<br><br>
-        <strong>Triggers:</strong> New job, promotion, job search, speaking engagement, rebrand<br><br>
-        <strong>Proof point:</strong> Tethered shooting — clients review in real time, ensuring alignment with desired persona.
+        <div class="scard-label">Lane 1 — Career & Professional</div>
+        <div class="scard-body"><em>Professionals in transition, job seekers, leaders, founders, anyone who needs a portrait that matches where they're headed.</em><br><br>
+        They want something that works — on LinkedIn, in a press kit, on a website. They're not usually nervous. They're busy and want the process to be efficient and the result to be right.<br><br>
+        <strong>What they're after:</strong> A photo that represents them at this stage, not five years ago.<br><br>
+        <strong>When they show up:</strong> New job, promotion, job search, speaking engagement, personal rebrand.<br><br>
+        <strong>What matters in the session:</strong> Efficiency, real-time review, getting the right frame on the first try.
         </div>
       </div>
       <div class="scard sl-accent">
-        <div class="scard-label">Lane 2 — Personal Identity & Confidence</div>
-        <div class="scard-body"><em>Graduates, young women, creatives marking a milestone or wanting a portrait that feels like them.</em><br><br>
-        <strong>Primary pain:</strong> Fear of artificiality — stiff poses, fake smiles<br>
-        <strong>Secondary:</strong> Not knowing what to wear, cost uncertainty<br>
-        <strong>Tertiary:</strong> Feeling like a prop, rigid environment<br><br>
-        <strong>Triggers:</strong> Graduation, birthday, personal reinvention, confidence milestone<br><br>
-        <strong>Proof point:</strong> Relaxed environment, natural retouching — real character preserved, not manufactured.
+        <div class="scard-label">Lane 2 — Personal & Milestone</div>
+        <div class="scard-body"><em>Graduates, young women, creatives, anyone marking a moment or wanting a portrait that feels like them — not a stock photo version of them.</em><br><br>
+        This is a confidence thing, a milestone thing, a "I want to remember this version of myself" thing. Some are camera-shy. Some come in completely comfortable. Either works.<br><br>
+        <strong>What they're after:</strong> A photo that looks like them — not stiff, not fake, just real.<br><br>
+        <strong>When they show up:</strong> Graduation, birthday, personal milestone, creative project, or just feeling good and wanting to capture it.<br><br>
+        <strong>What matters in the session:</strong> Low pressure, collaborative energy, real-time feedback so they can see it working.
         </div>
       </div>
       <div class="scard sl-accent">
         <div class="scard-label">Lane 3 — Family & Legacy</div>
-        <div class="scard-body"><em>Families, couples, multi-generational groups preserving connection or celebrating a milestone.</em><br><br>
-        <strong>Primary pain:</strong> Fear of forced, unnatural results<br>
-        <strong>Secondary:</strong> Coordinating schedules, outfit uncertainty<br>
-        <strong>Tertiary:</strong> Group dynamics, inclusivity concerns<br><br>
-        <strong>Triggers:</strong> Birthdays, anniversaries, reunions, holidays, graduations<br><br>
-        <strong>Proof point:</strong> Stepwise guidance for group dynamics — no manufactured moments.
+        <div class="scard-body"><em>Families, couples, multi-generational groups. They want to preserve something — a connection, a moment, a season of life.</em><br><br>
+        The challenge isn't the photography, it's the coordination. Getting everyone there, keeping it loose, not letting it turn stiff.<br><br>
+        <strong>What they're after:</strong> Photos that feel like them as a group — natural, warm, real.<br><br>
+        <strong>When they show up:</strong> Birthdays, anniversaries, reunions, holidays, new baby, before a kid leaves for school.<br><br>
+        <strong>What matters in the session:</strong> Easy direction, relaxed pace, letting the group be themselves rather than posing them like a catalogue.
         </div>
       </div>
     </div>
@@ -707,12 +786,12 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
   <div class="spanel" id="sp-objections">
     <div class="sh2">Common Objections & Responses</div>
     <table class="stab-table">
-      <thead><tr><th>Objection</th><th>Phixo Response</th></tr></thead>
+      <thead><tr><th>What they say</th><th>What you say</th></tr></thead>
       <tbody>
-        <tr><td style="font-style:italic;color:var(--muted)">"I hate having my photo taken."</td><td>That's normal, and we're here to help. Our sessions are structured to replace stress with guidance. You'll see results in real time.</td></tr>
-        <tr><td style="font-style:italic;color:var(--muted)">"I don't want to look fake."</td><td>We agree. Our retouching enhances your natural features without erasing what makes you unique.</td></tr>
-        <tr><td style="font-style:italic;color:var(--muted)">"I don't have time."</td><td>Sessions are quick and efficient — typically 30 minutes. Everything is ready before you arrive so we can focus on the portrait.</td></tr>
-        <tr><td style="font-style:italic;color:var(--muted)">"What if I don't like my photos?"</td><td>You'll review and select your images during the session. No surprises — you only pay for what you love.</td></tr>
+        <tr><td style="font-style:italic;color:var(--muted)">"I hate having my photo taken."</td><td>Totally fair — most people feel that way. The session is pretty low-key though. You see the photos as we go so nothing's a surprise.</td></tr>
+        <tr><td style="font-style:italic;color:var(--muted)">"I don't want to look fake or over-edited."</td><td>That's actually the whole point of how I work. I'm not smoothing anyone into a different person. The editing just cleans things up — it doesn't replace you.</td></tr>
+        <tr><td style="font-style:italic;color:var(--muted)">"I don't have a lot of time."</td><td>Sessions are 30 minutes. Everything's set up before you arrive.</td></tr>
+        <tr><td style="font-style:italic;color:var(--muted)">"What if I don't like my photos?"</td><td>You're picking them during the session. You see what works in real time, so by the time we're done you already know what you're keeping.</td></tr>
       </tbody>
     </table>
   </div>
@@ -820,34 +899,32 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
       <div class="scard"><div class="scard-label" style="font-size:22px;color:var(--border);font-weight:800;margin-bottom:6px">02</div><div class="scard-label">Create for the primary platform</div><div class="scard-body">TikTok or Instagram Reels first. Vertical video, proper aspect ratio, captions on. Don't optimize for every platform yet.</div></div>
       <div class="scard"><div class="scard-label" style="font-size:22px;color:var(--border);font-weight:800;margin-bottom:6px">03</div><div class="scard-label">Cross-post</div><div class="scard-body">Same file, pushed to the other two platforms. Adjust caption slightly if needed. You're not rebuilding — just distributing.</div></div>
     </div>
-    <div class="sh2" style="margin-top:24px">Caption Formula Per Stage</div>
+    <div class="sh2" style="margin-top:24px">Caption Formula — Pillar + Funnel Stage</div>
     <table class="stab-table" style="margin-top:12px">
-      <thead><tr><th>Stage</th><th>Formula</th></tr></thead>
+      <thead><tr><th>Funnel Stage</th><th>Pillar</th><th>Formula</th></tr></thead>
       <tbody>
-        <tr><td><span class="funnel-label fl-tof">ToFu</span></td><td>Hook line that names what the video is about → 1–2 lines of the actual content → no CTA, no mention of booking</td></tr>
-        <tr><td><span class="funnel-label fl-mof">MoFu</span></td><td>What was happening in this moment → what you noticed or did → soft trail to your profile or link</td></tr>
-        <tr><td><span class="funnel-label fl-bof">BoFu</span></td><td>State the thing directly → explain it simply → clear next step (DM me / link in bio / book a consultation)</td></tr>
+        <tr><td><span class="funnel-label fl-tof">ToFu</span></td><td><strong>Educate / Entertain</strong></td><td>Name what you're about to say → say it in 2–3 lines → no CTA, no mention of booking</td></tr>
+        <tr><td><span class="funnel-label fl-mof">MoFu</span></td><td><strong>Educate / Tell</strong></td><td>What was happening in this moment → what you noticed or did → soft trail to your profile or link</td></tr>
+        <tr><td><span class="funnel-label fl-bof">BoFu</span></td><td><strong>Promote</strong></td><td>State the thing directly → explain it simply → clear next step (DM me / link in bio / book)</td></tr>
       </tbody>
     </table>
   </div>
 
   <!-- ── WEEKLY STRATEGY ── -->
   <div class="spanel" id="sp-weekly">
-    <div class="snotice">3 posts per week — ToFu (Monday), MoFu (Wednesday), BoFu (Friday). Batch create all 3 on Sunday. YOU are the content (no clients needed). Uses proven viral hooks.</div>
+    <div class="snotice">Three posts per week minimum. Each post has a funnel stage (ToFu / MoFu / BoFu) and a content pillar (Educate, Entertain, Tell, Promote). Monday is ToFu — reach strangers with Educate or Entertain content. Wednesday is MoFu — build trust with Educate or Tell. Friday is BoFu — remove friction with Promote. The days are a guide. The three types showing up consistently is the actual requirement.</div>
     <div id="weekly-posts"></div>
-    <div class="scard sl-accent" style="margin-top:12px"><div class="scard-body"><strong>Sunday Workflow (2-3 hours):</strong> Pick 3 ideas from Content Bank (1 ToFu, 1 MoFu, 1 BoFu). Film all 3 using yourself as the subject. Edit and schedule. Monday/Wednesday/Friday: Post + 30 min engagement. Total: 4-5 hours/week.</div></div>
-    <div class="scard sl-red" style="margin-top:12px"><div class="scard-body"><strong>DON'T SPLATTER:</strong> Headshots ONLY for 6 months minimum. No rotating between pets/products/families. Algorithm needs consistency. Brand confusion kills you in saturated markets. Pick ONE niche and commit.</div></div>
+    <div class="scard sl-accent" style="margin-top:12px"><div class="scard-body"><strong>Batch or don't — both work.</strong> If you film everything Sunday, great. If you shoot a quick talking-head in the car Monday on your lunch break, also great. The format is casual by design. Don't let the schedule become another reason not to post.</div></div>
   </div>
 
-  <!-- ── CONTENT BANK ── -->
   <div class="spanel" id="sp-bank">
-    <div class="snotice" style="margin-bottom:16px"><strong>160 viral hooks filtered for photography.</strong> These are proven formats adapted to headshot content with YOU as the subject. No clients needed. Based on 1004-hook library from social media manager.</div>
+    <div class="snotice" style="margin-bottom:16px"><strong>160 viral hooks filtered for photography.</strong> Each idea is tagged by funnel stage (ToFu / MoFu / BoFu) and maps to a content pillar. <strong>ToFu = Educate + Entertain</strong> (reach strangers). <strong>MoFu = Educate + Tell</strong> (build trust). <strong>BoFu = Promote</strong> (answer the last questions). Filter below to find what you need for each day.</div>
     <div class="tb" style="margin-bottom:20px">
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="bfilt on" data-f="all" onclick="filterBank('all',this)">All (30)</button>
-        <button class="bfilt" data-f="ToFu" onclick="filterBank('ToFu',this)" style="color:var(--tof)">ToFu (10)</button>
-        <button class="bfilt" data-f="MoFu" onclick="filterBank('MoFu',this)" style="color:var(--mof)">MoFu (10)</button>
-        <button class="bfilt" data-f="BoFu" onclick="filterBank('BoFu',this)" style="color:var(--bof)">BoFu (10)</button>
+        <button class="bfilt" data-f="ToFu" onclick="filterBank('ToFu',this)" style="color:var(--tof)">ToFu — Educate / Entertain (10)</button>
+        <button class="bfilt" data-f="MoFu" onclick="filterBank('MoFu',this)" style="color:var(--mof)">MoFu — Educate / Tell (10)</button>
+        <button class="bfilt" data-f="BoFu" onclick="filterBank('BoFu',this)" style="color:var(--bof)">BoFu — Promote (10)</button>
       </div>
       <span id="bank-used-count" style="font-size:12px;color:var(--muted);margin-left:auto;align-self:center"></span>
     </div>
@@ -856,7 +933,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 
   <!-- ── FORMAT REFERENCE ── -->
   <div class="spanel" id="sp-formats">
-    <div class="snotice">Format names are official platform terminology. Funnel stage mapping is analytical — not a named framework.</div>
+    <div class="snotice">Format names are official platform terminology. The funnel stage (ToFu / MoFu / BoFu) and pillar (Educate, Entertain, Tell, Promote) shown for each format are a guide — not a rule. ToFu content reaches strangers, MoFu builds trust, BoFu removes friction before someone books.</div>
     <div id="formats-body"></div>
   </div>
 
@@ -3018,26 +3095,26 @@ function showStab(name, el) {
 }
 
 const WEEKLY_POSTS = [
-  { num:'Monday', funnel:'ToFu', fClass:'fl-tof', goal:'Stop scroll — broad appeal', primary:'TikTok + Instagram Reels', format:'15-60 sec video', cells:[
-    {l:"Who You're Targeting", v:'Someone scrolling who doesn\'t know you exist', d:false},
-    {l:"What They're Thinking", v:'Nothing about photography. Just on their phone.', d:false},
-    {l:'How You Meet Them', v:'Educational viral hook. Lighting comparison, common mistake, quick tip. YOU as the subject.', d:false},
-    {l:'What It Looks Like', v:'"This is what soft light vs hard light looks like" — you with both types of light, side-by-side', d:false},
-    {l:"What You Don't Do", v:'Introduce yourself. Explain services. Ask for bookings. Just educate.', d:true},
+  { num:'Monday', funnel:'ToFu', fClass:'fl-tof', goal:'Broad reach — Educate or Entertain', primary:'TikTok + Instagram Reels', format:'30–60 sec talking head', cells:[
+    {l:"Funnel Stage + Pillar", v:'ToFu → Educate or Entertain. You\'re talking to strangers. Give them something useful or make them laugh. No pitch.', d:false},
+    {l:"The Format", v:'Talking head in a car, a chair, wherever you are. Casual. No production needed.', d:false},
+    {l:'What It Looks Like', v:'"Why you look different in photos than in real life" — you talking directly to camera, one clear idea', d:false},
+    {l:'The Goal', v:'Make them think: this person knows what they\'re doing. Or make them laugh. Either earns the follow.', d:false},
+    {l:"What You Don't Do", v:'Introduce yourself. Explain your services. Mention booking. Just give them something.', d:true},
   ], cta:'None — just engagement (comments, saves)' },
-  { num:'Wednesday', funnel:'MoFu', fClass:'fl-mof', goal:'Build trust — show process', primary:'Instagram Reels or Carousel', format:'30-60 sec video', cells:[
-    {l:"Who You're Targeting", v:'Someone who found you and came to look around', d:false},
-    {l:"What They're Thinking", v:'Can this person actually do it? What\'s working with them like?', d:false},
-    {l:'How You Meet Them', v:'Behind the scenes. Tethered screen. Setup process. YOUR work and YOUR approach.', d:false},
-    {l:'What It Looks Like', v:'"Watch me set up and light a headshot from scratch" — full process, you as model', d:false},
-    {l:"What You Don't Do", v:'Over-explain. Hard sell. List credentials. Let the work speak.', d:true},
+  { num:'Wednesday', funnel:'MoFu', fClass:'fl-mof', goal:'Build trust — Educate or Tell', primary:'Instagram Reels or Carousel', format:'30–60 sec video or photo set', cells:[
+    {l:"Funnel Stage + Pillar", v:'MoFu → Educate or Tell. Someone found you and is looking around. They\'re asking: can this person actually do it? Stories and teaching both answer that.', d:false},
+    {l:"The Format", v:'Portfolio image with a real caption, BTS clip, or a quick story told to camera.', d:false},
+    {l:'What It Looks Like', v:'One strong portrait — caption tells what was happening in that moment. Or: a story about something that happened in a session.', d:false},
+    {l:'The Goal', v:'Let the work and the person behind it speak. No hard sell needed here.', d:false},
+    {l:"What You Don't Do", v:'Over-explain. List credentials. Turn a moment into a pitch.', d:true},
   ], cta:'Soft — "link in bio" or "save this"' },
-  { num:'Friday', funnel:'BoFu', fClass:'fl-bof', goal:'Remove friction — answer questions', primary:'Facebook + Instagram', format:'30-60 sec video or graphic', cells:[
-    {l:"Who You're Targeting", v:'Someone standing at the door, just needs to find the handle', d:false},
-    {l:"What They're Thinking", v:'What does it cost? What do I wear? How long? What do I get?', d:false},
-    {l:'How You Meet Them', v:'Direct answers to pre-booking questions. Make it easy to say yes.', d:false},
-    {l:'What It Looks Like', v:'"What to wear for headshots" (tested on yourself) or "Signature Session: $175, 30 min, 10 images"', d:false},
-    {l:"What You Don't Do", v:'Hard sell. Urgency tactics. Fake scarcity. Just answer honestly.', d:true},
+  { num:'Friday', funnel:'BoFu', fClass:'fl-bof', goal:'Remove friction — Promote', primary:'Facebook + Instagram', format:'30–60 sec talking head or graphic', cells:[
+    {l:"Funnel Stage + Pillar", v:'BoFu → Promote. Someone\'s basically decided — they just need the practical info. Pricing, process, what to expect.', d:false},
+    {l:"The Format", v:'Talking head answering a specific question. Or a clean graphic with the facts.', d:false},
+    {l:'What It Looks Like', v:'"Here\'s exactly what\'s in a Signature Session" or "What to wear — I\'ll walk you through it"', d:false},
+    {l:'The Goal', v:'Make it easy to say yes. Honest, direct, zero pressure.', d:false},
+    {l:"What You Don't Do", v:'Hard sell. Fake urgency. Scarcity tactics. Just answer honestly.', d:true},
   ], cta:'Direct — "DM me" or "link in bio to book"' },
 ];
 
@@ -3046,7 +3123,7 @@ function renderWeekly() {
   if (!el || el.dataset.rendered) return;
   el.dataset.rendered = '1';
   el.innerHTML = WEEKLY_POSTS.map(p => `
-    <div class="post-slot" style="border-left:3px solid ${p.funnel==='ToFu'?'var(--tof)':p.funnel==='MoFu'?'var(--mof)':'var(--bof)'}">
+    <div class="post-slot" style="border-left:3px solid ${p.num==='Monday'?'var(--tof)':p.num==='Wednesday'?'var(--mof)':'var(--bof)'}">
       <div class="ps-head">
         <span class="ps-num">${p.num}</span>
         <span class="funnel-label ${p.fClass}">${p.funnel}</span>
