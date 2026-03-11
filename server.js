@@ -333,7 +333,7 @@ ${csvText}`;
   try {
     msg = await anthropic.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 600,
+      max_tokens: 1500,
       temperature: 0.7,
       messages: [{ role: 'user', content: selectionPrompt }]
     });
@@ -721,15 +721,16 @@ Your job: write everything else.
 
 For each idea return (JSON array, in order matching the IDEA numbers above):
 1. title — short, what the video is about
-2. hook — copy the locked hook text exactly as written above for that idea number
-3. script — what Ian says after the hook. Read the WRONG/RIGHT voice examples in your instructions and write RIGHT. 4-8 sentences. Moves forward, no wrap-up.
-4. overlay — text on screen, empty string if none
-5. caption — in Ian's voice, no emojis
-6. filmIt — numbered steps: where to sit, what to do, how long
-7. cta — call to action if any
-8. platform — TikTok, Instagram, etc.
-9. length — estimated seconds
-10. sourceInspiration — which video block inspired this
+2. script — what Ian says after the hook. Read the WRONG/RIGHT voice examples in your instructions and write RIGHT. 4-8 sentences. Moves forward, no wrap-up.
+3. overlay — text on screen, empty string if none
+4. caption — in Ian's voice, no emojis
+5. filmIt — numbered steps: where to sit, what to do, how long
+6. cta — call to action if any
+7. platform — TikTok, Instagram, etc.
+8. length — estimated seconds
+9. sourceInspiration — which video block inspired this
+
+Do NOT include a hook field — Node will attach the locked hook automatically.
 
 Format as JSON array only. No preamble, no markdown fences.`;
 
@@ -770,7 +771,7 @@ Format as JSON array only. No preamble, no markdown fences.`;
       if (!hook) return idea;
       return {
         ...idea,
-        hook: idea.hook || hook.filledHook,
+        hook: hook.filledHook,                 // always Haiku's locked fill
         hookId: hook.id,
         hookTemplate: hook.template,
         exampleUrl: hook.exampleUrl
@@ -835,13 +836,14 @@ For each idea return (in order matching IDEA numbers above):
 2. pillar
 3. funnelStage
 4. lane
-5. hook — copy the locked hook text exactly as written above for that idea number
-6. script — what Ian actually says. 4-8 sentences. Write like the RIGHT examples in the system prompt, not the WRONG ones. Moves forward, no wrap-up, no announced conclusion.
-7. overlay — optional on-screen text, empty string if none
-8. caption — in Ian's voice, no emojis
-9. filmIt — numbered steps: where to sit, what to do, how long
-10. cta — none for ToFu, soft trail for MoFu, direct for BoFu
-11. length — estimated seconds
+5. script — what Ian actually says. 4-8 sentences. Write like the RIGHT examples in the system prompt, not the WRONG ones. Moves forward, no wrap-up, no announced conclusion.
+6. overlay — optional on-screen text, empty string if none
+7. caption — in Ian's voice, no emojis
+8. filmIt — numbered steps: where to sit, what to do, how long
+9. cta — none for ToFu, soft trail for MoFu, direct for BoFu
+10. length — estimated seconds
+
+Do NOT include a hook field — Node will attach the locked hook automatically.
 
 Return as a JSON array only. No preamble, no markdown fences.`;
 
@@ -866,14 +868,15 @@ For each variation return (in order matching IDEA numbers above):
 2. pillar
 3. funnelStage
 4. lane
-5. hook — copy the locked hook text exactly as written above for that idea number
-6. script — write like the RIGHT examples in the system prompt, not the WRONG ones
-7. overlay
-8. caption
-9. filmIt
-10. cta
-11. length
-12. variationNote — one sentence: what is different about this angle
+5. script — write like the RIGHT examples in the system prompt, not the WRONG ones
+6. overlay
+7. caption
+8. filmIt
+9. cta
+10. length
+11. variationNote — one sentence: what is different about this angle
+
+Do NOT include a hook field — Node will attach the locked hook automatically.
 
 Return as a JSON array only. No preamble, no markdown fences.`;
 
@@ -914,14 +917,15 @@ For each idea return (in order matching IDEA numbers above):
 2. pillar
 3. funnelStage
 4. lane
-5. hook — copy the locked hook text exactly as written above for that idea number
-6. script — write like the RIGHT examples in the system prompt, not the WRONG ones
-7. overlay
-8. caption
-9. filmIt
-10. cta
-11. length
-12. sourceAdaptation — one sentence: what format or concept came from the block
+5. script — write like the RIGHT examples in the system prompt, not the WRONG ones
+6. overlay
+7. caption
+8. filmIt
+9. cta
+10. length
+11. sourceAdaptation — one sentence: what format or concept came from the block
+
+Do NOT include a hook field — Node will attach the locked hook automatically.
 
 Return as a JSON array only. No preamble, no markdown fences.`;
 
@@ -954,7 +958,7 @@ Return as a JSON array only. No preamble, no markdown fences.`;
       if (!hook) return idea;
       return {
         ...idea,
-        hook: idea.hook || hook.filledHook,   // use Sonnet's copy, fallback to Haiku's fill
+        hook: hook.filledHook,                 // always Haiku's locked fill — Sonnet's hook field is ignored
         hookId: hook.id,                       // always from real CSV — never from Sonnet
         hookTemplate: hook.template,           // always from real CSV — never from Sonnet
         exampleUrl: hook.exampleUrl            // always from real CSV
