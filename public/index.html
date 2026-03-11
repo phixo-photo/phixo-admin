@@ -1983,12 +1983,27 @@ async function refreshPostModules(){
 }
 function renderPostBuilder(post){
   const cs = post.content_structure || {};
+  const isGenerated = cs.generatedFrom === 'research_library';
+  
+  // Content type icons
+  const typeIcons = {
+    'short_video': '🎥',
+    'portfolio_image': '📸',
+    'graphic': '🎨',
+    'carousel': '🎞️',
+    'bts_clip': '📹',
+    'stories': '📱',
+    'reel': '🎥',
+    'video': '🎥'
+  };
+  const typeIcon = typeIcons[post.post_type] || '📸';
+  const typeName = (post.post_type || 'photo').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   
   document.getElementById('pb-body').innerHTML=`
     <div class="pb-simple">
       <div class="pb-top">
         <h2>
-          ${post.post_type === 'reel' ? '🎥 Reel' : post.post_type === 'carousel' ? '🎞️ Carousel' : '📸 Photo'}
+          ${typeIcon} ${typeName}
           <button class="btn-link" onclick="setPostType('')" style="font-size:13px;margin-left:12px">Change type</button>
         </h2>
         <div class="pb-meta-row">
@@ -1996,6 +2011,7 @@ function renderPostBuilder(post){
             <option ${post.platform==='Instagram'?'selected':''}>Instagram</option>
             <option ${post.platform==='TikTok'?'selected':''}>TikTok</option>
             <option ${post.platform==='LinkedIn'?'selected':''}>LinkedIn</option>
+            <option ${post.platform==='Facebook'?'selected':''}>Facebook</option>
           </select>
           <select onchange="updatePost('funnel_stage',this.value)" class="mini-select">
             <option value="">Funnel</option>
@@ -2026,12 +2042,18 @@ function renderPostBuilder(post){
           <div class="attached-blocks" id="attached-blocks" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)"></div>
         </div>
         
-        <!-- Middle: Caption Builder -->
+        <!-- Middle: Content Fields (Generated Ideas structure) -->
         <div class="pb-caption">
+          ${isGenerated ? `
+            <div style="font-size:10px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;padding:8px;background:rgba(184,103,62,0.1);border-radius:6px">
+              ✨ Generated from Research Library
+            </div>
+          ` : ''}
+          
           <div class="caption-section">
             <div class="cs-label">
               <span>🪝 HOOK</span>
-              <button class="btn-link" onclick="toggleHookSearch()" style="font-size:11px">Search hooks →</button>
+              ${!isGenerated ? `<button class="btn-link" onclick="toggleHookSearch()" style="font-size:11px">Search hooks →</button>` : ''}
             </div>
             <input 
               type="text" 
@@ -2040,17 +2062,45 @@ function renderPostBuilder(post){
               oninput="updateCS('hook',this.value)"
               class="caption-input"
             >
+            ${cs.hookTemplate ? `<div style="font-size:10px;color:var(--muted);margin-top:6px;padding:8px;background:var(--surface-2);border-radius:4px">
+              <strong>Proven Template:</strong> ${esc(cs.hookTemplate)}
+            </div>` : ''}
           </div>
           
+          ${cs.overlay ? `
+            <div class="caption-section">
+              <div class="cs-label">📺 TEXT OVERLAY</div>
+              <textarea 
+                placeholder="What appears on screen..."
+                oninput="updateCS('overlay',this.value)"
+                class="caption-textarea"
+                rows="4"
+              >${esc(cs.overlay||'')}</textarea>
+            </div>
+          ` : ''}
+          
           <div class="caption-section">
-            <div class="cs-label">📝 BODY</div>
+            <div class="cs-label">${isGenerated ? '📝 CAPTION' : '📝 BODY'}</div>
             <textarea 
-              placeholder="Context + value points..."
-              oninput="updateCS('body',this.value)"
+              placeholder="${isGenerated ? 'Full Instagram/TikTok caption...' : 'Context + value points...'}"
+              oninput="updateCS('${isGenerated ? 'caption' : 'body'}',this.value)"
               class="caption-textarea"
               rows="8"
-            >${esc(cs.body||'')}</textarea>
+            >${esc(cs.caption || cs.body || '')}</textarea>
           </div>
+          
+          ${cs.filmIt ? `
+            <div class="caption-section">
+              <div class="cs-label">🎬 FILM IT</div>
+              <textarea 
+                placeholder="Step-by-step filming instructions..."
+                oninput="updateCS('filmIt',this.value)"
+                class="caption-textarea"
+                rows="6"
+                style="font-family:monospace;font-size:11px;background:var(--surface-2)"
+              >${esc(cs.filmIt||'')}</textarea>
+            </div>
+          ` : ''}
           
           <div class="caption-section">
             <div class="cs-label">🎯 CTA</div>
@@ -2062,16 +2112,18 @@ function renderPostBuilder(post){
             >${esc(cs.cta||'')}</textarea>
           </div>
           
-          <div class="caption-section">
-            <div class="cs-label">#️⃣ HASHTAGS</div>
-            <input 
-              type="text"
-              placeholder="#photography #portraits #headshots"
-              value="${esc(cs.hashtags||'')}"
-              oninput="updateCS('hashtags',this.value)"
-              class="caption-input"
-            >
-          </div>
+          ${!isGenerated ? `
+            <div class="caption-section">
+              <div class="cs-label">#️⃣ HASHTAGS</div>
+              <input 
+                type="text"
+                placeholder="#photography #portraits #headshots"
+                value="${esc(cs.hashtags||'')}"
+                oninput="updateCS('hashtags',this.value)"
+                class="caption-input"
+              >
+            </div>
+          ` : ''}
         </div>
         
         <!-- Right: Preview -->
@@ -2115,22 +2167,41 @@ function renderPostBuilder(post){
 
 async function setPostType(type) {
   if (!type) {
-    // Show type selector
+    // Show type selector - Strategy Hub content types
     document.getElementById('pb-body').innerHTML = `
-      <div style="max-width:700px;margin:60px auto">
-        <h2 style="margin-bottom:30px">Choose content type</h2>
-        <div class="type-grid">
-          <div class="type-card" onclick="setPostType('photo')">
+      <div style="max-width:900px;margin:60px auto">
+        <h2 style="margin-bottom:8px">Choose content type</h2>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:30px">Based on your weekly workflow from Strategy Hub</p>
+        <div class="type-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+          <div class="type-card" onclick="setPostType('short_video')">
+            <div class="type-icon">🎥</div>
+            <div class="type-title">Short Video</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">Mon/Fri - Heavy/Medium</div>
+          </div>
+          <div class="type-card" onclick="setPostType('portfolio_image')">
             <div class="type-icon">📸</div>
-            <div class="type-title">Photo</div>
+            <div class="type-title">Portfolio Image</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">Tue - Light</div>
+          </div>
+          <div class="type-card" onclick="setPostType('graphic')">
+            <div class="type-icon">🎨</div>
+            <div class="type-title">Graphic</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">Wed - Medium</div>
           </div>
           <div class="type-card" onclick="setPostType('carousel')">
             <div class="type-icon">🎞️</div>
             <div class="type-title">Carousel</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">Thu - Medium</div>
           </div>
-          <div class="type-card" onclick="setPostType('reel')">
-            <div class="type-icon">🎥</div>
-            <div class="type-title">Reel</div>
+          <div class="type-card" onclick="setPostType('bts_clip')">
+            <div class="type-icon">📹</div>
+            <div class="type-title">BTS Clip</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">Behind the scenes</div>
+          </div>
+          <div class="type-card" onclick="setPostType('stories')">
+            <div class="type-icon">📱</div>
+            <div class="type-title">Stories</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">Sat - Light</div>
           </div>
         </div>
       </div>`;
@@ -2152,17 +2223,20 @@ function updateCS(field, value) {
 }
 
 function updatePreview() {
+  // Support both generated (caption) and manual (body) content
   const hook = document.querySelector('[oninput*="updateCS(\'hook\'"]')?.value || '';
+  const caption = document.querySelector('[oninput*="updateCS(\'caption\'"]')?.value || '';
   const body = document.querySelector('[oninput*="updateCS(\'body\'"]')?.value || '';
   const cta = document.querySelector('[oninput*="updateCS(\'cta\'"]')?.value || '';
   const hashtags = document.querySelector('[oninput*="updateCS(\'hashtags\'"]')?.value || '';
   
-  const parts = [hook, body, cta, hashtags].filter(x => x.trim());
-  const caption = parts.join('\n\n');
+  const mainContent = caption || body;  // Use caption if exists, otherwise body
+  const parts = [hook, mainContent, cta, hashtags].filter(x => x.trim());
+  const fullCaption = parts.join('\n\n');
   
-  document.getElementById('preview-caption').textContent = caption || 'Your caption will appear here...';
-  document.getElementById('char-count').textContent = caption.length;
-  document.getElementById('line-count').textContent = caption.split('\n').length;
+  document.getElementById('preview-caption').textContent = fullCaption || 'Your caption will appear here...';
+  document.getElementById('char-count').textContent = fullCaption.length;
+  document.getElementById('line-count').textContent = fullCaption.split('\n').length;
   
   const hashMatches = hashtags.match(/#\w+/g);
   document.getElementById('hash-count').textContent = hashMatches ? hashMatches.length : 0;
@@ -3568,19 +3642,18 @@ async function saveIdeaAsDraft(idx) {
       post_goal: idea.title,
       platform: idea.platform || 'Instagram',
       funnel_stage: lastGenerateParams.funnel_stage || null,
-      post_type: 'video',
+      post_type: 'short_video',  // Generated ideas are short videos
       status: 'idea',
       content_structure: {
-        // Post builder fields (what it reads)
+        // Generated idea fields (exact structure)
         hook: idea.hook,
-        body: idea.caption,  // Caption becomes the body text
-        cta: idea.cta,
-        hashtags: '',  // Extract from caption or leave empty for now
-        
-        // Additional generated content (preserved for reference)
-        overlay: idea.overlay,
-        filmIt: idea.filmIt,
         hookTemplate: idea.hookTemplate,
+        overlay: idea.overlay,
+        caption: idea.caption,    // Full caption
+        filmIt: idea.filmIt,
+        cta: idea.cta,
+        
+        // Metadata
         platform: idea.platform,
         length: idea.length,
         sourceInspiration: idea.sourceInspiration,
