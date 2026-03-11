@@ -346,7 +346,7 @@ app.post('/api/research/generate-ideas', requireAuth, async (req, res) => {
     let query = `
       SELECT id, title, content_payload, metadata, tags, source_url, funnel_stage
       FROM blocks
-      WHERE type = 'url'
+      WHERE type = 'video'
         AND is_reference = true
     `;
     const params = [];
