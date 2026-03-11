@@ -560,8 +560,8 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
           <button class="bb bb-sec" onclick="regenerateIdeas()" title="Don't like these? Get new ideas">
             Regenerate All
           </button>
-          <button class="bb bb-main" onclick="saveAllIdeas()" title="Save all ideas as draft posts">
-            Save All as Drafts
+          <button class="bb bb-main" onclick="saveAllIdeas()" title="Save all ideas to Ideas column">
+            Save All as Ideas
           </button>
         </div>
       </div>
@@ -3522,7 +3522,7 @@ function renderGeneratedIdeas(ideas) {
           id="save-idea-${idx}"
           onclick="event.stopPropagation();saveIdeaAsDraft(${idx})" 
           style="width:100%;margin-top:12px">
-          Save as Draft Post
+          Save as Idea
         </button>
       </div>
     </div>
@@ -3552,16 +3552,18 @@ async function saveIdeaAsDraft(idx) {
   button.textContent = 'Saving...';
   
   try {
-    // Create draft post with idea data
+    // Create idea post with proper field mapping
     const postData = {
-      title: idea.title,
-      caption: idea.caption,
+      post_goal: idea.title, // Maps to post_goal column (displayed in calendar)
+      platform: idea.platform || 'Instagram',
+      funnel_stage: lastGenerateParams.funnel_stage || null,
       post_type: 'video',
-      status: 'draft',
+      status: 'idea',
       content_structure: {
         hook: idea.hook,
         hookTemplate: idea.hookTemplate,
         overlay: idea.overlay,
+        caption: idea.caption,
         filmIt: idea.filmIt,
         cta: idea.cta,
         platform: idea.platform,
@@ -3576,11 +3578,11 @@ async function saveIdeaAsDraft(idx) {
     button.textContent = 'Saved ✓';
     button.classList.remove('bb-main');
     button.classList.add('bb-sec');
-    toast('Saved as draft post', 'ok');
+    toast('Saved as idea', 'ok');
   } catch (err) {
     console.error('Save idea error:', err);
     button.disabled = false;
-    button.textContent = 'Save as Draft Post';
+    button.textContent = 'Save as Idea';
     toast('Error saving idea');
   }
 }
@@ -3591,7 +3593,7 @@ async function saveAllIdeas() {
   try {
     const promises = currentIdeas.map((idea, idx) => saveIdeaAsDraft(idx));
     await Promise.all(promises);
-    toast(`Saved ${currentIdeas.length} ideas as draft posts`, 'ok');
+    toast(`Saved ${currentIdeas.length} ideas to Ideas column`, 'ok');
   } catch (err) {
     console.error('Save all error:', err);
     toast('Some ideas failed to save');
