@@ -1168,6 +1168,21 @@ app.patch('/api/posts/:id', requireAuth, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// Cleanup untitled/empty posts (MUST come before /api/posts/:id route)
+app.delete('/api/posts/cleanup-untitled', requireAuth, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      DELETE FROM posts 
+      WHERE (post_goal IS NULL OR post_goal = '' OR post_goal = 'Untitled post')
+        AND (content_structure IS NULL OR content_structure = '{}' OR content_structure::text = '{}')
+      RETURNING id
+    `);
+    res.json({ ok: true, deleted: result.rowCount });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.delete('/api/posts/:id', requireAuth, async (req, res) => {
   try { await pool.query('DELETE FROM posts WHERE id=$1', [req.params.id]); res.json({ ok:true }); }
   catch (err) { res.status(500).json({ error: err.message }); }
@@ -1204,21 +1219,6 @@ app.patch('/api/posts/:postId/modules/:id', requireAuth, async (req, res) => {
 app.delete('/api/posts/:postId/modules/:id', requireAuth, async (req, res) => {
   try { await pool.query('DELETE FROM post_modules WHERE id=$1', [req.params.id]); res.json({ ok:true }); }
   catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Cleanup untitled/empty posts
-app.delete('/api/posts/cleanup-untitled', requireAuth, async (req, res) => {
-  try {
-    const result = await pool.query(`
-      DELETE FROM posts 
-      WHERE (post_goal IS NULL OR post_goal = '' OR post_goal = 'Untitled post')
-        AND (content_structure IS NULL OR content_structure = '{}' OR content_structure::text = '{}')
-      RETURNING id
-    `);
-    res.json({ ok: true, deleted: result.rowCount });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
 });
 
 // Reorder modules
