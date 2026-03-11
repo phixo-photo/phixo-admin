@@ -504,7 +504,16 @@ ${videoSummaries.join('\n\n')}
 ${hooksSection}
 
 TASK:
-Generate ${count} content ideas for Phixo adapted from these proven patterns.
+Generate ${count} COMPLETELY UNIQUE content ideas for Phixo adapted from these proven patterns.
+
+UNIQUENESS REQUIREMENT:
+- Generation timestamp: ${Date.now()}
+- Every idea must be COMPLETELY DIFFERENT from any you might have generated before
+- Vary which hooks you choose - don't default to the same templates
+- Mix up the angles, scenarios, and filming approaches
+- Use different reference videos as inspiration for each idea
+- If you've suggested "common mistakes" before, try "behind the scenes" or "day in the life" angles
+- Think fresh - imagine you're brainstorming for the first time
 
 For each idea, provide:
 1. Title (short, descriptive)
@@ -543,6 +552,7 @@ CRITICAL:
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-20250514',
       max_tokens: 4000,
+      temperature: 1.0, // Maximum creativity for unique ideas
       messages: [
         { role: 'user', content: claudePrompt }
       ]
