@@ -1135,11 +1135,20 @@ app.get('/api/posts/:id', requireAuth, async (req, res) => {
 
 app.post('/api/posts', requireAuth, async (req, res) => {
   try {
-    const { platform, funnel_stage, post_goal, status, post_date, notes } = req.body;
+    const { platform, funnel_stage, post_goal, status, post_date, notes, post_type, content_structure } = req.body;
     const r = await pool.query(
-      `INSERT INTO posts (platform,funnel_stage,post_goal,status,post_date,notes)
-       VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
-      [platform, funnel_stage, post_goal, status||'idea', post_date, notes]
+      `INSERT INTO posts (platform,funnel_stage,post_goal,status,post_date,notes,post_type,content_structure)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
+      [
+        platform, 
+        funnel_stage, 
+        post_goal, 
+        status||'idea', 
+        post_date, 
+        notes,
+        post_type || 'photo',
+        content_structure ? JSON.stringify(content_structure) : '{}'
+      ]
     );
     r.rows[0].modules = [];
     res.json(r.rows[0]);
