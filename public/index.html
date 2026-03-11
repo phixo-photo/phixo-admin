@@ -554,7 +554,17 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
     
     <!-- Generated Ideas Display -->
     <div id="generated-ideas" style="display:none;margin:20px">
-      <h3 style="font-size:16px;margin-bottom:12px;font-family:var(--hind);font-weight:700">Generated Ideas</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="font-size:16px;margin:0;font-family:var(--hind);font-weight:700">Generated Ideas</h3>
+        <div style="display:flex;gap:8px">
+          <button class="bb bb-sec" onclick="regenerateIdeas()" title="Don't like these? Get new ideas">
+            Regenerate All
+          </button>
+          <button class="bb bb-main" onclick="saveAllIdeas()" title="Save all ideas as draft posts">
+            Save All as Drafts
+          </button>
+        </div>
+      </div>
       <div id="generated-ideas-grid" style="display:grid;gap:14px"></div>
     </div>
     
@@ -3429,19 +3439,26 @@ async function generateFromVideos() {
   
   try {
     const tags = document.getElementById('gen-tags').value.trim();
+    const params = {
+      funnel_stage: document.getElementById('gen-stage').value || null,
+      tags: tags ? tags.split(',').map(t => t.trim()) : null,
+      count: parseInt(document.getElementById('gen-count').value)
+    };
+    
+    // Store params for regenerate
+    lastGenerateParams = params;
+    
     const response = await fetch('/api/research/generate-ideas', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        funnel_stage: document.getElementById('gen-stage').value || null,
-        tags: tags ? tags.split(',').map(t => t.trim()) : null,
-        count: parseInt(document.getElementById('gen-count').value)
-      })
+      body: JSON.stringify(params)
     });
     
     const result = await response.json();
     
     if (result.ideas && result.ideas.length > 0) {
+      // Store ideas for save functions
+      currentIdeas = result.ideas;
       statusEl.textContent = `Generated ${result.ideas.length} ideas using ${result.sourcesUsed} reference videos`;
       renderGeneratedIdeas(result.ideas);
     } else if (result.error) {
@@ -3500,6 +3517,13 @@ function renderGeneratedIdeas(ideas) {
           <strong>CTA:</strong> ${esc(idea.cta)}<br>
           <strong>Inspiration:</strong> ${esc(idea.sourceInspiration || 'N/A')}
         </div>
+        <button 
+          class="bb bb-main" 
+          id="save-idea-${idx}"
+          onclick="event.stopPropagation();saveIdeaAsDraft(${idx})" 
+          style="width:100%;margin-top:12px">
+          Save as Draft Post
+        </button>
       </div>
     </div>
   `).join('');
@@ -3512,6 +3536,110 @@ function toggleGeneratedIdea(idx) {
   const el = document.getElementById(`gen-idea-${idx}`);
   if (el) {
     el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  }
+}
+
+// Store generated ideas and last request params for save/regenerate
+let currentIdeas = [];
+let lastGenerateParams = {};
+
+async function saveIdeaAsDraft(idx) {
+  const idea = currentIdeas[idx];
+  if (!idea) return;
+  
+  const button = document.getElementById(`save-idea-${idx}`);
+  button.disabled = true;
+  button.textContent = 'Saving...';
+  
+  try {
+    // Create draft post with idea data
+    const postData = {
+      title: idea.title,
+      caption: idea.caption,
+      post_type: 'video',
+      status: 'draft',
+      content_structure: {
+        hook: idea.hook,
+        hookTemplate: idea.hookTemplate,
+        overlay: idea.overlay,
+        filmIt: idea.filmIt,
+        cta: idea.cta,
+        platform: idea.platform,
+        length: idea.length,
+        sourceInspiration: idea.sourceInspiration,
+        generatedFrom: 'research_library'
+      }
+    };
+    
+    await api('POST', '/api/posts', postData);
+    
+    button.textContent = 'Saved ✓';
+    button.classList.remove('bb-main');
+    button.classList.add('bb-sec');
+    toast('Saved as draft post', 'ok');
+  } catch (err) {
+    console.error('Save idea error:', err);
+    button.disabled = false;
+    button.textContent = 'Save as Draft Post';
+    toast('Error saving idea');
+  }
+}
+
+async function saveAllIdeas() {
+  if (currentIdeas.length === 0) return;
+  
+  try {
+    const promises = currentIdeas.map((idea, idx) => saveIdeaAsDraft(idx));
+    await Promise.all(promises);
+    toast(`Saved ${currentIdeas.length} ideas as draft posts`, 'ok');
+  } catch (err) {
+    console.error('Save all error:', err);
+    toast('Some ideas failed to save');
+  }
+}
+
+async function regenerateIdeas() {
+  if (!lastGenerateParams.funnel_stage && !lastGenerateParams.tags) {
+    toast('No previous generate request found');
+    return;
+  }
+  
+  // Call generateFromVideos again with same params
+  const statusEl = document.getElementById('gen-status');
+  const button = document.getElementById('gen-ideas-btn');
+  
+  button.disabled = true;
+  button.textContent = 'Regenerating...';
+  statusEl.textContent = 'Generating new ideas...';
+  
+  try {
+    const response = await fetch('/api/research/generate-ideas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(lastGenerateParams)
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Generation failed');
+    }
+    
+    if (data.ideas && data.ideas.length > 0) {
+      currentIdeas = data.ideas;
+      renderGeneratedIdeas(data.ideas);
+      statusEl.textContent = `Generated ${data.ideas.length} new ideas from ${data.sourcesUsed} reference videos`;
+      toast('New ideas generated!', 'ok');
+    } else {
+      throw new Error('No ideas returned');
+    }
+  } catch (err) {
+    console.error('Regenerate error:', err);
+    statusEl.textContent = `Error: ${err.message}`;
+    toast('Failed to regenerate ideas');
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Generate Ideas';
   }
 }
 
