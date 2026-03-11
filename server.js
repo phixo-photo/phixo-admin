@@ -283,43 +283,91 @@ function getRelevantHooks(funnelStage, count = 25) {
 
 // Returns a formatted block of REAL hooks for Claude to choose from.
 // Claude picks from these — it does not invent hooks.
-function getHooksForClaude(funnelStage, pillar, count = 60) {
-  if (VIRAL_HOOKS.length === 0) return '';
+// ── TWO-CALL HOOK SYSTEM ────────────────────────────────────────────────────
+// Call 1: Haiku reads all 1004 hooks + context, returns real IDs only.
+// Node validates every ID against VIRAL_HOOKS before Call 2 touches them.
+// Claude never selects or invents hooks in the ideation call.
 
-  // Broader category mapping based on pillar + funnel stage
-  let categories = [];
-  if (pillar === 'Educate') categories = ['EDUCATIONAL', 'MYTH BUSTING', 'AUTHORITY'];
-  else if (pillar === 'Entertain') categories = ['STORYTELLING', 'DAY IN THE LIFE', 'RANDOM', 'COMPARISON'];
-  else if (pillar === 'Tell') categories = ['STORYTELLING', 'DAY IN THE LIFE', 'AUTHORITY'];
-  else if (pillar === 'Promote') categories = ['STORYTELLING', 'AUTHORITY', 'COMPARISON'];
-  else {
-    // fallback by funnel stage
-    const stageMap = {
-      'ToFu': ['EDUCATIONAL', 'MYTH BUSTING', 'DAY IN THE LIFE', 'STORYTELLING'],
-      'MoFu': ['EDUCATIONAL', 'AUTHORITY', 'COMPARISON', 'STORYTELLING'],
-      'BoFu': ['STORYTELLING', 'AUTHORITY', 'COMPARISON']
-    };
-    categories = stageMap[funnelStage] || ['EDUCATIONAL', 'STORYTELLING'];
+async function selectHooksViaHaiku(count, context) {
+  if (VIRAL_HOOKS.length === 0) return [];
+
+  // Full CSV as text — all 1004 hooks, Haiku reads everything
+  const csvText = VIRAL_HOOKS.map(h =>
+    `${h.id},${h.category},"${h.template}",${h.exampleUrl}`
+  ).join('\n');
+
+  const selectionPrompt = `You are selecting hooks for a content creator named Ian Green.
+
+ABOUT IAN:
+${context}
+
+TASK:
+Read all 1004 hooks below. Return exactly ${count} hook IDs that would work best for this specific request.
+Consider Ian's voice (warm, direct, no hype), his subject matter (portrait photography, Montreal, side hustle), and his audience.
+Think about which hooks a real person would actually stop scrolling for.
+
+RULES:
+- Return ONLY a JSON array of ID strings. Nothing else. No explanation.
+- Every ID you return MUST exist exactly in the list below.
+- Do not invent, modify, or combine IDs.
+- Example valid response: ["STO_0012","EDU_0047","AUT_0003"]
+
+HOOK DATABASE (Hook ID, Category, Template, Example URL):
+${csvText}`;
+
+  const msg = await anthropic.messages.create({
+    model: 'claude-haiku-4-5-20251001',
+    max_tokens: 200,
+    temperature: 0.7,
+    messages: [{ role: 'user', content: selectionPrompt }]
+  });
+
+  const text = msg.content[0].text.trim();
+
+  // Parse the returned IDs
+  let returnedIds = [];
+  try {
+    const match = text.match(/\[.*\]/s);
+    if (match) returnedIds = JSON.parse(match[0]);
+  } catch (e) {
+    console.error('Haiku hook selection parse error:', e.message);
+    return [];
   }
 
+  // Validate every ID against the actual in-memory array
+  const validIdSet = new Set(VIRAL_HOOKS.map(h => h.id));
+  const validatedIds = returnedIds.filter(id => validIdSet.has(id));
+
+  console.log(`Hook selection: Haiku returned ${returnedIds.length}, ${validatedIds.length} validated`);
+
+  // Map validated IDs to full hook objects
+  const hookMap = Object.fromEntries(VIRAL_HOOKS.map(h => [h.id, h]));
+  return validatedIds.map(id => hookMap[id]);
+}
+
+// Fallback: random sample from filtered pool (used only if Haiku call fails)
+function randomHooks(count, funnelStage, pillar) {
+  const categoryMap = {
+    'Educate':   ['EDUCATIONAL', 'MYTH BUSTING', 'AUTHORITY'],
+    'Entertain': ['STORYTELLING', 'DAY IN THE LIFE', 'RANDOM', 'COMPARISON'],
+    'Tell':      ['STORYTELLING', 'DAY IN THE LIFE', 'AUTHORITY'],
+    'Promote':   ['STORYTELLING', 'AUTHORITY', 'COMPARISON'],
+  };
+  const stageFallback = {
+    'ToFu': ['EDUCATIONAL', 'MYTH BUSTING', 'DAY IN THE LIFE', 'STORYTELLING'],
+    'MoFu': ['EDUCATIONAL', 'AUTHORITY', 'COMPARISON', 'STORYTELLING'],
+    'BoFu': ['STORYTELLING', 'AUTHORITY', 'COMPARISON'],
+  };
+  const categories = categoryMap[pillar] || stageFallback[funnelStage] || ['EDUCATIONAL', 'STORYTELLING'];
   const filtered = VIRAL_HOOKS.filter(h => categories.includes(h.category));
-  const shuffled = [...filtered].sort(() => Math.random() - 0.5);
-  const selected = shuffled.slice(0, count);
+  return [...filtered].sort(() => Math.random() - 0.5).slice(0, count);
+}
 
-  if (selected.length === 0) return '';
-
-  return `
-REAL VIRAL HOOKS — PICK FROM THIS LIST ONLY. DO NOT INVENT HOOKS.
-These are ${selected.length} real hooks from a database of 1004 proven performers.
-For each idea, choose the single most creative and fitting hook from below.
-Return the exact hookTemplate text you chose (fill in the placeholders with portrait photography context).
-
-${selected.map((h, i) => `[${h.id}] [${h.category}] ${h.template}
-   Example: ${h.exampleUrl}`).join('\n\n')}
-
-RULE: The hook field in your JSON must be a filled-in version of one of the templates above.
-The hookTemplate field must be the raw template text exactly as shown (e.g. "Here's exactly how much (insert action/item) you need to (insert result)").
-`.trim();
+// Format validated hook objects into the prompt block for Call 2
+function formatHooksForIdeation(hooks) {
+  return hooks.map((h, i) =>
+    `Idea ${i + 1} — Hook assigned:\n  ID: ${h.id}\n  Category: ${h.category}\n  Template: "${h.template}"\n  Example: ${h.exampleUrl}\n  Instructions: Fill in the template placeholders with Ian's portrait photography context. Do not alter the template structure.`
+  ).join('\n\n');
 }
 
 // ═══════════════════════════════════════════════════
@@ -336,50 +384,89 @@ const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const PHIXO_STRATEGY_SYSTEM = `
 You are a content ideation assistant for Phixo, a portrait photography studio in West Island Montreal run by Ian Green. You generate content ideas EXCLUSIVELY based on the strategy rules below. Nothing invented outside these rules.
 
-WHO IAN IS
+━━━ WHO IAN IS ━━━
 - Portrait photographer, West Island Montreal, basement studio
 - Full-time IT job, Phixo capped at 10-12 sessions/month side hustle
 - Studied digital photography at Algonquin College 10+ years ago, returned after a decade in IT
 - Ian is always the subject in all content. No clients can be filmed without consent.
 - New to Montreal — nobody knows his name yet. Content builds familiarity from scratch.
 
-THE ONE TRUE THING
+━━━ THE ONE TRUE THING ━━━
 People want a photo that actually looks like them. Some need help getting there. Some just show up ready. Either way, the job is the same — create the conditions where that can happen. Every piece of content either connects back to that or it doesn't.
 
-VOICE RULES (NON-NEGOTIABLE)
-- Warm. Real. Like a friend who knows his stuff but isn't making a thing of it.
-- Write like Ian talks. Sentences can start with "and" or "but." Casual rhythm is fine.
-- "I" = Ian personally. "We" = the studio experience with a client. Never reversed.
-- NEVER use: stunning, perfect, gorgeous, transformative, journey, or any AI hype language
-- NEVER pain-point fish — not everyone is struggling, some people just want a good photo
-- NEVER corporate polish, fake urgency, scarcity tactics
-- When selling: sounds like "come by, I'll take care of you" — not a funnel
-- No emojis unless the brief explicitly calls for exactly one strategic emoji
+━━━ THE VOICE — READ THIS CAREFULLY ━━━
+The voice is not a style. It is how Ian actually thinks out loud. Sentences move forward. Nothing stops to reflect on itself. The point arrives without being announced. Personal admissions land in one clause and are gone — they don't become a moment.
 
-CONTENT FORMAT
-Default format: talking-head vertical video. Ian films himself in a car, a chair, on the edge of a desk. No production required. No ring light. A window works. This casual direct format IS the brand.
-- 30-60 seconds
-- Start mid-thought — no "hey guys" or long intros
-- One idea per video. Get in, get out.
-- Look at the camera, not the screen
+Here is what WRONG looks like, followed by RIGHT. Study the difference. Write RIGHT every time.
 
-CONTENT PILLARS + FUNNEL MAPPING
-EDUCATE (ToFu + MoFu): Teach something useful — lighting, posing, what to wear, how to prepare. Works at both ToFu (strangers find you) and MoFu (deepens trust).
-ENTERTAIN (ToFu): Make someone stop scrolling. Relatable moments, light observations. Pure ToFu — earning attention, showing personality.
-TELL (MoFu): Stories. A real moment told simply. First person, specific. Almost pure MoFu — trust through honesty.
-PROMOTE (BoFu): Direct, honest info — pricing, process, how to book. No fake urgency. Just answer the question.
+---
+EDUCATE — WRONG:
+"Most people don't realize that the background in a portrait does more work than the subject. It's actually one of the most overlooked elements of a strong image — and understanding it can completely change how your photos feel."
+Why it's wrong: stops to admire its own insight. "It's actually one of the most overlooked" is performing. The ending explains the value instead of demonstrating it.
 
-FUNNEL STAGES
-ToFu — Strangers. Best: Educate, Entertain.
+EDUCATE — RIGHT:
+"The background in a portrait is doing more work than the subject. Cluttered background, cluttered photo. Doesn't matter how good the light is. Clean it up first, then worry about everything else."
+Why it works: moves forward the whole time. Makes the point and goes. No sentence wraps up the one before it.
+
+---
+TELL — WRONG:
+"I had a client recently who came in really nervous — she almost cancelled three times. By the end of the session she was laughing and couldn't believe how the photos turned out. That's the moment I remember why I do this."
+Why it's wrong: "That's the moment I remember why I do this" is the ending performing emotion. It tells you how to feel about the story.
+
+TELL — RIGHT:
+"Had someone come in last week who almost cancelled twice. First ten minutes she wouldn't look directly at the camera. By the end she's turning to the screen saying 'wait, that's me?' That's the whole job right there."
+Why it works: ends at the real thing that happened. "That's the whole job right there" is observation, not emotion cue.
+
+---
+ENTERTAIN — WRONG:
+"There's a certain irony in the fact that the people who are most nervous about having their photo taken are often the ones who end up with the best portraits. The camera has a way of catching something real when you stop performing for it."
+Why it's wrong: over-written. "A certain irony" and "when you stop performing for it" are trying to sound good.
+
+ENTERTAIN — RIGHT:
+"The people who tell me they're unphotogenic always end up with the best shots. Every time. I don't know what to tell you, that's just what happens."
+Why it works: short, landed, slightly absurd. Doesn't explain itself.
+
+---
+PROMOTE — WRONG:
+"If you've been thinking about booking a session, I'd love to chat about what that could look like for you. My studio is a relaxed, comfortable space where we work together to create something you'll actually be proud of."
+Why it's wrong: selling sideways. "I'd love to chat" and "something you'll actually be proud of" are hedging and flattering at the same time.
+
+PROMOTE — RIGHT:
+"Session is 30 minutes. You see the photos on a screen as we go so you're not waiting a week wondering if they're any good. Pricing's on the site. If you've got questions just DM me."
+Why it works: direct. Answers the actual questions someone has before booking. No charm offensive.
+
+---
+STRUCTURAL RULES that come from these examples:
+- Sentences move forward. Never use a sentence to recap what the previous sentence just said.
+- The point shows up without being announced. No "that's why," no "that's the thing," no "and that matters because."
+- Personal admissions are one clause, then the script moves on. Not a vulnerability moment.
+- End at the last real thing. Not a wrap-up, not a callback, not a lesson stated out loud.
+- "Now for the fun part" is fine. Conversational interjections that sound like Ian talking are fine.
+- Specific beats plain every time. "Crunchy, over-processed look" beats "artificial appearance."
+- Never use: stunning, perfect, gorgeous, transformative, journey, authentic, or any AI hype language.
+- "I" = Ian personally. "We" = studio experience with a client. Never reversed.
+- No emojis.
+
+━━━ CONTENT FORMAT ━━━
+Default: talking-head vertical video. Ian in a car, a chair, edge of a desk. No production. Window light works. 30-60 seconds. Start mid-thought — no "hey guys." One idea per video. Get in, get out.
+
+━━━ CONTENT PILLARS + FUNNEL MAPPING ━━━
+EDUCATE (ToFu + MoFu): Teach something useful. Moves forward, demonstrates knowledge, no padding.
+ENTERTAIN (ToFu): Stop the scroll. Short, landed, slightly unexpected. Doesn't over-explain.
+TELL (MoFu): A real moment, told simply. First person, specific. Ends at the thing that happened.
+PROMOTE (BoFu): Direct info — pricing, process, how to book. Answers the real question. No charm.
+
+━━━ FUNNEL STAGES ━━━
+ToFu — Strangers scrolling. Best: Educate, Entertain.
 MoFu — Warm audience looking around. Best: Educate, Tell.
 BoFu — Someone basically decided. Best: Promote.
 
-CLIENT LANES (ALL EQUAL)
-Lane 1 Career & Professional: Professionals, job seekers, leaders, founders. Want a photo that matches where they are headed. Efficient, want real-time review. Show up for: new job, promotion, rebrand.
+━━━ CLIENT LANES (ALL EQUAL) ━━━
+Lane 1 Career & Professional: Professionals, job seekers, leaders, founders. Want a photo that matches where they are headed. Efficient. Show up for: new job, promotion, rebrand.
 Lane 2 Personal & Milestone: Graduates, young women, creatives. Want a portrait that feels like them. Some camera-shy, some confident. Show up for: graduation, birthday, milestone, feeling good.
 Lane 3 Family & Legacy: Families, couples, multi-generational. Want to preserve a connection. Show up for: birthdays, anniversaries, reunions, holidays.
 
-PROOF PHRASES (evidence only, never taglines)
+━━━ PROOF PHRASES (evidence only, never taglines) ━━━
 Tethered Shooting — always followed by: "images appear on screen in real time so you can see and adjust as we go"
 Natural Retouching — cleans things up without replacing you
 `.trim();
@@ -568,32 +655,41 @@ Source: ${v.source_url || 'N/A'}
 `.trim();
     });
     
-    // Get real hooks for Claude to CHOOSE FROM — not generate
-    const hooksBlock = getHooksForClaude(funnel_stage ? funnel_stage.charAt(0).toUpperCase() + funnel_stage.slice(1).replace('of','oFu').replace('tof','ToFu').replace('mof','MoFu').replace('bof','BoFu') : 'ToFu', '', 60);
-    
-    // Claude API call — strategy system prompt + real hooks
+    // Call 1: Haiku selects real hook IDs from all 1004
+    const hookContext = `Ian Green, portrait photographer, West Island Montreal. Side hustle, 10-12 sessions/month. Warm direct voice, no hype. Funnel stage: ${funnel_stage || 'ToFu'}. Content type: reference video adaptation.`;
+    let selectedHooks = [];
+    try {
+      selectedHooks = await selectHooksViaHaiku(count, hookContext);
+    } catch (e) {
+      console.error('Hook selection failed, using random fallback:', e.message);
+    }
+    if (selectedHooks.length < count) {
+      const fallback = randomHooks(count - selectedHooks.length, funnel_stage || 'ToFu', '');
+      selectedHooks = [...selectedHooks, ...fallback].slice(0, count);
+    }
+    const hooksBlock = formatHooksForIdeation(selectedHooks);
+
+    // Call 2: Sonnet ideates with pre-assigned real hooks
     const claudePrompt = `
 REFERENCE VIDEOS (proven ${funnel_stage || 'content'} performers from Research Library):
 
 ${videoSummaries.join('\n\n')}
 
+HOOKS ASSIGNED — one real hook per idea, validated from the 1004-hook library:
 ${hooksBlock}
 
 TASK:
-Generate ${count} COMPLETELY UNIQUE content ideas for Phixo adapted from these proven patterns.
-Timestamp for uniqueness: ${Date.now()}
+Generate ${count} content ideas for Phixo adapted from these reference videos.
+Each idea has a hook already assigned above. Fill in the template placeholders with Ian's portrait photography context. Do not alter the template structure.
+Timestamp: ${Date.now()}
 
-- Vary which hooks you choose. Be bold at temperature 1 — pick the most unexpected hook that still fits.
-- Use different reference videos as inspiration for each idea.
-- Mix up angles, client lanes, and filming approaches.
-
-For each idea, provide:
+For each idea return:
 1. title — short, what the video is about
-2. hook — filled-in version of the real hook template you chose
-3. hookTemplate — the raw template text exactly as it appears in the list above
-4. hookId — the ID code (e.g. EDU_0023) of the hook you chose
+2. hook — the template filled in with Ian's portrait context
+3. hookTemplate — raw template text as assigned
+4. hookId — the ID assigned above
 5. overlay — text that appears on screen (can be empty)
-6. caption — Instagram/TikTok caption in Ian's voice
+6. caption — in Ian's voice
 7. filmIt — numbered steps, where to sit, what to do, how long
 8. cta — call to action if any
 9. platform — TikTok, Instagram, etc.
@@ -653,9 +749,23 @@ app.post('/api/content/ideate', requireAuth, async (req, res) => {
     const { mode = 'scratch', funnel_stage, pillar, lane, seed_idea, block_ids, count = 3 } = req.body;
     let userPrompt = '';
 
+    // ── CALL 1: Hook selection via Haiku (all modes) ──────────────────────────
+    const hookContext = `Ian Green, portrait photographer, West Island Montreal. Side hustle 10-12 sessions/month. Warm direct voice, no hype. Mode: ${mode}. Pillar: ${pillar || 'mixed'}. Funnel: ${funnel_stage || 'mixed'}. Lane: ${lane || 'any'}.`;
+    let selectedHooks = [];
+    try {
+      selectedHooks = await selectHooksViaHaiku(count, hookContext);
+    } catch (e) {
+      console.error('Hook selection failed, using random fallback:', e.message);
+    }
+    if (selectedHooks.length < count) {
+      const fallback = randomHooks(count - selectedHooks.length, funnel_stage || 'ToFu', pillar || '');
+      selectedHooks = [...selectedHooks, ...fallback].slice(0, count);
+    }
+    const hooksBlock = formatHooksForIdeation(selectedHooks);
+
+    // ── BUILD PROMPT per mode ─────────────────────────────────────────────────
     if (mode === 'scratch') {
       if (!funnel_stage || !pillar) return res.status(400).json({ error: 'funnel_stage and pillar required' });
-      const hooksBlock = getHooksForClaude(funnel_stage, pillar, 60);
       userPrompt = `Generate ${count} original Phixo content ideas.
 
 PARAMETERS:
@@ -664,6 +774,7 @@ PARAMETERS:
 - Client Lane Focus: ${lane || 'any - mix across all three lanes'}
 - Timestamp: ${Date.now()}
 
+HOOKS ASSIGNED — one real hook per idea, already validated from the 1004-hook library:
 ${hooksBlock}
 
 For each idea return:
@@ -671,48 +782,48 @@ For each idea return:
 2. pillar
 3. funnelStage
 4. lane
-5. hook — filled-in version of the real hook template you chose. Be bold — pick the most unexpected hook that actually fits.
-6. hookTemplate — the raw template text exactly as it appears in the list above
-7. hookId — the ID code of the hook you chose (e.g. EDU_0023)
-8. script — what Ian actually says, 4-8 sentences, his voice, no hype language, casual rhythm
+5. hook — the assigned template filled in with Ian's portrait photography context
+6. hookTemplate — raw template text as assigned
+7. hookId — the ID assigned above
+8. script — what Ian actually says. 4-8 sentences. Read the voice examples in the system prompt and write like those RIGHT examples, not the WRONG ones.
 9. overlay — optional on-screen text, empty string if none
-10. caption — caption in Ian's voice, minimal emojis
+10. caption — in Ian's voice, no emojis
 11. filmIt — numbered steps: where to sit, what to do, how long
-12. cta — call to action if any (none for ToFu, soft for MoFu, direct for BoFu)
+12. cta — none for ToFu, soft trail for MoFu, direct for BoFu
 13. length — estimated seconds
 
 Return as a JSON array only. No preamble, no markdown fences.`;
 
     } else if (mode === 'riff') {
       if (!seed_idea) return res.status(400).json({ error: 'seed_idea required' });
-      const hooksBlock = getHooksForClaude('', '', 50);
-      userPrompt = `Build ${count} variations from this existing Phixo content idea. Each must be meaningfully different — different angle, different lane, different hook structure, different funnel stage.
+      userPrompt = `Build ${count} variations from this existing Phixo content idea. Each must be meaningfully different — different angle, different lane, different funnel stage.
 
 SEED IDEA:
 ${seed_idea}
 
+HOOKS ASSIGNED — one real hook per variation, validated from the 1004-hook library:
 ${hooksBlock}
 
 Rules:
 - At least one variation must shift the funnel stage from the seed
 - At least one variation must target a different client lane
-- For each, choose a hook from the real list above — most creative pick that fits
+- Use the assigned hook for each variation. Fill in the template, do not alter its structure.
 
 For each variation return:
 1. title
 2. pillar
 3. funnelStage
 4. lane
-5. hook — filled-in from real hook template
-6. hookTemplate — raw template text
+5. hook — assigned template filled in with Ian's portrait context
+6. hookTemplate — raw template as assigned
 7. hookId
-8. script
+8. script — write like the RIGHT examples in the system prompt, not the WRONG ones
 9. overlay
 10. caption
 11. filmIt
 12. cta
 13. length
-14. variationNote — one sentence explaining what is different about this angle
+14. variationNote — one sentence: what is different about this angle
 
 Return as a JSON array only. No preamble, no markdown fences.`;
 
@@ -739,12 +850,12 @@ Key points:\n- ${keyPoints || 'See transcript'}
 Transcript excerpt: ${transcript.slice(0, 600)}`;
       }).join('\n\n---\n\n');
 
-      const hooksBlock = getHooksForClaude('', '', 60);
-      userPrompt = `Generate ${count} Phixo content ideas inspired by these research blocks. Everything passes through the strategy system prompt — voice, pillars, lanes, funnel mapping. Ian is always the subject, never the source creator.
+      userPrompt = `Generate ${count} Phixo content ideas inspired by these research blocks. Ian is always the subject. The block inspires format or structure — the voice and content are Ian's.
 
 RESEARCH BLOCKS:
 ${blockSummaries}
 
+HOOKS ASSIGNED — one real hook per idea, validated from the 1004-hook library:
 ${hooksBlock}
 
 For each idea return:
@@ -752,16 +863,16 @@ For each idea return:
 2. pillar
 3. funnelStage
 4. lane
-5. hook — filled-in from real hook template, most creative pick that fits
-6. hookTemplate — raw template text
+5. hook — assigned template filled in with Ian's portrait context
+6. hookTemplate — raw template as assigned
 7. hookId
-8. script
+8. script — write like the RIGHT examples in the system prompt, not the WRONG ones
 9. overlay
 10. caption
 11. filmIt
 12. cta
 13. length
-14. sourceAdaptation — one sentence: what format or concept was borrowed from the block, and how it was made Phixo
+14. sourceAdaptation — one sentence: what format or concept came from the block
 
 Return as a JSON array only. No preamble, no markdown fences.`;
 
@@ -769,6 +880,7 @@ Return as a JSON array only. No preamble, no markdown fences.`;
       return res.status(400).json({ error: 'mode must be scratch, riff, or research' });
     }
 
+    // ── CALL 2: Sonnet ideates with pre-assigned real hooks ───────────────────
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4000,
