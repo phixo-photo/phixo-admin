@@ -4264,7 +4264,7 @@ function renderIdeationCards(ideas, mode) {
         <button class="btn btn-ghost btn-xs" onclick="saveIdeationIdea(${idx})" title="Save to Calendar">Save →</button>
       </div>
       <div class="ideate-card-body">
-        ${idea.hook ? `<div class="ideate-section"><div class="ideate-label">Hook — from your library</div><div class="ideate-val" style="font-weight:600;font-size:14px">${idea.hook}</div>${idea.hookTemplate ? `<div style="font-size:10px;color:var(--muted);margin-top:3px;font-style:italic">Template: ${idea.hookTemplate}</div>` : ''}</div>` : ''}
+        ${idea.hook ? `<div class="ideate-section"><div class="ideate-label">Hook ${idea.hookId ? `<span style="font-size:9px;background:#e8f0fd;border:1px solid #b8c8f0;border-radius:10px;padding:1px 7px;color:#3050aa;font-weight:700;margin-left:5px;font-style:normal">✓ ${idea.hookId}</span>` : ''}</div><div class="ideate-val" style="font-weight:600;font-size:14px">${idea.hook}</div>${idea.hookTemplate ? `<div style="font-size:10px;color:var(--muted);margin-top:4px;font-style:italic;line-height:1.5">Original template: ${idea.hookTemplate}</div>` : ''}${idea.exampleUrl ? `<div style="margin-top:3px"><a href="${idea.exampleUrl}" target="_blank" style="font-size:10px;color:var(--accent)">See example →</a></div>` : ''}</div>` : ''}
         ${idea.script ? `<div class="ideate-section"><div class="ideate-label">Script</div><div class="ideate-val script">${idea.script}</div></div>` : ''}
         ${idea.filmIt ? `<div class="ideate-section"><div class="ideate-label">Film It</div><div class="ideate-val film">${idea.filmIt}</div></div>` : ''}
         ${idea.caption ? `<div class="ideate-section"><div class="ideate-label">Caption</div><div class="ideate-val">${idea.caption}</div></div>` : ''}
