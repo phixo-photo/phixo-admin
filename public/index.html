@@ -73,6 +73,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .block-thumb{height:180px;background:#f0efe8;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
 .block-thumb img{max-width:100%;max-height:100%;object-fit:contain;width:auto;height:auto}
 .type-badge{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.55);color:#fff;font-size:9px;padding:2px 6px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px}
+.ref-badge{position:absolute;top:6px;right:6px;background:var(--accent);color:#fff;font-size:9px;padding:2px 6px;border-radius:20px;font-weight:700;letter-spacing:.5px;box-shadow:0 2px 8px rgba(184,103,62,.3)}
 .block-body{padding:10px 12px}
 .block-title{font-size:12px;font-weight:600;line-height:1.35;margin-bottom:4px}
 .block-meta{font-size:11px;color:var(--muted)}
@@ -1620,6 +1621,7 @@ async function loadResearch(){
       <div class="block-thumb">
         ${thumbHtml}
         <span class="type-badge">${b.type}</span>
+        ${hasVideo && b.is_reference ? `<span class="ref-badge" title="Used as reference for idea generation">✨ REF</span>` : ''}
       </div>
       <div class="block-body">
         ${b.funnel_stage?`<div style="margin-bottom:4px">${funnelBadge(b.funnel_stage)}</div>`:''}
