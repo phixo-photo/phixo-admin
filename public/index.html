@@ -3480,6 +3480,9 @@ function renderGeneratedIdeas(ideas) {
         <div style="margin-bottom:12px">
           <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px">HOOK</div>
           <div style="font-size:13px;font-style:italic;background:var(--surface-2);padding:10px;border-radius:6px">${esc(idea.hook)}</div>
+          ${idea.hookTemplate ? `<div style="font-size:10px;color:var(--muted);margin-top:6px;padding:8px;background:var(--bg);border-radius:4px">
+            <strong>Proven Template:</strong> ${esc(idea.hookTemplate)}
+          </div>` : ''}
         </div>
         <div style="margin-bottom:12px">
           <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px">TEXT OVERLAY</div>
