@@ -211,7 +211,9 @@ function loadViralHooks() {
     // Try multiple possible locations
     const possiblePaths = [
       path.join(__dirname, 'viral_hooks.csv'),
+      path.join(__dirname, 'viral_hooks__2_.csv'),
       path.join(__dirname, 'viral_hooks__1_.csv'),
+      '/mnt/user-data/uploads/viral_hooks__2_.csv',
       '/mnt/user-data/uploads/viral_hooks__1_.csv',
       '/mnt/user-data/uploads/viral_hooks.csv'
     ];
@@ -279,6 +281,47 @@ function getRelevantHooks(funnelStage, count = 25) {
   return shuffled.slice(0, count);
 }
 
+// Returns a formatted block of REAL hooks for Claude to choose from.
+// Claude picks from these — it does not invent hooks.
+function getHooksForClaude(funnelStage, pillar, count = 60) {
+  if (VIRAL_HOOKS.length === 0) return '';
+
+  // Broader category mapping based on pillar + funnel stage
+  let categories = [];
+  if (pillar === 'Educate') categories = ['EDUCATIONAL', 'MYTH BUSTING', 'AUTHORITY'];
+  else if (pillar === 'Entertain') categories = ['STORYTELLING', 'DAY IN THE LIFE', 'RANDOM', 'COMPARISON'];
+  else if (pillar === 'Tell') categories = ['STORYTELLING', 'DAY IN THE LIFE', 'AUTHORITY'];
+  else if (pillar === 'Promote') categories = ['STORYTELLING', 'AUTHORITY', 'COMPARISON'];
+  else {
+    // fallback by funnel stage
+    const stageMap = {
+      'ToFu': ['EDUCATIONAL', 'MYTH BUSTING', 'DAY IN THE LIFE', 'STORYTELLING'],
+      'MoFu': ['EDUCATIONAL', 'AUTHORITY', 'COMPARISON', 'STORYTELLING'],
+      'BoFu': ['STORYTELLING', 'AUTHORITY', 'COMPARISON']
+    };
+    categories = stageMap[funnelStage] || ['EDUCATIONAL', 'STORYTELLING'];
+  }
+
+  const filtered = VIRAL_HOOKS.filter(h => categories.includes(h.category));
+  const shuffled = [...filtered].sort(() => Math.random() - 0.5);
+  const selected = shuffled.slice(0, count);
+
+  if (selected.length === 0) return '';
+
+  return `
+REAL VIRAL HOOKS — PICK FROM THIS LIST ONLY. DO NOT INVENT HOOKS.
+These are ${selected.length} real hooks from a database of 1004 proven performers.
+For each idea, choose the single most creative and fitting hook from below.
+Return the exact hookTemplate text you chose (fill in the placeholders with portrait photography context).
+
+${selected.map((h, i) => `[${h.id}] [${h.category}] ${h.template}
+   Example: ${h.exampleUrl}`).join('\n\n')}
+
+RULE: The hook field in your JSON must be a filled-in version of one of the templates above.
+The hookTemplate field must be the raw template text exactly as shown (e.g. "Here's exactly how much (insert action/item) you need to (insert result)").
+`.trim();
+}
+
 // ═══════════════════════════════════════════════════
 // AUTH
 // ═══════════════════════════════════════════════════
@@ -290,76 +333,57 @@ const oauth2Client = new google.auth.OAuth2(
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 // ── PHIXO STRATEGY SYSTEM PROMPT ─────────────────────────────────────────────
-// This is the single source of truth for all content ideation API calls.
-// Every idea generated must pass through this context. Nothing is invented
-// outside these rules.
 const PHIXO_STRATEGY_SYSTEM = `
-You are a content ideation assistant for Phixo, a portrait photography studio in West Island Montreal run by Ian Green as a side hustle. You generate content ideas EXCLUSIVELY based on the strategy rules below. You never invent outside these rules.
+You are a content ideation assistant for Phixo, a portrait photography studio in West Island Montreal run by Ian Green. You generate content ideas EXCLUSIVELY based on the strategy rules below. Nothing invented outside these rules.
 
-━━━ WHO IAN IS ━━━
+WHO IAN IS
 - Portrait photographer, West Island Montreal, basement studio
-- Full-time IT job (6 figures), Phixo is capped at 10–12 sessions/month
+- Full-time IT job, Phixo capped at 10-12 sessions/month side hustle
 - Studied digital photography at Algonquin College 10+ years ago, returned after a decade in IT
-- No staff. Ian is the subject in all content — no clients can be filmed without consent.
+- Ian is always the subject in all content. No clients can be filmed without consent.
 - New to Montreal — nobody knows his name yet. Content builds familiarity from scratch.
 
-━━━ THE ONE TRUE THING ━━━
-People want a photo that actually looks like them. Some need help getting there. Some just show up ready. Either way, the job is the same — create the conditions where that can happen, and let them see it in real time. Every piece of content either connects back to that or it doesn't.
+THE ONE TRUE THING
+People want a photo that actually looks like them. Some need help getting there. Some just show up ready. Either way, the job is the same — create the conditions where that can happen. Every piece of content either connects back to that or it doesn't.
 
-━━━ VOICE RULES (NON-NEGOTIABLE) ━━━
+VOICE RULES (NON-NEGOTIABLE)
 - Warm. Real. Like a friend who knows his stuff but isn't making a thing of it.
 - Write like Ian talks. Sentences can start with "and" or "but." Casual rhythm is fine.
 - "I" = Ian personally. "We" = the studio experience with a client. Never reversed.
-- NEVER use: stunning, perfect, gorgeous, transformative, journey, authentic journey, or any AI hype language
+- NEVER use: stunning, perfect, gorgeous, transformative, journey, or any AI hype language
 - NEVER pain-point fish — not everyone is struggling, some people just want a good photo
 - NEVER corporate polish, fake urgency, scarcity tactics
-- When selling, it sounds like "come by, I'll take care of you" — not a funnel
-- No emojis in scripts or captions unless the brief explicitly calls for one strategically
+- When selling: sounds like "come by, I'll take care of you" — not a funnel
+- No emojis unless the brief explicitly calls for exactly one strategic emoji
 
-━━━ CONTENT FORMAT ━━━
-The default format is a talking-head vertical video. Ian films himself in a car, a chair, on the edge of a desk — wherever he is. No production required. No ring light needed. A window works. This casual, direct format IS the brand — it tells people before they ever book what a session with Ian feels like.
-- 30–60 seconds
+CONTENT FORMAT
+Default format: talking-head vertical video. Ian films himself in a car, a chair, on the edge of a desk. No production required. No ring light. A window works. This casual direct format IS the brand.
+- 30-60 seconds
 - Start mid-thought — no "hey guys" or long intros
 - One idea per video. Get in, get out.
 - Look at the camera, not the screen
-- Notes are fine. Reading a script is not.
 
-━━━ CONTENT PILLARS + FUNNEL MAPPING ━━━
+CONTENT PILLARS + FUNNEL MAPPING
+EDUCATE (ToFu + MoFu): Teach something useful — lighting, posing, what to wear, how to prepare. Works at both ToFu (strangers find you) and MoFu (deepens trust).
+ENTERTAIN (ToFu): Make someone stop scrolling. Relatable moments, light observations. Pure ToFu — earning attention, showing personality.
+TELL (MoFu): Stories. A real moment told simply. First person, specific. Almost pure MoFu — trust through honesty.
+PROMOTE (BoFu): Direct, honest info — pricing, process, how to book. No fake urgency. Just answer the question.
 
-EDUCATE (ToFu + MoFu)
-Teach something anyone could use — lighting, posing, what to wear, how to prepare, what makes a portrait work, how the camera sees vs the eye sees. Give something away free that makes people think: this person actually knows what they're doing. Works at ToFu (strangers find you) AND MoFu (deepens trust with warm audiences).
+FUNNEL STAGES
+ToFu — Strangers. Best: Educate, Entertain.
+MoFu — Warm audience looking around. Best: Educate, Tell.
+BoFu — Someone basically decided. Best: Promote.
 
-ENTERTAIN (ToFu)
-Make someone stop scrolling. Relatable photography moments, light observations about the process or industry. Doesn't have to be a joke — just something that lands human. Pure ToFu — not building toward a booking yet, earning attention and showing personality.
+CLIENT LANES (ALL EQUAL)
+Lane 1 Career & Professional: Professionals, job seekers, leaders, founders. Want a photo that matches where they are headed. Efficient, want real-time review. Show up for: new job, promotion, rebrand.
+Lane 2 Personal & Milestone: Graduates, young women, creatives. Want a portrait that feels like them. Some camera-shy, some confident. Show up for: graduation, birthday, milestone, feeling good.
+Lane 3 Family & Legacy: Families, couples, multi-generational. Want to preserve a connection. Show up for: birthdays, anniversaries, reunions, holidays.
 
-TELL (MoFu)
-Stories. A moment from a session, something that happened, something Ian noticed. First person, specific, real. Not a case study — a moment told simply. Almost pure MoFu. Someone already knows Ian exists. A real story builds trust better than any credential.
-
-PROMOTE (BoFu)
-Direct, honest info for someone who's already thinking about booking. Pricing, what's included, how to book, what the session looks like. No fake urgency. Just answer the question they already have and make it easy to say yes.
-
-━━━ FUNNEL STAGES ━━━
-ToFu — Strangers scrolling who don't know Ian exists. Best pillars: Educate, Entertain.
-MoFu — Someone who found Ian and is looking around. Best pillars: Educate, Tell.
-BoFu — Someone basically decided, just needs the practical info. Best pillar: Promote.
-
-━━━ THREE CLIENT LANES (ALL EQUAL) ━━━
-Lane 1 — Career & Professional: Professionals in transition, job seekers, leaders, founders. Want a photo that matches where they're headed. Busy, efficient, want real-time review. Show up for: new job, promotion, rebrand, speaking engagement.
-Lane 2 — Personal & Milestone: Graduates, young women, creatives. Want a portrait that feels like them — not stiff, not fake. Some are camera-shy, some come in confident. Either works. Show up for: graduation, birthday, creative project, just feeling good.
-Lane 3 — Family & Legacy: Families, couples, multi-generational groups. Want to preserve a connection or season of life. Challenge is coordination, not the photography. Show up for: birthdays, anniversaries, reunions, holidays, before a kid leaves for school.
-
-━━━ PROOF PHRASES (evidence only, never taglines) ━━━
+PROOF PHRASES (evidence only, never taglines)
 Tethered Shooting — always followed by: "images appear on screen in real time so you can see and adjust as we go"
 Natural Retouching — cleans things up without replacing you
-Guided Experience — structured session, Ian leads, client relaxes
-
-━━━ WHAT GOOD CONTENT LOOKS LIKE ━━━
-- Connects to the viewer's experience first, Ian's expertise second
-- Shows technical knowledge warmly — teaches, doesn't just demonstrate
-- Every script has its own structure — no repeated templates
-- Art is subjective — never position any tool or approach as objectively better
-- Hooks connect to the viewer's reality, not to Phixo's services
 `.trim();
+
 
 
 function requireAuth(req, res, next) {
@@ -544,92 +568,46 @@ Source: ${v.source_url || 'N/A'}
 `.trim();
     });
     
-    // Get relevant viral hooks from CSV
-    const relevantHooks = getRelevantHooks(funnel_stage || 'tof', 25);
-    const hooksSection = relevantHooks.length > 0 ? `
-
-PROVEN VIRAL HOOKS (use these exact templates):
-
-${relevantHooks.map((h, i) => `${i+1}. [${h.category}] ${h.template}
-   Example: ${h.exampleUrl}`).join('\n\n')}
-
-CRITICAL: Use these ACTUAL proven hooks, don't invent new ones. Pick the best template for each idea and fill in the placeholders.
-` : '';
+    // Get real hooks for Claude to CHOOSE FROM — not generate
+    const hooksBlock = getHooksForClaude(funnel_stage ? funnel_stage.charAt(0).toUpperCase() + funnel_stage.slice(1).replace('of','oFu').replace('tof','ToFu').replace('mof','MoFu').replace('bof','BoFu') : 'ToFu', '', 60);
     
-    // Phixo context
-    const phixoContext = `
-PHIXO CONTEXT:
-- Ian Green, headshot photographer, West Island Montreal
-- Basement studio, side hustle (10-12 sessions/month max)
-- NO CLIENTS YET - Ian is the subject/model for all content
-- Voice: Warm, real, grounded (not corporate/polished)
-- Target: Professionals, individuals, families needing headshots
-- Constraints: Self-portrait content only, no clients to film
-- Strategy: ToFu (educational), MoFu (process/trust), BoFu (remove friction)
-`.trim();
-    
-    // Claude API call
-    const claudePrompt = `${phixoContext}
-
+    // Claude API call — strategy system prompt + real hooks
+    const claudePrompt = `
 REFERENCE VIDEOS (proven ${funnel_stage || 'content'} performers from Research Library):
 
 ${videoSummaries.join('\n\n')}
-${hooksSection}
+
+${hooksBlock}
 
 TASK:
 Generate ${count} COMPLETELY UNIQUE content ideas for Phixo adapted from these proven patterns.
+Timestamp for uniqueness: ${Date.now()}
 
-UNIQUENESS REQUIREMENT:
-- Generation timestamp: ${Date.now()}
-- Every idea must be COMPLETELY DIFFERENT from any you might have generated before
-- Vary which hooks you choose - don't default to the same templates
-- Mix up the angles, scenarios, and filming approaches
-- Use different reference videos as inspiration for each idea
-- If you've suggested "common mistakes" before, try "behind the scenes" or "day in the life" angles
-- Think fresh - imagine you're brainstorming for the first time
+- Vary which hooks you choose. Be bold at temperature 1 — pick the most unexpected hook that still fits.
+- Use different reference videos as inspiration for each idea.
+- Mix up angles, client lanes, and filming approaches.
 
 For each idea, provide:
-1. Title (short, descriptive)
-2. Hook (use one of the PROVEN VIRAL HOOKS above - pick the best template and fill in placeholders for portrait photography)
-3. Text Overlay (what appears on screen)
-4. Caption (Instagram/TikTok post text)
-5. Film It (step-by-step instructions, numbered)
-6. CTA (call to action)
-7. Platform (TikTok, Instagram, etc.)
-8. Length (seconds)
-9. Source Inspiration (which video block ID inspired this)
-10. hookTemplate (the exact template you used from PROVEN VIRAL HOOKS, e.g., "This is what X looks like when...")
+1. title — short, what the video is about
+2. hook — filled-in version of the real hook template you chose
+3. hookTemplate — the raw template text exactly as it appears in the list above
+4. hookId — the ID code (e.g. EDU_0023) of the hook you chose
+5. overlay — text that appears on screen (can be empty)
+6. caption — Instagram/TikTok caption in Ian's voice
+7. filmIt — numbered steps, where to sit, what to do, how long
+8. cta — call to action if any
+9. platform — TikTok, Instagram, etc.
+10. length — estimated seconds
+11. sourceInspiration — which video block inspired this
 
-Format as JSON array:
-[
-  {
-    "title": "...",
-    "hook": "...",
-    "hookTemplate": "...",
-    "overlay": "...",
-    "caption": "...",
-    "filmIt": "1. Step one\\n2. Step two...",
-    "cta": "...",
-    "platform": "...",
-    "length": "...",
-    "sourceInspiration": "Based on video block #ID - format_name"
-  }
-]
-
-CRITICAL: 
-- Ian films himself. No clients. He is both photographer and subject.
-- Use ACTUAL hooks from PROVEN VIRAL HOOKS list - don't create new hooks
-- Make it executable - exact words, exact steps, ready to film TODAY.`;
-
+Format as JSON array only. No preamble, no markdown fences.`;
 
     const message = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 4000,
       temperature: 1.0,
       system: PHIXO_STRATEGY_SYSTEM,
-      messages: [
-        { role: 'user', content: claudePrompt }
-      ]
+      messages: [{ role: 'user', content: claudePrompt }]
     });
     
     // Parse Claude's response
@@ -668,52 +646,124 @@ CRITICAL:
   }
 });
 
-
 // ── CONTENT IDEATION — Strategy Hub as the only data source ─────────────────
+// Three modes: scratch (pillar+funnel), riff (variations on seed), research (from block)
 app.post('/api/content/ideate', requireAuth, async (req, res) => {
   try {
-    const {
-      mode = 'scratch',
-      funnel_stage,
-      pillar,
-      lane,
-      seed_idea,
-      block_id,
-      count = 3
-    } = req.body;
-
+    const { mode = 'scratch', funnel_stage, pillar, lane, seed_idea, block_ids, count = 3 } = req.body;
     let userPrompt = '';
 
     if (mode === 'scratch') {
-      if (!funnel_stage || !pillar) {
-        return res.status(400).json({ error: 'funnel_stage and pillar are required for scratch mode' });
-      }
-      userPrompt = `Generate ${count} original Phixo content ideas.\n\nPARAMETERS:\n- Funnel Stage: ${funnel_stage}\n- Content Pillar: ${pillar}\n- Client Lane Focus: ${lane || 'any - mix across all three lanes'}\n\nThese ideas must come entirely from the strategy rules in the system prompt. No generic photography content. Every idea must feel like Ian talking - warm, casual, real.\n\nFor each idea provide:\n1. title\n2. pillar\n3. funnelStage\n4. lane\n5. hook - opening line said to camera, no hey guys, start mid-thought\n6. script - what Ian actually says, 4-8 sentences, his voice, no hype language\n7. overlay - optional on-screen text, can be empty string\n8. caption - Instagram/TikTok caption, minimal emojis\n9. filmIt - numbered steps, where to sit, what to do, how long\n10. cta - call to action if any\n11. length - estimated seconds\n\nReturn as a JSON array only. No preamble, no markdown fences.`;
+      if (!funnel_stage || !pillar) return res.status(400).json({ error: 'funnel_stage and pillar required' });
+      const hooksBlock = getHooksForClaude(funnel_stage, pillar, 60);
+      userPrompt = `Generate ${count} original Phixo content ideas.
+
+PARAMETERS:
+- Funnel Stage: ${funnel_stage}
+- Content Pillar: ${pillar}
+- Client Lane Focus: ${lane || 'any - mix across all three lanes'}
+- Timestamp: ${Date.now()}
+
+${hooksBlock}
+
+For each idea return:
+1. title
+2. pillar
+3. funnelStage
+4. lane
+5. hook — filled-in version of the real hook template you chose. Be bold — pick the most unexpected hook that actually fits.
+6. hookTemplate — the raw template text exactly as it appears in the list above
+7. hookId — the ID code of the hook you chose (e.g. EDU_0023)
+8. script — what Ian actually says, 4-8 sentences, his voice, no hype language, casual rhythm
+9. overlay — optional on-screen text, empty string if none
+10. caption — caption in Ian's voice, minimal emojis
+11. filmIt — numbered steps: where to sit, what to do, how long
+12. cta — call to action if any (none for ToFu, soft for MoFu, direct for BoFu)
+13. length — estimated seconds
+
+Return as a JSON array only. No preamble, no markdown fences.`;
 
     } else if (mode === 'riff') {
-      if (!seed_idea) {
-        return res.status(400).json({ error: 'seed_idea is required for riff mode' });
-      }
-      userPrompt = `Build ${count} variations from this existing Phixo content idea. Each variation must be meaningfully different - different angle, different lane, different hook structure.\n\nSEED IDEA:\n${seed_idea}\n\nRules:\n- Stay completely within the strategy system prompt voice rules\n- At least one variation should shift the funnel stage\n- At least one variation should target a different client lane\n\nFor each variation provide:\n1. title\n2. pillar\n3. funnelStage\n4. lane\n5. hook\n6. script\n7. overlay\n8. caption\n9. filmIt\n10. cta\n11. length\n12. variationNote - one sentence explaining what is different about this angle\n\nReturn as a JSON array only. No preamble, no markdown fences.`;
+      if (!seed_idea) return res.status(400).json({ error: 'seed_idea required' });
+      const hooksBlock = getHooksForClaude('', '', 50);
+      userPrompt = `Build ${count} variations from this existing Phixo content idea. Each must be meaningfully different — different angle, different lane, different hook structure, different funnel stage.
+
+SEED IDEA:
+${seed_idea}
+
+${hooksBlock}
+
+Rules:
+- At least one variation must shift the funnel stage from the seed
+- At least one variation must target a different client lane
+- For each, choose a hook from the real list above — most creative pick that fits
+
+For each variation return:
+1. title
+2. pillar
+3. funnelStage
+4. lane
+5. hook — filled-in from real hook template
+6. hookTemplate — raw template text
+7. hookId
+8. script
+9. overlay
+10. caption
+11. filmIt
+12. cta
+13. length
+14. variationNote — one sentence explaining what is different about this angle
+
+Return as a JSON array only. No preamble, no markdown fences.`;
 
     } else if (mode === 'research') {
-      if (!block_id) {
-        return res.status(400).json({ error: 'block_id is required for research mode' });
-      }
-      const blockResult = await pool.query(
-        'SELECT id, title, content_payload, metadata, tags, source_url, type FROM blocks WHERE id = $1',
-        [block_id]
-      );
-      if (blockResult.rows.length === 0) {
-        return res.status(404).json({ error: 'Block not found' });
-      }
-      const block = blockResult.rows[0];
-      const meta = block.metadata || {};
-      const transcript = block.content_payload || '';
-      const keyPoints = (meta.key_points || []).slice(0, 5).join('\n- ');
-      const hook = transcript.split('\n')[0] || meta.hook || '';
+      const ids = Array.isArray(block_ids) ? block_ids : [block_ids];
+      if (!ids.length || !ids[0]) return res.status(400).json({ error: 'block_ids required' });
 
-      userPrompt = `Generate ${count} Phixo content ideas inspired by this research block. Everything must pass through the strategy system prompt - voice, pillars, lanes, funnel mapping, format rules.\n\nRESEARCH BLOCK:\nTitle: ${block.title}\nType: ${block.type}\nSource: ${block.source_url || 'N/A'}\nOpening hook: "${hook}"\nKey points:\n- ${keyPoints || 'See transcript'}\n\nTranscript excerpt:\n${transcript.slice(0, 800)}\n\nTASK: Adapt the format, structure, or concept from this source into original Phixo content. Ian is always the subject. The content should feel like Ian, not like the original source creator.\n\nFor each idea provide:\n1. title\n2. pillar\n3. funnelStage\n4. lane\n5. hook\n6. script\n7. overlay\n8. caption\n9. filmIt\n10. cta\n11. length\n12. sourceAdaptation - one sentence on what was borrowed from the research block\n\nReturn as a JSON array only. No preamble, no markdown fences.`;
+      const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
+      const blockResult = await pool.query(
+        `SELECT id, title, content_payload, metadata, tags, source_url, type FROM blocks WHERE id IN (${placeholders})`,
+        ids
+      );
+      if (blockResult.rows.length === 0) return res.status(404).json({ error: 'No blocks found' });
+
+      const blockSummaries = blockResult.rows.map(block => {
+        const meta = block.metadata || {};
+        const transcript = block.content_payload || '';
+        const keyPoints = (meta.key_points || []).slice(0, 5).join('\n- ');
+        const opening = transcript.split('\n')[0] || meta.hook || '';
+        return `BLOCK #${block.id}: ${block.title} (${block.type})
+Source: ${block.source_url || 'N/A'}
+Opening: "${opening}"
+Key points:\n- ${keyPoints || 'See transcript'}
+Transcript excerpt: ${transcript.slice(0, 600)}`;
+      }).join('\n\n---\n\n');
+
+      const hooksBlock = getHooksForClaude('', '', 60);
+      userPrompt = `Generate ${count} Phixo content ideas inspired by these research blocks. Everything passes through the strategy system prompt — voice, pillars, lanes, funnel mapping. Ian is always the subject, never the source creator.
+
+RESEARCH BLOCKS:
+${blockSummaries}
+
+${hooksBlock}
+
+For each idea return:
+1. title
+2. pillar
+3. funnelStage
+4. lane
+5. hook — filled-in from real hook template, most creative pick that fits
+6. hookTemplate — raw template text
+7. hookId
+8. script
+9. overlay
+10. caption
+11. filmIt
+12. cta
+13. length
+14. sourceAdaptation — one sentence: what format or concept was borrowed from the block, and how it was made Phixo
+
+Return as a JSON array only. No preamble, no markdown fences.`;
 
     } else {
       return res.status(400).json({ error: 'mode must be scratch, riff, or research' });
@@ -729,16 +779,11 @@ app.post('/api/content/ideate', requireAuth, async (req, res) => {
 
     const responseText = message.content[0].text;
     const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) {
-      return res.status(500).json({ error: 'No JSON in response', raw: responseText });
-    }
+    if (!jsonMatch) return res.status(500).json({ error: 'No JSON in response', raw: responseText });
 
     let ideas;
-    try {
-      ideas = JSON.parse(jsonMatch[0]);
-    } catch (e) {
-      return res.status(500).json({ error: 'Failed to parse ideas JSON', raw: responseText });
-    }
+    try { ideas = JSON.parse(jsonMatch[0]); }
+    catch (e) { return res.status(500).json({ error: 'Failed to parse ideas JSON', raw: responseText }); }
 
     res.json({ ideas, mode, count: ideas.length });
 
