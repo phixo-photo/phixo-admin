@@ -435,6 +435,24 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .fmt-plat-name{font-size:16px;font-weight:800;margin-bottom:8px;padding-bottom:8px;border-bottom:2px solid var(--border)}
 @media(max-width:900px){.wf-grid{grid-template-columns:repeat(4,1fr)}.stat-row{grid-template-columns:repeat(3,1fr)}}
 
+/* ── IDEATION ─────────────────────────────────────────── */
+.ideate-mode{background:var(--surface);border:2px solid var(--border);border-radius:var(--r);padding:18px 22px;text-align:center;cursor:pointer;font-family:inherit;transition:all .15s;min-width:160px;flex:1;max-width:220px}
+.ideate-mode:hover{border-color:var(--accent);transform:translateY(-2px)}
+.ideate-mode.on{border-color:var(--accent);background:var(--accent-light);color:var(--text)}
+.ideate-form{transition:all .2s}
+.ideate-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
+.ideate-card-head{padding:14px 18px;background:var(--surface-2);border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.ideate-card-title{font-size:14px;font-weight:700;line-height:1.4;flex:1}
+.ideate-card-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:5px}
+.ideate-card-body{padding:16px 18px;font-size:13px;line-height:1.65;color:var(--text)}
+.ideate-card-section{margin-bottom:12px}
+.ideate-card-label{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:4px}
+.ideate-card-value{font-size:13px;line-height:1.6}
+.ideate-card-value.script{background:var(--bg);border-left:3px solid var(--accent);padding:10px 14px;border-radius:0 6px 6px 0;font-style:italic}
+.ideate-card-value.film{white-space:pre-line;font-family:monospace;font-size:12px;background:var(--nav);color:#bbb;padding:10px 14px;border-radius:6px}
+.ideate-card-foot{padding:10px 18px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center}
+.ideate-note{background:var(--accent-light);border:1px solid #e8d5a8;border-radius:6px;padding:7px 12px;font-size:12px;color:var(--muted);font-style:italic}
+
 </style>
 </head>
 <body>
@@ -623,6 +641,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
     <button class="stab" data-stab="model" onclick="showStab('model',this)">Business Model</button>
     <button class="stab" data-stab="workflow" onclick="showStab('workflow',this)">Workflow Calendar</button>
     <button class="stab" data-stab="weekly" onclick="showStab('weekly',this)">Weekly Strategy</button>
+    <button class="stab" data-stab="ideation" onclick="showStab('ideation',this)" style="color:var(--accent);font-weight:700">✦ Ideation</button>
     <button class="stab" data-stab="bank" onclick="showStab('bank',this)">Content Bank</button>
     <button class="stab" data-stab="formats" onclick="showStab('formats',this)">Format Reference</button>
   </div>
@@ -915,6 +934,119 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
     <div class="snotice">Three posts per week minimum. Each post has a funnel stage (ToFu / MoFu / BoFu) and a content pillar (Educate, Entertain, Tell, Promote). Monday is ToFu — reach strangers with Educate or Entertain content. Wednesday is MoFu — build trust with Educate or Tell. Friday is BoFu — remove friction with Promote. The days are a guide. The three types showing up consistently is the actual requirement.</div>
     <div id="weekly-posts"></div>
     <div class="scard sl-accent" style="margin-top:12px"><div class="scard-body"><strong>Batch or don't — both work.</strong> If you film everything Sunday, great. If you shoot a quick talking-head in the car Monday on your lunch break, also great. The format is casual by design. Don't let the schedule become another reason not to post.</div></div>
+  </div>
+
+  <!-- ── IDEATION ── -->
+  <div class="spanel" id="sp-ideation">
+    <div class="snotice">The strategy hub is the only data source. Every idea generated here passes through your voice rules, pillars, lanes, and funnel mapping before it comes back. Nothing generic gets through.</div>
+
+    <!-- Mode Selector -->
+    <div style="display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap">
+      <button class="ideate-mode on" data-mode="scratch" onclick="setIdeateMode('scratch',this)">
+        <div style="font-size:18px;margin-bottom:4px">✦</div>
+        <div style="font-weight:700;font-size:13px">From Scratch</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Pick a pillar + funnel stage</div>
+      </button>
+      <button class="ideate-mode" data-mode="riff" onclick="setIdeateMode('riff',this)">
+        <div style="font-size:18px;margin-bottom:4px">↻</div>
+        <div style="font-weight:700;font-size:13px">Riff on Idea</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Build variations from an existing idea</div>
+      </button>
+      <button class="ideate-mode" data-mode="research" onclick="setIdeateMode('research',this)">
+        <div style="font-size:18px;margin-bottom:4px">📚</div>
+        <div style="font-weight:700;font-size:13px">From Research</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Adapt a block from your library</div>
+      </button>
+    </div>
+
+    <!-- SCRATCH FORM -->
+    <div id="ideate-form-scratch" class="ideate-form">
+      <div class="scard" style="margin-bottom:16px;padding:20px 22px">
+        <div class="sh2" style="margin-bottom:16px">Generate from scratch</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:12px;align-items:end">
+          <div>
+            <label>Funnel Stage</label>
+            <select id="ideate-stage" style="width:100%">
+              <option value="ToFu">ToFu — reach strangers</option>
+              <option value="MoFu">MoFu — build trust</option>
+              <option value="BoFu">BoFu — remove friction</option>
+            </select>
+          </div>
+          <div>
+            <label>Content Pillar</label>
+            <select id="ideate-pillar" style="width:100%">
+              <option value="Educate">Educate</option>
+              <option value="Entertain">Entertain</option>
+              <option value="Tell">Tell</option>
+              <option value="Promote">Promote</option>
+            </select>
+          </div>
+          <div>
+            <label>Client Lane</label>
+            <select id="ideate-lane" style="width:100%">
+              <option value="any">Any / Mix</option>
+              <option value="career">Career & Professional</option>
+              <option value="personal">Personal & Milestone</option>
+              <option value="family">Family & Legacy</option>
+            </select>
+          </div>
+          <div>
+            <label># of Ideas</label>
+            <input id="ideate-count-scratch" type="number" value="3" min="1" max="5" style="width:100%">
+          </div>
+          <button class="btn btn-dark" onclick="runIdeation('scratch')" id="ideate-btn-scratch">Generate →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIFF FORM -->
+    <div id="ideate-form-riff" class="ideate-form hide">
+      <div class="scard" style="margin-bottom:16px;padding:20px 22px">
+        <div class="sh2" style="margin-bottom:16px">Riff on an existing idea</div>
+        <label>Paste an idea, hook, script snippet, or bank card title</label>
+        <textarea id="ideate-seed" placeholder="e.g. 'Why you look different in photos than in the mirror — talking head in the car, explain lens compression vs mirror flip'" style="min-height:90px;margin-bottom:12px"></textarea>
+        <div style="display:flex;gap:12px;align-items:end">
+          <div style="flex:0 0 120px">
+            <label># of Variations</label>
+            <input id="ideate-count-riff" type="number" value="3" min="1" max="5" style="width:100%">
+          </div>
+          <button class="btn btn-dark" onclick="runIdeation('riff')" id="ideate-btn-riff">Generate Variations →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESEARCH FORM -->
+    <div id="ideate-form-research" class="ideate-form hide">
+      <div class="scard" style="margin-bottom:16px;padding:20px 22px">
+        <div class="sh2" style="margin-bottom:16px">Adapt from your research library</div>
+        <label>Block ID (from your Research Library)</label>
+        <div style="display:flex;gap:12px;align-items:end;margin-bottom:12px">
+          <input id="ideate-block-id" type="number" placeholder="e.g. 42" style="width:180px">
+          <button class="btn btn-ghost btn-sm" onclick="loadBlockPreview()">Preview Block</button>
+        </div>
+        <div id="ideate-block-preview" style="display:none;background:var(--bg);border-radius:8px;padding:12px;margin-bottom:12px;font-size:12px;line-height:1.6;color:var(--muted)"></div>
+        <div style="display:flex;gap:12px;align-items:end">
+          <div style="flex:0 0 120px">
+            <label># of Ideas</label>
+            <input id="ideate-count-research" type="number" value="3" min="1" max="5" style="width:100%">
+          </div>
+          <button class="btn btn-dark" onclick="runIdeation('research')" id="ideate-btn-research">Generate →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- STATUS + RESULTS -->
+    <div id="ideate-status" style="font-size:12px;color:var(--muted);margin-bottom:12px;display:none"></div>
+    <div id="ideate-results" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted)" id="ideate-results-label">Ideas</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="clearIdeation()">Clear</button>
+          <button class="btn btn-dark btn-sm" onclick="saveAllIdeationIdeas()">Save All to Calendar</button>
+        </div>
+      </div>
+      <div id="ideate-results-grid" style="display:grid;gap:14px"></div>
+    </div>
   </div>
 
   <div class="spanel" id="sp-bank">
@@ -3927,6 +4059,176 @@ async function deleteUntitledPosts() {
     console.error('Cleanup error:', err);
     toast('Failed to cleanup untitled posts');
   }
+}
+
+// ── CONTENT IDEATION ────────────────────────────────────────────────────────
+
+function setIdeateMode(mode, btn) {
+  document.querySelectorAll('.ideate-mode').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  document.querySelectorAll('.ideate-form').forEach(f => f.classList.add('hide'));
+  document.getElementById('ideate-form-' + mode).classList.remove('hide');
+  clearIdeation();
+}
+
+function clearIdeation() {
+  const results = document.getElementById('ideate-results');
+  const status = document.getElementById('ideate-status');
+  if (results) { results.style.display = 'none'; results.querySelector('#ideate-results-grid').innerHTML = ''; }
+  if (status) { status.style.display = 'none'; status.textContent = ''; }
+}
+
+async function loadBlockPreview() {
+  const blockId = document.getElementById('ideate-block-id').value;
+  if (!blockId) return;
+  const preview = document.getElementById('ideate-block-preview');
+  preview.style.display = 'block';
+  preview.textContent = 'Loading block...';
+  try {
+    const data = await api('GET', `/api/blocks/${blockId}`);
+    preview.innerHTML = `<strong>${data.title || 'Untitled'}</strong> (${data.type || 'unknown'})<br>${(data.content_payload || '').slice(0, 300)}${data.content_payload && data.content_payload.length > 300 ? '...' : ''}`;
+  } catch (e) {
+    preview.textContent = 'Block not found. Check the ID.';
+  }
+}
+
+async function runIdeation(mode) {
+  const btn = document.getElementById('ideate-btn-' + mode);
+  const status = document.getElementById('ideate-status');
+  const results = document.getElementById('ideate-results');
+
+  // Build payload
+  const payload = { mode };
+
+  if (mode === 'scratch') {
+    payload.funnel_stage = document.getElementById('ideate-stage').value;
+    payload.pillar = document.getElementById('ideate-pillar').value;
+    payload.lane = document.getElementById('ideate-lane').value;
+    payload.count = parseInt(document.getElementById('ideate-count-scratch').value) || 3;
+  } else if (mode === 'riff') {
+    payload.seed_idea = document.getElementById('ideate-seed').value.trim();
+    payload.count = parseInt(document.getElementById('ideate-count-riff').value) || 3;
+    if (!payload.seed_idea) { toast('Paste an idea to riff on first'); return; }
+  } else if (mode === 'research') {
+    payload.block_id = parseInt(document.getElementById('ideate-block-id').value);
+    payload.count = parseInt(document.getElementById('ideate-count-research').value) || 3;
+    if (!payload.block_id) { toast('Enter a block ID first'); return; }
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  status.style.display = 'block';
+  status.textContent = 'Thinking through the strategy hub... this takes about 15 seconds.';
+  results.style.display = 'none';
+
+  try {
+    const data = await api('POST', '/api/content/ideate', payload);
+    if (!data.ideas || data.ideas.length === 0) throw new Error('No ideas returned');
+
+    const label = document.getElementById('ideate-results-label');
+    label.textContent = `${data.ideas.length} idea${data.ideas.length > 1 ? 's' : ''} — ${mode === 'scratch' ? payload.funnel_stage + ' / ' + payload.pillar : mode === 'riff' ? 'Variations' : 'From Research Block #' + payload.block_id}`;
+
+    renderIdeationResults(data.ideas, mode);
+    results.style.display = 'block';
+    status.textContent = '';
+    status.style.display = 'none';
+    toast(`${data.ideas.length} ideas generated`, 'ok');
+
+  } catch (err) {
+    console.error('Ideation error:', err);
+    status.textContent = 'Error: ' + err.message;
+    toast('Generation failed');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = mode === 'riff' ? 'Generate Variations →' : 'Generate →';
+  }
+}
+
+function renderIdeationResults(ideas, mode) {
+  const grid = document.getElementById('ideate-results-grid');
+  grid.innerHTML = ideas.map((idea, idx) => {
+    const funnelClass = idea.funnelStage === 'ToFu' ? 'fl-tof' : idea.funnelStage === 'MoFu' ? 'fl-mof' : 'fl-bof';
+    const note = idea.variationNote || idea.sourceAdaptation || '';
+    return `
+    <div class="ideate-card">
+      <div class="ideate-card-head">
+        <div style="flex:1">
+          <div class="ideate-card-title">${idea.title || 'Untitled idea'}</div>
+          <div class="ideate-card-badges">
+            ${idea.funnelStage ? `<span class="funnel-label ${funnelClass}" style="font-size:10px">${idea.funnelStage}</span>` : ''}
+            ${idea.pillar ? `<span class="tag" style="background:var(--bg);color:var(--accent);font-size:10px;border:1px solid var(--border)">${idea.pillar}</span>` : ''}
+            ${idea.lane && idea.lane !== 'any' ? `<span class="tag" style="background:var(--bg);color:var(--muted);font-size:10px;border:1px solid var(--border)">${idea.lane}</span>` : ''}
+            ${idea.length ? `<span style="font-size:10px;color:var(--muted)">${idea.length}</span>` : ''}
+          </div>
+          ${note ? `<div class="ideate-note" style="margin-top:8px">${note}</div>` : ''}
+        </div>
+        <button class="btn btn-ghost btn-xs" onclick="saveIdeationIdea(${idx})" title="Save to Calendar">Save →</button>
+      </div>
+      <div class="ideate-card-body">
+        ${idea.hook ? `<div class="ideate-card-section"><div class="ideate-card-label">Hook</div><div class="ideate-card-value" style="font-weight:600">${idea.hook}</div></div>` : ''}
+        ${idea.script ? `<div class="ideate-card-section"><div class="ideate-card-label">Script</div><div class="ideate-card-value script">${idea.script}</div></div>` : ''}
+        ${idea.filmIt ? `<div class="ideate-card-section"><div class="ideate-card-label">Film It</div><div class="ideate-card-value film">${idea.filmIt}</div></div>` : ''}
+        ${idea.caption ? `<div class="ideate-card-section"><div class="ideate-card-label">Caption</div><div class="ideate-card-value">${idea.caption}</div></div>` : ''}
+        ${idea.overlay ? `<div class="ideate-card-section"><div class="ideate-card-label">On-Screen Text</div><div class="ideate-card-value">${idea.overlay}</div></div>` : ''}
+      </div>
+      <div class="ideate-card-foot">
+        ${idea.platform ? `<span style="font-size:11px;color:var(--muted)">${idea.platform}</span>` : ''}
+        ${idea.cta && idea.cta !== 'None' ? `<span style="font-size:11px;color:var(--muted);margin-left:auto">CTA: ${idea.cta}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+
+  // Store for save functions
+  window._lastIdeationIdeas = ideas;
+}
+
+async function saveIdeationIdea(idx) {
+  const ideas = window._lastIdeationIdeas;
+  if (!ideas || !ideas[idx]) return;
+  const idea = ideas[idx];
+  try {
+    await api('POST', '/api/posts', {
+      title: idea.title || 'Untitled idea',
+      status: 'idea',
+      platform: idea.platform || '',
+      caption: [idea.hook, idea.script, idea.caption].filter(Boolean).join('\n\n'),
+      notes: [
+        idea.filmIt ? 'FILM IT:\n' + idea.filmIt : '',
+        idea.overlay ? 'OVERLAY: ' + idea.overlay : '',
+        idea.cta ? 'CTA: ' + idea.cta : '',
+        idea.variationNote || idea.sourceAdaptation || ''
+      ].filter(Boolean).join('\n\n'),
+      funnel_stage: idea.funnelStage ? idea.funnelStage.toLowerCase().replace('tofu','tof').replace('mofu','mof').replace('bofu','bof') : '',
+    });
+    toast('Saved to calendar as idea', 'ok');
+  } catch (e) {
+    toast('Save failed: ' + e.message);
+  }
+}
+
+async function saveAllIdeationIdeas() {
+  const ideas = window._lastIdeationIdeas;
+  if (!ideas || ideas.length === 0) return;
+  let saved = 0;
+  for (const idea of ideas) {
+    try {
+      await api('POST', '/api/posts', {
+        title: idea.title || 'Untitled idea',
+        status: 'idea',
+        platform: idea.platform || '',
+        caption: [idea.hook, idea.script, idea.caption].filter(Boolean).join('\n\n'),
+        notes: [
+          idea.filmIt ? 'FILM IT:\n' + idea.filmIt : '',
+          idea.overlay ? 'OVERLAY: ' + idea.overlay : '',
+          idea.cta ? 'CTA: ' + idea.cta : '',
+          idea.variationNote || idea.sourceAdaptation || ''
+        ].filter(Boolean).join('\n\n'),
+        funnel_stage: idea.funnelStage ? idea.funnelStage.toLowerCase().replace('tofu','tof').replace('mofu','mof').replace('bofu','bof') : '',
+      });
+      saved++;
+    } catch (e) { console.error('Save error:', e); }
+  }
+  toast(`${saved} ideas saved to calendar`, 'ok');
 }
 
 </script>
