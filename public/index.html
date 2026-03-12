@@ -462,8 +462,11 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .ideate-val.script{background:var(--bg);border-left:3px solid var(--accent);padding:10px 14px;border-radius:0 6px 6px 0;font-style:italic}
 .ideate-val.film{white-space:pre-line;font-size:12px;background:var(--nav);color:#bbb;padding:10px 14px;border-radius:6px;font-family:monospace}
 .ideate-hook-pill{background:#e8f0fd;border:1px solid #b8c8f0;border-radius:20px;padding:3px 10px;font-size:10px;color:#3050aa;font-weight:600}
-.restyle-btn{display:inline-flex;align-items:center;gap:5px;background:none;border:1px solid var(--border);border-radius:5px;padding:3px 9px;font-size:11px;color:var(--muted);cursor:pointer;margin-top:6px;transition:all .15s}
+.restyle-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:3px 10px;font-size:11px;color:var(--muted);cursor:pointer;margin-top:8px;transition:all .15s}
 .restyle-btn:hover{border-color:var(--accent);color:var(--accent)}
+.restyle-inline{margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:12px}
+.restyle-inline textarea{width:100%;min-height:120px;margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:5px;font-size:13px;line-height:1.6;resize:vertical;background:var(--surface);color:var(--text);font-family:inherit;box-sizing:border-box}
+.restyle-inline .ri-actions{display:flex;gap:8px;margin-top:8px;justify-content:flex-end}
 .ideate-card-foot{padding:10px 18px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center}
 
 </style>
@@ -4332,38 +4335,114 @@ async function saveAllIdeationIdeas() {
 
 
 
+// ── renderScriptSection ───────────────────────────────────────────────────────
 function renderScriptSection(idea, idx) {
   if (!idea.script) return '';
-  var scriptDiv = '<div class="ideate-val script" id="ideate-script-' + idx + '">' + escHtml(idea.script) + '</div>';
   var btn = idea.exampleUrl
-    ? '<button class="restyle-btn" onclick="openRestyle(' + idx + ')" title="Rewrite script using delivery style of hook example">\u21ba Style from example</button>'
+    ? '<button class="restyle-btn" onclick="startRestyle(' + idx + ')">&#8635; Style from example</button>'
     : '';
-  return '<div class="ideate-section"><div class="ideate-label">Script</div>' + scriptDiv + btn + '</div>';
+  return '<div class="ideate-section">'
+    + '<div class="ideate-label">Script</div>'
+    + '<div class="ideate-val script" id="ideate-script-' + idx + '">' + idea.script + '</div>'
+    + btn
+    + '<div class="restyle-inline" id="restyle-inline-' + idx + '" style="display:none"></div>'
+    + '</div>';
 }
 
-function escHtml(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function openRestyle(idx) {
+// ── Inline restyle — streams into the card itself ─────────────────────────────
+async function startRestyle(idx) {
   var ideas = window._lastIdeationIdeas || [];
   var idea = ideas[idx];
-  if (!idea) return;
-  if (!idea.exampleUrl) { if (window.toast) toast('No example URL for this hook', 'warn'); return; }
-  // Use localStorage with a unique temp key — works across windows, same origin
-  var key = 'phixo_restyle_' + Date.now();
-  try { localStorage.setItem(key, JSON.stringify({idea: idea, idx: idx})); } catch(e) {}
+  if (!idea || !idea.exampleUrl) return;
+
+  var box = document.getElementById('restyle-inline-' + idx);
+  if (!box) return;
+  box.style.display = 'block';
+  box.innerHTML = '<div style="color:var(--accent);font-size:12px" id="restyle-prog-' + idx + '">&#8595; Downloading example video...</div>';
+
   var token = localStorage.getItem('phixo_token') || '';
-  var url = '/restyle?key=' + encodeURIComponent(key) + '&token=' + encodeURIComponent(token);
-  window.open(url, 'phixo_restyle', 'width=640,height=700,resizable=yes,scrollbars=yes');
+  var reader;
+  try {
+    var res = await fetch('/api/ideate/restyle-script', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body: JSON.stringify({
+        exampleUrl: idea.exampleUrl,
+        hook: idea.hook || '',
+        script: idea.script || '',
+        pillar: idea.pillar || '',
+        funnelStage: idea.funnelStage || '',
+        lane: idea.lane || ''
+      })
+    });
+    reader = res.body.getReader();
+  } catch(e) {
+    box.innerHTML = '<div style="color:#c0392b">Could not reach server: ' + e.message + '</div>';
+    return;
+  }
+
+  var dec = new TextDecoder();
+  var buf = '';
+  var labels = {
+    download: '&#8595; Downloading example video...',
+    audio: 'Extracting audio...',
+    transcribe: '&#128221; Transcribing with Whisper...',
+    transcribed: '&#10003; Transcribed — rewriting...',
+    restyle: '&#9998; Applying delivery style...'
+  };
+
+  while (true) {
+    var chunk = await reader.read();
+    if (chunk.done) break;
+    buf += dec.decode(chunk.value, {stream: true});
+    var lines = buf.split('\n');
+    buf = lines.pop();
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (!line.startsWith('data: ')) continue;
+      var evt;
+      try { evt = JSON.parse(line.slice(6)); } catch(e) { continue; }
+
+      var prog = document.getElementById('restyle-prog-' + idx);
+
+      if (evt.step === 'error') {
+        box.innerHTML = '<div style="color:#c0392b;font-size:12px">&#10007; ' + evt.msg + '</div>'
+          + '<button class="restyle-btn" onclick="document.getElementById(\'restyle-inline-' + idx + '\').style.display=\'none\'">Dismiss</button>';
+        return;
+      }
+
+      if (evt.step === 'done') {
+        var restyled = evt.restyled || '';
+        box.innerHTML = '<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Restyled — edit then apply:</div>'
+          + '<textarea id="restyle-ta-' + idx + '" spellcheck="true">' + restyled.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</textarea>'
+          + '<div class="ri-actions">'
+          + '<button class="restyle-btn" onclick="cancelRestyle(' + idx + ')">Cancel</button>'
+          + '<button class="restyle-btn" style="border-color:var(--accent);color:var(--accent)" onclick="applyRestyle(' + idx + ')">Apply to script</button>'
+          + '</div>';
+        return;
+      }
+
+      if (prog) prog.innerHTML = labels[evt.step] || evt.msg || evt.step;
+    }
+  }
 }
 
-function applyRestyleResult(idx, newScript) {
+function applyRestyle(idx) {
+  var ta = document.getElementById('restyle-ta-' + idx);
+  if (!ta) return;
+  var newScript = ta.value.trim();
+  if (!newScript) return;
   var ideas = window._lastIdeationIdeas || [];
   if (ideas[idx]) ideas[idx].script = newScript;
   var el = document.getElementById('ideate-script-' + idx);
   if (el) el.textContent = newScript;
+  document.getElementById('restyle-inline-' + idx).style.display = 'none';
   if (window.toast) toast('Script updated', 'ok');
+}
+
+function cancelRestyle(idx) {
+  var box = document.getElementById('restyle-inline-' + idx);
+  if (box) box.style.display = 'none';
 }
 
 </script>
