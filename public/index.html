@@ -462,6 +462,8 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .ideate-val.script{background:var(--bg);border-left:3px solid var(--accent);padding:10px 14px;border-radius:0 6px 6px 0;font-style:italic}
 .ideate-val.film{white-space:pre-line;font-size:12px;background:var(--nav);color:#bbb;padding:10px 14px;border-radius:6px;font-family:monospace}
 .ideate-hook-pill{background:#e8f0fd;border:1px solid #b8c8f0;border-radius:20px;padding:3px 10px;font-size:10px;color:#3050aa;font-weight:600}
+.restyle-btn{display:inline-flex;align-items:center;gap:5px;background:none;border:1px solid var(--border);border-radius:5px;padding:3px 9px;font-size:11px;color:var(--muted);cursor:pointer;margin-top:6px;transition:all .15s}
+.restyle-btn:hover{border-color:var(--accent);color:var(--accent)}
 .ideate-card-foot{padding:10px 18px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center}
 
 </style>
@@ -4265,7 +4267,7 @@ function renderIdeationCards(ideas, mode) {
       </div>
       <div class="ideate-card-body">
         ${idea.hook ? `<div class="ideate-section"><div class="ideate-label">Hook — from your library</div><div class="ideate-val" style="font-weight:600;font-size:14px">${idea.hook}</div>${idea.hookTemplate ? `<div style="font-size:10px;color:var(--muted);margin-top:3px;font-style:italic">Template: ${idea.hookTemplate}</div>` : ''}</div>` : ''}
-        ${idea.script ? `<div class="ideate-section"><div class="ideate-label">Script</div><div class="ideate-val script">${idea.script}</div></div>` : ''}
+        ${renderScriptSection(idea, idx)}
         ${idea.filmIt ? `<div class="ideate-section"><div class="ideate-label">Film It</div><div class="ideate-val film">${idea.filmIt}</div></div>` : ''}
         ${idea.caption ? `<div class="ideate-section"><div class="ideate-label">Caption</div><div class="ideate-val">${idea.caption}</div></div>` : ''}
         ${idea.overlay ? `<div class="ideate-section"><div class="ideate-label">On-Screen Text</div><div class="ideate-val" style="color:var(--muted)">${idea.overlay}</div></div>` : ''}
@@ -4328,6 +4330,42 @@ async function saveAllIdeationIdeas() {
   toast(`${saved} ideas saved to calendar`, 'ok');
 }
 
+
+
+function renderScriptSection(idea, idx) {
+  if (!idea.script) return '';
+  var scriptDiv = '<div class="ideate-val script" id="ideate-script-' + idx + '">' + escHtml(idea.script) + '</div>';
+  var btn = '';
+  if (idea.exampleUrl) {
+    btn = '<button class="restyle-btn" onclick="openRestyle(' + idx + ')" title="Rewrite script using delivery style of hook example">\u21ba Style from example</button>';
+  }
+  return '<div class="ideate-section"><div class="ideate-label">Script</div>' + scriptDiv + btn + '</div>';
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function openRestyle(idx) {
+  var ideas = window._lastIdeationIdeas || [];
+  var idea = ideas[idx];
+  if (!idea) return;
+  if (!idea.exampleUrl) { if (window.toast) toast('No example URL for this hook', 'warn'); return; }
+  // Store idea data in sessionStorage for the popup to read
+  try { sessionStorage.setItem('phixo_restyle_idea', JSON.stringify(idea)); } catch(e) {}
+  var token = localStorage.getItem('phixo_token') || '';
+  var url = '/restyle?idx=' + idx + '&token=' + encodeURIComponent(token);
+  window.open(url, 'phixo_restyle', 'width=620,height=680,resizable=yes,scrollbars=yes');
+}
+
+// Called by the popup when user hits "Apply to script"
+function applyRestyleResult(idx, newScript) {
+  var ideas = window._lastIdeationIdeas || [];
+  if (ideas[idx]) ideas[idx].script = newScript;
+  var el = document.getElementById('ideate-script-' + idx);
+  if (el) el.textContent = newScript;
+  if (window.toast) toast('Script updated', 'ok');
+}
 
 </script>
 <!-- Ask Library Modal -->
