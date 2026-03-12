@@ -1,3307 +1,4451 @@
-const express = require('express');
-const multer = require('multer');
-const { google } = require('googleapis');
-const Anthropic = require('@anthropic-ai/sdk');
-const cookieSession = require('cookie-session');
-const path = require('path');
-const { Pool } = require('pg');
-const { Readable } = require('stream');
-const fs = require('fs');
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Phixo Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#F0E8DB;--surface:#fff;--surface-2:#E8DDD0;--border:#D4C5B0;
+  --text:#2A1F18;--muted:#6B5346;--accent:#B8673E;--accent-light:#C97E57;
+  --nav:#2A1F18;--nav2:#3a2f28;--nav-text:#9C8070;--nav-active:#F0E8DB;
+  --hot:#B8673E;--warm:#C97E57;--cold:#7C5C48;
+  --tof:#7C5C48;--mof:#B8673E;--bof:#9C8070;
+  --r:10px;--sh:0 2px 16px rgba(42,31,24,.07);--nw:220px;
+  --caslon:'Libre Caslon Text',Georgia,serif;
+  --hind:'Hind',system-ui,sans-serif;
+}
+body{font-family:var(--hind);background:var(--bg);color:var(--text);min-height:100vh;display:flex}
+#nav{width:var(--nw);min-height:100vh;background:var(--nav);display:flex;flex-direction:column;position:fixed;top:0;left:0;z-index:100;border-right:1px solid #1e1e12}
+.nav-logo{padding:22px 20px 16px;font-size:18px;font-weight:400;color:var(--nav-active);font-family:var(--caslon);letter-spacing:0.08em}
+.nav-logo span{color:var(--accent)}
+.nav-section{padding:14px 12px 4px;font-size:10px;text-transform:uppercase;letter-spacing:1.5px;color:#383828;font-weight:600}
+.nb{display:flex;align-items:center;gap:9px;padding:8px 12px;margin:1px 6px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:500;color:var(--nav-text);border:none;background:none;width:calc(100% - 12px);text-align:left;transition:all .12s}
+.nb:hover{background:var(--nav2);color:#ccc}
+.nb.on{background:#222214;color:var(--nav-active)}
+.nb .ico{font-size:13px;width:16px;text-align:center}
+.nav-foot{margin-top:auto;padding:16px 14px;border-top:1px solid #1a1a10}
+.nav-foot a{display:block;font-size:11px;color:#444430;text-decoration:none;margin-top:3px}
+.dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#4a9;margin-right:5px}
+#main{margin-left:var(--nw);flex:1;min-height:100vh}
+.view{display:none;padding:36px 40px;max-width:1100px}
+.view.on{display:block}
+.ph{margin-bottom:26px}
+.ph h1{font-size:28px;font-weight:400;letter-spacing:-.01em;font-family:var(--caslon)}
+.ph h1 em{font-style:italic;color:var(--accent)}
+.ph p{color:var(--muted);font-size:13px;margin-top:3px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .12s;white-space:nowrap;font-family:inherit}
+.btn-dark{background:var(--text);color:#fff}.btn-dark:hover{background:#2a2a18}
+.btn-ghost{background:var(--bg);color:var(--text);border:1px solid var(--border)}.btn-ghost:hover{background:var(--border)}
+.btn-accent{background:var(--accent);color:#fff}.btn-accent:hover{background:#b8955a}
+.btn-danger{background:#fff0f0;color:var(--hot);border:1px solid #fcc}.btn-danger:hover{background:#ffe0e0}
+.btn-sm{padding:5px 11px;font-size:12px}.btn-xs{padding:3px 8px;font-size:11px}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+input,select,textarea{width:100%;padding:8px 11px;border:1px solid var(--border);border-radius:7px;font-family:inherit;font-size:13px;background:var(--bg);color:var(--text);outline:none;transition:border .12s}
+input:focus,select:focus,textarea:focus{border-color:var(--accent);background:#fff}
+textarea{resize:vertical;min-height:70px;line-height:1.55}
+label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bottom:3px;margin-top:12px;text-transform:uppercase;letter-spacing:.5px}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+.g4{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px}
+.tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:700}
+.t-lead{background:#f0efe8;color:#666}.t-booked{background:#e8f5e9;color:#2a7a2a}
+.t-shot{background:#e3f2fd;color:#1255aa}.t-delivered{background:#f3e5f5;color:#6a1b9a}
+.t-watching{background:#f0efe8;color:#777}.t-outreach{background:#fff3e0;color:#b06000}
+.t-contacted{background:#e8f0fe;color:#3050aa}.t-notfit{background:#fdeaea;color:#aa2020}
+.t-hot{background:#fdeaea;color:var(--hot)}.t-warm{background:#fff3e0;color:var(--warm)}.t-cold{background:#e8f0fd;color:var(--cold)}
+.tb{display:flex;gap:8px;align-items:center;margin-bottom:20px;flex-wrap:wrap}
+.tb input,.tb select{width:auto}
+.tb input{min-width:200px}
+.card-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;cursor:pointer;transition:all .12s;box-shadow:var(--sh)}
+.card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.card h3{font-size:14px;font-weight:700;margin-bottom:2px;line-height:1.3}
+.card .meta{font-size:12px;color:var(--muted);margin-bottom:10px}
+.card .foot{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.block-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+.block-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;cursor:pointer;transition:all .12s;box-shadow:var(--sh)}
+.block-card:hover{border-color:var(--accent);transform:translateY(-1px)}
+.block-thumb{height:180px;background:#f0efe8;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.block-thumb img{max-width:100%;max-height:100%;object-fit:contain;width:auto;height:auto}
+.type-badge{position:absolute;top:6px;left:6px;background:rgba(0,0,0,.55);color:#fff;font-size:9px;padding:2px 6px;border-radius:20px;text-transform:uppercase;letter-spacing:.5px}
+.ref-badge{position:absolute;top:6px;right:6px;background:var(--accent);color:#fff;font-size:9px;padding:2px 6px;border-radius:20px;font-weight:700;letter-spacing:.5px;box-shadow:0 2px 8px rgba(184,103,62,.3)}
+.block-body{padding:10px 12px}
+.block-title{font-size:12px;font-weight:600;line-height:1.35;margin-bottom:4px}
+.block-meta{font-size:11px;color:var(--muted)}
+.block-tags{display:flex;gap:3px;flex-wrap:wrap;margin-top:6px}
+.block-tags span{background:var(--bg);border-radius:20px;padding:1px 6px;font-size:10px;color:var(--muted)}
+.funnel-label{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;display:inline-block}
+.fl-tof{background:#e8f4ec;color:var(--tof)}.fl-mof{background:#eef0fa;color:var(--mof)}.fl-bof{background:#faeaea;color:var(--bof)}
+.cf-header{background:var(--nav);color:#fff;border-radius:var(--r);padding:24px 28px;margin-bottom:8px}
+.cf-brand{font-size:9px;letter-spacing:3px;text-transform:uppercase;opacity:.35;margin-bottom:8px}
+.cf-name{font-size:28px;font-weight:800;letter-spacing:-.5px}
+.cf-meta{font-size:13px;opacity:.5;margin-top:3px}
+.cf-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px}
+.cf-sec{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);margin-bottom:8px;box-shadow:var(--sh);overflow:hidden}
+.cf-sh{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;cursor:pointer;user-select:none;border-bottom:1px solid var(--border)}
+.cf-sh h3{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:2px;color:var(--muted)}
+.cf-sh .arr{font-size:10px;color:var(--muted);transition:transform .15s}
+.cf-sh.open .arr{transform:rotate(180deg)}
+.cf-bd{padding:0 20px 16px}
+.cf-bd.hide{display:none}
+.hide{display:none!important}
+.cf-row{display:grid;grid-template-columns:170px 1fr;gap:10px;padding:9px 0;border-bottom:1px solid var(--bg);align-items:start}
+.cf-row:last-child{border-bottom:none}
+.cf-key{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);padding-top:2px}
+.cf-val{font-size:13px;line-height:1.55}
+.cf-val.editable{cursor:pointer;padding:3px 7px;margin:-3px -7px;border-radius:5px;border:1px solid transparent}
+.cf-val.editable:hover{background:var(--bg);border-color:var(--border)}
+.cf-val.empty{color:var(--muted);font-style:italic}
+.temp-badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;margin-bottom:3px}
+.conv-block{white-space:pre-wrap;font-size:13px;line-height:1.6;background:var(--bg);padding:14px;border-radius:8px;max-height:350px;overflow-y:auto}
+.draft-block{background:var(--accent-light);border:1px solid #e8d5a8;border-radius:8px;padding:14px 16px;font-size:13px;line-height:1.6}
+.back-btn{background:none;border:none;font-size:13px;color:var(--muted);cursor:pointer;display:flex;align-items:center;gap:5px;margin-bottom:16px;padding:0;font-family:inherit}
+.back-btn:hover{color:var(--text)}
+.block-strip{display:flex;gap:8px;flex-wrap:wrap;padding:4px 0}
+.strip-thumb{position:relative;width:90px;height:90px;border-radius:8px;overflow:hidden;border:2px solid var(--border);flex-shrink:0}
+.strip-thumb img{width:100%;height:100%;object-fit:cover}
+.strip-thumb .rm{position:absolute;top:2px;right:2px;background:rgba(0,0,0,.65);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.strip-add{width:90px;height:90px;border-radius:8px;border:2px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:11px;gap:3px;background:none;font-family:inherit;flex-shrink:0;transition:all .12s}
+.strip-add:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+.strip-add .ico{font-size:20px}
+/* Pose grid */
+.pose-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;padding:4px 0}
+.pose-tile{position:relative;border-radius:12px;overflow:hidden;background:var(--surface-2);aspect-ratio:3/4;cursor:pointer;border:2px solid transparent;transition:all .15s;box-shadow:0 2px 8px rgba(0,0,0,.3)}
+.pose-tile:hover{border-color:var(--accent);transform:translateY(-2px)}
+.pose-tile img{width:100%;height:100%;object-fit:cover}
+.pose-tile .rm{position:absolute;top:6px;right:6px;background:rgba(0,0,0,.6);border:none;color:#fff;border-radius:50%;width:22px;height:22px;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .1s}
+.pose-tile:hover .rm{opacity:1}
+.pose-tile-add{aspect-ratio:3/4;border-radius:10px;border:2px dashed var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:var(--muted);font-size:12px;gap:6px;background:none;font-family:inherit;transition:all .12s;min-height:120px}
+.pose-tile-add:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-light)}
+/* Lightbox */
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;display:flex;align-items:center;justify-content:center;cursor:zoom-out}
+.lightbox img{max-width:90vw;max-height:90vh;object-fit:contain;border-radius:8px}
+.lightbox-close{position:absolute;top:20px;right:24px;background:none;border:none;color:#fff;font-size:28px;cursor:pointer;opacity:.7}
+.lightbox-close:hover{opacity:1}
+.kanban{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.kcol{background:var(--bg);border-radius:var(--r);padding:12px}
+.kcol-head{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:10px}
+.kcard{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:7px;cursor:pointer;transition:all .12s}
+.kcard:hover{border-color:var(--accent)}
+.kcard .plat{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:4px}
+.kcard .goal{font-size:13px;font-weight:600;line-height:1.35}
+.kcard .kdate{font-size:11px;color:var(--muted);margin-top:5px}
+/* Month Calendar */
+.month-nav{display:flex;align-items:center;justify-content:center;gap:20px;margin:20px 0}
+.month-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.month-day-header{background:var(--surface-2);padding:10px;text-align:center;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.month-day{background:var(--surface);min-height:100px;padding:6px;position:relative;border:1px solid transparent;transition:all .15s}
+.month-day:hover{background:var(--bg);border-color:var(--accent)}
+.month-day.other-month{background:#fafaf8;opacity:.4}
+.month-day.today{background:var(--accent-light);border:2px solid var(--accent)}
+.month-day-num{font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px}
+.month-day.other-month .month-day-num{color:var(--muted)}
+.month-post{background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:4px 6px;margin-bottom:4px;font-size:11px;cursor:pointer;transition:all .12s}
+.month-post:hover{border-color:var(--accent);transform:translateX(2px)}
+.month-post.status-idea{border-left:3px solid #ccc}
+.month-post.status-draft{border-left:3px solid #f0ad4e}
+.month-post.status-ready{border-left:3px solid #5cb85c}
+.month-post.status-posted{border-left:3px solid #5bc0de}
+.month-post-title{font-weight:600;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.month-post-meta{font-size:10px;color:var(--muted)}
+.month-day-add{font-size:20px;color:var(--muted);cursor:pointer;opacity:0;transition:opacity .12s;position:absolute;bottom:6px;right:6px}
+.month-day:hover .month-day-add{opacity:1}
+.month-day-add:hover{color:var(--accent)}
+.pb-layout{display:grid;grid-template-columns:1fr 300px;gap:20px;align-items:start}
+.pb-stack{display:flex;flex-direction:column;gap:6px}
+.module{background:var(--surface);border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.module.dragging{opacity:.5;border:2px dashed var(--accent)}
+.module-head{display:flex;align-items:center;gap:8px;padding:9px 14px;cursor:move;user-select:none;border-bottom:1px solid var(--border);background:var(--bg)}
+.module-head .mtype{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--muted)}
+.module-head .drag{color:#ccc;font-size:12px}
+.module-body{padding:10px 14px}
+.module-body textarea{min-height:50px}
+.module-actions{display:flex;gap:5px;margin-left:auto}
+.pb-sidebar{position:sticky;top:20px}
+.pbs-inner{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.pbs-head{padding:12px 14px;border-bottom:1px solid var(--border);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted)}
+.pbs-f{display:flex;flex-direction:column;gap:6px;padding:8px 10px;border-bottom:1px solid var(--border)}
+.pbs-f input,.pbs-f select{font-size:12px;padding:5px 9px}
+.pbs-blocks{max-height:360px;overflow-y:auto;padding:6px}
+.pbs-block{display:flex;align-items:center;gap:8px;padding:6px 7px;border-radius:7px;cursor:pointer;border:1px solid transparent;transition:all .12s}
+.pbs-block:hover{background:var(--bg);border-color:var(--border)}
+.pbs-block .pi{font-size:18px;flex-shrink:0}
+.pbs-block .pt{font-size:12px;font-weight:600;line-height:1.3}
+.pbs-block .pm{font-size:11px;color:var(--muted)}
+.pbs-empty{font-size:12px;color:var(--muted);padding:14px;text-align:center}
+.assist-panel{background:var(--nav);border-radius:var(--r);overflow:hidden;margin-top:10px}
+.assist-head{padding:10px 12px;border-bottom:1px solid #1e1e12}
+.assist-head .at{font-size:10px;text-transform:uppercase;letter-spacing:1px;color:#555540;margin-bottom:2px}
+.assist-head .as{font-size:11px;color:#666650;line-height:1.4}
+.assist-msgs{height:220px;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:5px}
+.am{font-size:12px;line-height:1.5;padding:7px 9px;border-radius:6px;max-width:92%}
+.am-ai{background:#1c1c0e;color:#bbb;align-self:flex-start}
+.am-user{background:var(--accent);color:#fff;align-self:flex-end}
+.assist-ir{padding:7px 9px;border-top:1px solid #1e1e12;display:flex;gap:6px}
+.assist-ir input{flex:1;background:#161608;border-color:#282818;color:#ccc;font-size:12px;padding:6px 9px}
+.assist-qr{padding:5px 9px 9px;display:flex;gap:4px;flex-wrap:wrap}
+.aq{background:#161608;border:1px solid #282818;color:#666;border-radius:5px;padding:3px 7px;font-size:10px;cursor:pointer;font-family:inherit}
+.aq:hover{background:#1e1e0e;color:#aaa;border-color:#444}
+.hook-item{padding:9px 14px;cursor:pointer;border-bottom:1px solid var(--border);font-size:13px;line-height:1.4}
+.hook-item:hover{background:var(--accent-light)}
+.hook-item:last-child{border-bottom:none}
+.hook-cat{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:2px}
+.bpm-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;max-height:380px;overflow-y:auto}
+.bpm-card{border:2px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer;transition:all .12s}
+.bpm-card:hover{border-color:var(--accent)}
+.bpm-card.sel{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.bpm-thumb{height:80px;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:28px;overflow:hidden}
+.bpm-thumb img{max-width:100%;max-height:100%;object-fit:contain;width:auto;height:auto}
+.bpm-label{font-size:11px;padding:5px 7px;font-weight:600;line-height:1.3;border-top:1px solid var(--border)}
+.drive-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px;max-height:360px;overflow-y:auto}
+.drive-card{border:2px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer;transition:all .12s;position:relative}
+.drive-card.imported{border-color:#4a7c5940}
+.drive-card.imported .dname{color:#4a7c59}
+.drive-card:hover{border-color:var(--accent)}
+.drive-card.sel{border-color:var(--accent)}
+.drive-card img{width:100%;height:80px;object-fit:contain;background:#f0efe8;display:block}
+.drive-icon{height:75px;display:flex;align-items:center;justify-content:center;font-size:28px;background:var(--bg)}
+.dname{font-size:10px;padding:3px 5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-top:1px solid var(--border)}
+.drive-check{position:absolute;top:3px;right:3px;background:var(--accent);color:#fff;width:16px;height:16px;border-radius:50%;font-size:9px;display:none;align-items:center;justify-content:center;font-weight:700}
+.drive-card.sel .drive-check{display:flex}
+.drive-imported{position:absolute;top:3px;left:3px;background:rgba(74,124,89,.85);color:#fff;font-size:8px;padding:1px 5px;border-radius:20px;letter-spacing:.4px;font-weight:700}
+.mbg{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:200;display:flex;align-items:center;justify-content:center;padding:20px}
+.mbg.off{display:none}
+.modal{background:var(--surface);border-radius:14px;width:100%;max-width:600px;max-height:92vh;overflow-y:auto;box-shadow:0 24px 60px rgba(0,0,0,.22)}
+.modal.wide{max-width:820px}
+.mh{padding:20px 24px 0;display:flex;align-items:center;justify-content:space-between}
+.mh h2{font-size:17px;font-weight:700}
+.mx{background:none;border:none;font-size:18px;cursor:pointer;color:var(--muted);padding:4px;line-height:1;font-family:inherit}
+.mb{padding:16px 24px 24px}
+.tabs{display:flex;border-bottom:1px solid var(--border);margin-bottom:14px}
+.tab{padding:8px 16px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;font-family:inherit}
+.tab.on{color:var(--text);border-bottom-color:var(--accent)}
+.tc{display:none}.tc.on{display:block}
+.empty{text-align:center;padding:50px 20px;color:var(--muted)}
+.empty .ei{font-size:40px;margin-bottom:12px}
 
-// Optional dependencies for document reading
-let pdfParse, mammoth;
-try {
-  pdfParse = require('pdf-parse');
-  mammoth = require('mammoth');
-  console.log('Document parsing enabled (pdf-parse + mammoth)');
-} catch (err) {
-  console.log('Document parsing disabled (install pdf-parse + mammoth to enable)');
+.video-block{display:flex;flex-direction:column;gap:0}
+.vb-hero{position:relative;background:#111;border-radius:10px;overflow:hidden;margin-bottom:16px}
+.vb-hero img{width:100%;max-height:320px;object-fit:contain;display:block}
+.vb-platform{position:absolute;top:10px;left:10px;background:rgba(0,0,0,.7);color:#fff;font-size:10px;font-weight:700;padding:3px 9px;border-radius:20px;text-transform:uppercase;letter-spacing:.8px}
+.vb-dur{position:absolute;bottom:10px;right:10px;background:rgba(0,0,0,.7);color:#fff;font-size:11px;padding:2px 8px;border-radius:20px}
+.vb-meta{margin-bottom:14px}
+.vb-oneliner{font-size:14px;font-weight:600;line-height:1.45;margin-bottom:6px}
+.vb-relevance{font-size:12px;color:var(--muted);line-height:1.5;background:var(--bg);padding:8px 12px;border-radius:7px;border-left:3px solid var(--accent)}
+.vb-section{margin-bottom:16px}
+.vb-section-head{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.vb-section-head::after{content:'';flex:1;height:1px;background:var(--border)}
+.kp-list{display:flex;flex-direction:column;gap:5px}
+.kp-item{display:flex;align-items:start;gap:9px;background:var(--bg);padding:8px 11px;border-radius:7px;font-size:13px;line-height:1.45}
+.kp-num{font-size:11px;font-weight:800;color:var(--accent);min-width:18px;padding-top:1px}
+.shots-strip{display:flex;gap:7px;overflow-x:auto;padding:2px 0 8px;scrollbar-width:thin}
+.shots-strip::-webkit-scrollbar{height:4px}
+.shots-strip::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.shot-frame{flex-shrink:0;width:120px}
+.shot-frame img{width:120px;height:80px;object-fit:contain;background:#111;border-radius:7px;display:block}
+.shot-label{font-size:10px;color:var(--muted);text-align:center;margin-top:3px}
+.transcript-block{background:var(--bg);border-radius:8px;padding:14px 16px;font-size:13px;line-height:1.9;color:var(--text);max-height:400px;overflow-y:auto;white-space:pre-wrap;word-break:break-word;border:1px solid var(--border);font-family:inherit}
+.vb-source{font-size:11px;color:var(--muted);margin-top:10px}
+.vb-source a{color:var(--accent)}
+.progress-card{background:var(--nav);border-radius:12px;padding:28px;text-align:center;min-height:200px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px}
+.progress-spinner{width:36px;height:36px;border:3px solid #333;border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.progress-step{font-size:13px;color:#aaa;max-width:280px;line-height:1.5}
+.progress-step strong{color:#fff;display:block;margin-bottom:4px}
+
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--nav);color:#fff;padding:10px 20px;border-radius:20px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.on{opacity:1}.toast.ok{background:#2a7a2a}.toast.err{background:var(--hot)}
+
+/* Knowledge base */
+.kb-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px}
+.kb-answer{background:var(--surface-2);border-radius:8px;padding:14px;font-size:13px;line-height:1.7;white-space:pre-wrap;margin-top:12px;max-height:400px;overflow-y:auto}
+.kb-sources{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.kb-source-chip{background:var(--accent-light);color:var(--accent);border-radius:20px;padding:3px 10px;font-size:11px;cursor:pointer}
+.kb-source-chip:hover{background:var(--accent);color:#fff}
+.block-video-player{width:100%;border-radius:8px;margin-bottom:12px;max-height:380px;background:#000}
+.script-content{background:var(--surface-2);border-radius:8px;padding:14px;font-size:12.5px;line-height:1.8;white-space:pre-wrap;font-family:'SF Mono',Consolas,monospace;max-height:380px;overflow-y:auto;margin-bottom:10px}
+.summarize-btn{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit}
+.summarize-btn:hover{opacity:.85}
+.summarize-btn:disabled{opacity:.5;cursor:default}
+/* v3.44 Post Builder */
+.content-type-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.ct-card{background:var(--surface);border:2px solid var(--border);border-radius:var(--r);padding:30px;text-align:center;cursor:pointer;transition:all .15s}
+.ct-card:hover{border-color:var(--accent);transform:translateY(-2px)}
+.ct-icon{font-size:48px;margin-bottom:12px}
+.ct-title{font-size:16px;font-weight:700;margin-bottom:6px}
+.ct-desc{font-size:13px;color:var(--muted)}
+.pb-header{display:flex;align-items:start;justify-content:space-between;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid var(--border)}
+.pb-header h2{font-size:20px;font-weight:800;margin-bottom:8px}
+.pb-layout{display:grid;grid-template-columns:1fr 320px;gap:24px}
+.pb-main{display:flex;flex-direction:column;gap:16px}
+.content-block{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.cb-header{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.cb-icon{font-size:20px}
+.cb-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--text)}
+.cb-hint{font-size:11px;color:var(--muted);margin-left:auto}
+.cb-tips{margin-top:10px;padding:10px 12px;background:var(--accent-light);border-radius:6px;font-size:12px;line-height:1.5;color:#7a6c45}
+.content-textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px;line-height:1.6;resize:vertical;background:var(--bg)}
+.content-textarea:focus{border-color:var(--accent);outline:none;background:#fff}
+.content-input{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-family:inherit;font-size:13px}
+.content-input:focus{border-color:var(--accent);outline:none;background:#fff}
+.hook-search-wrapper{position:relative}
+.hook-input{width:100%;padding:12px 14px;border:2px solid var(--accent);border-radius:8px;font-size:14px;font-weight:500;background:#fff}
+.hook-input:focus{outline:none;border-color:var(--warm)}
+.hook-results{position:absolute;top:100%;left:0;right:0;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-top:4px;max-height:300px;overflow-y:auto;z-index:100;box-shadow:0 4px 16px rgba(0,0,0,.12)}
+.hook-result{padding:12px 14px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.hook-result:last-child{border-bottom:none}
+.hook-result:hover{background:var(--accent-light)}
+.hook-text{font-size:13px;font-weight:500;margin-bottom:4px}
+.hook-category{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.hook-no-results{padding:20px;text-align:center;font-size:12px;color:var(--muted)}
+.pb-preview{position:sticky;top:20px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.preview-header{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:12px}
+.preview-body{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:14px;font-size:13px;line-height:1.7;white-space:pre-wrap;min-height:200px;max-height:400px;overflow-y:auto;color:var(--text)}
+.preview-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:16px;padding-top:16px;border-top:1px solid var(--border)}
+.preview-stat{text-align:center}
+.ps-label{display:block;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:4px}
+.ps-value{display:block;font-size:14px;font-weight:700}
+.mini-select{padding:5px 10px;font-size:12px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}
+/* v3.44 Simplified */
+.type-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.type-card{background:var(--surface);border:2px solid var(--border);border-radius:12px;padding:40px 20px;text-align:center;cursor:pointer;transition:all .15s}
+.type-card:hover{border-color:var(--accent);transform:translateY(-4px)}
+.type-icon{font-size:56px;margin-bottom:12px}
+.type-title{font-size:18px;font-weight:700}
+.pb-simple{max-width:1400px;margin:0 auto}
+.pb-top{margin-bottom:24px}
+.pb-top h2{font-size:22px;font-weight:800;margin-bottom:12px;display:flex;align-items:center}
+.pb-meta-row{display:flex;gap:8px;align-items:center}
+.pb-cols{display:grid;grid-template-columns:280px 1fr 300px;gap:24px}
+.pb-refs{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;max-height:calc(100vh - 200px);overflow-y:auto}
+.pb-refs-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.ref-search{width:100%;padding:8px 10px;border:1px solid var(--border);border-radius:6px;font-size:12px;margin-bottom:12px}
+.ref-blocks{display:flex;flex-direction:column;gap:6px}
+.ref-block{display:flex;align-items:start;gap:8px;padding:8px;border-radius:6px;cursor:pointer;border:1px solid transparent;transition:all .12s}
+.ref-block:hover{background:var(--bg);border-color:var(--border)}
+.ref-icon{font-size:20px;flex-shrink:0}
+.ref-info{flex:1;min-width:0}
+.ref-title{font-size:12px;font-weight:600;margin-bottom:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ref-snippet{font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.attached-block{display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:var(--accent-light);border-radius:6px;font-size:11px;margin-bottom:4px}
+.pb-caption{display:flex;flex-direction:column;gap:16px}
+.cs-label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center}
+.caption-input,.caption-textarea{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:6px;font-size:14px;font-family:inherit}
+.caption-input:focus,.caption-textarea:focus{outline:none;border-color:var(--accent)}
+.caption-textarea{resize:vertical;line-height:1.6}
+.pb-preview-col{position:sticky;top:20px}
+.preview-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.preview-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:12px}
+.preview-caption{background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:12px;min-height:200px;max-height:400px;overflow-y:auto;font-size:13px;line-height:1.7;white-space:pre-wrap;margin-bottom:12px}
+.preview-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.preview-stats > div{text-align:center}
+.stat-num{display:block;font-size:18px;font-weight:700}
+.stat-label{display:block;font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px}
+.hook-modal{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,.6);align-items:center;justify-content:center;z-index:9999}
+.hook-modal-content{background:var(--surface);border-radius:12px;width:90%;max-width:700px;max-height:80vh;display:flex;flex-direction:column}
+.hook-modal-head{display:flex;justify-content:space-between;align-items:center;padding:20px;border-bottom:1px solid var(--border)}
+.hook-modal-head h3{font-size:18px;font-weight:700}
+.hook-modal-head button{background:none;border:none;font-size:24px;cursor:pointer;color:var(--muted)}
+.hook-modal-search{margin:16px 20px;padding:12px 16px;border:1px solid var(--border);border-radius:8px;font-size:14px}
+.hook-modal-search:focus{outline:none;border-color:var(--accent)}
+.hook-modal-results{flex:1;overflow-y:auto;padding:0 20px 20px}
+.hook-modal-item{padding:14px 16px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;transition:all .12s;font-size:14px;line-height:1.6}
+.hook-modal-item:hover{background:var(--accent-light);border-color:var(--accent)}
+.hook-cat{display:inline-block;margin-left:8px;padding:2px 6px;background:var(--bg);border-radius:4px;font-size:10px;color:var(--muted);text-transform:uppercase}
+.hook-empty{padding:40px;text-align:center;color:var(--muted);font-size:14px}
+.hook-loading{padding:20px;text-align:center;color:var(--muted);font-size:13px;font-style:italic}
+.btn-link{background:none;border:none;color:var(--accent);cursor:pointer;padding:0;font:inherit}
+.btn-link:hover{text-decoration:underline}
+.btn-xs{padding:2px 6px;font-size:10px;background:var(--bg);border:1px solid var(--border);border-radius:4px;cursor:pointer}
+.btn-xs:hover{background:var(--border)}
+
+/* ── STRATEGY HUB ─────────────────────────────────────── */
+.stab{background:none;border:none;border-bottom:2px solid transparent;padding:9px 14px;font-size:12px;font-weight:600;color:var(--muted);cursor:pointer;margin-bottom:-1px;font-family:inherit;transition:all .15s}
+.stab:hover{color:var(--text)}
+.stab.on{color:var(--accent);border-bottom-color:var(--accent)}
+.spanel{display:none}.spanel.on{display:block}
+.sh2{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2.5px;color:var(--muted);margin-bottom:16px;font-family:var(--hind)}
+.scard-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.scard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:20px 22px;box-shadow:var(--sh)}
+.scard.sl-accent{border-left:3px solid var(--accent)}
+.scard.sl-red{border-left:3px solid var(--hot)}
+.scard-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.8px;color:var(--accent);margin-bottom:10px;font-family:var(--hind)}
+.scard-body{font-size:14px;color:var(--text);line-height:1.75;font-family:var(--hind);font-weight:400}
+.dont-item{padding:4px 0;color:#c04040;font-size:13px;line-height:1.5;border-bottom:1px solid var(--bg)}
+.dont-item:last-child{border-bottom:none}
+.proof-pill{background:var(--bg);border:1px solid var(--accent);border-radius:20px;padding:4px 12px;font-size:11px;color:var(--accent);font-weight:600}
+.stab-table{width:100%;border-collapse:collapse;font-size:13px}
+.stab-table th{background:var(--surface-2);padding:8px 12px;text-align:left;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);border:1px solid var(--border)}
+.stab-table td{padding:10px 12px;border:1px solid var(--border);background:var(--surface);vertical-align:top;line-height:1.55}
+.stab-table tr:nth-child(even) td{background:var(--surface-2)}
+.stat-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.stat-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px;text-align:center}
+.stat-val{font-size:22px;font-weight:800;color:var(--accent);margin-bottom:4px}
+.stat-lbl{font-size:10px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px}
+.snotice{background:var(--accent-light);border:1px solid #e8d5a8;border-radius:8px;padding:12px 16px;font-size:13px;color:var(--text);margin-bottom:16px;line-height:1.6}
+.wf-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:8px}
+.wf-day{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px}
+.wf-day-name{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);margin-bottom:4px}
+.wf-day-type{font-size:13px;font-weight:700;line-height:1.3;margin-bottom:8px}
+.wf-effort{display:flex;align-items:center;gap:3px;margin-bottom:8px}
+.ef-dot{width:6px;height:6px;border-radius:50%;background:var(--border)}
+.ef-dot.fill{background:var(--accent)}
+.ef-label{font-size:10px;color:var(--muted);margin-left:4px}
+.wf-detail{font-size:11px;color:var(--text);line-height:1.5;margin-bottom:6px}
+.wf-hint{font-size:10px;color:var(--muted);font-style:italic;margin-bottom:6px;line-height:1.4}
+.wf-plats{display:flex;gap:3px;flex-wrap:wrap;margin-bottom:4px}
+.wf-plats span{background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:1px 6px;font-size:9px;color:var(--muted)}
+.wf-time{font-size:10px;color:var(--accent);font-weight:600}
+.post-slot{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);margin-bottom:14px;overflow:hidden}
+.ps-head{display:flex;align-items:center;gap:10px;padding:12px 16px;background:var(--surface-2);border-bottom:1px solid var(--border)}
+.ps-num{font-size:22px;font-weight:800;color:var(--border)}
+.ps-goal{font-size:12px;color:var(--muted);flex:1}
+.ps-plat{font-size:11px;color:var(--muted)}
+.ps-cells{display:grid;grid-template-columns:repeat(5,1fr)}
+.ps-cell{padding:12px 14px;border-right:1px solid var(--border)}
+.ps-cell:last-child{border-right:none}
+.ps-clabel{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:6px}
+.ps-cval{font-size:12px;color:var(--text);line-height:1.5}
+.ps-cval.dont{color:#c04040}
+.ps-meta{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--border)}
+.ps-meta-cell{padding:10px 14px;border-right:1px solid var(--border);font-size:11px;color:var(--muted)}
+.ps-meta-cell:last-child{border-right:none}
+.ps-meta-label{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin-bottom:3px}
+.bfilt{background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:5px 14px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit;transition:all .12s}
+.bfilt:hover{border-color:var(--accent)}
+.bfilt.on{background:var(--accent-light);border-color:var(--accent);color:var(--accent)}
+.bank-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:16px 18px;position:relative;border-left:3px solid;transition:all .2s}
+.bank-card:hover{box-shadow:var(--sh);transform:translateY(-1px)}
+.bank-card.used{opacity:.4}
+.bc-top{display:flex;align-items:flex-start;gap:10px;margin-bottom:4px}
+.bc-num{font-size:11px;color:var(--accent);min-width:24px;padding-top:2px;font-weight:700;font-family:var(--hind)}
+.bc-title{font-size:14px;font-weight:600;line-height:1.4;flex:1;font-family:var(--hind)}
+.bc-desc{font-size:12px;color:var(--muted);line-height:1.55;padding-left:30px;margin-bottom:8px}
+.bc-foot{display:flex;gap:6px;align-items:center;flex-wrap:wrap;padding-left:30px}
+.bc-tag{background:var(--bg);border:1px solid var(--border);border-radius:20px;padding:1px 8px;font-size:10px;color:var(--muted)}
+.bc-used-btn{margin-left:auto;background:none;border:1px solid var(--border);border-radius:4px;padding:3px 10px;font-size:10px;cursor:pointer;font-family:var(--hind);color:var(--muted);transition:all .15s;font-weight:500}
+.bc-used-btn:hover{border-color:var(--accent);color:var(--accent)}
+.bc-used-btn.marked{border-color:var(--accent);color:var(--accent);background:rgba(184,103,62,.1)}
+.fmt-platform{margin-bottom:28px}
+.fmt-plat-name{font-size:16px;font-weight:800;margin-bottom:8px;padding-bottom:8px;border-bottom:2px solid var(--border)}
+@media(max-width:900px){.wf-grid{grid-template-columns:repeat(4,1fr)}.stat-row{grid-template-columns:repeat(3,1fr)}}
+
+/* ── IDEATION ─────────────────────────────────────────── */
+.ideate-mode{background:var(--surface);border:2px solid var(--border);border-radius:var(--r);padding:16px 20px;text-align:center;cursor:pointer;font-family:inherit;transition:all .15s;flex:1;max-width:200px}
+.ideate-mode:hover{border-color:var(--accent);transform:translateY(-2px)}
+.ideate-mode.on{border-color:var(--accent);background:var(--accent-light)}
+.ideate-form{transition:all .2s}
+.ideate-block-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px;max-height:420px;overflow-y:auto;padding:2px}
+.ideate-block-tile{position:relative;background:var(--surface);border:2px solid var(--border);border-radius:var(--r);overflow:hidden;cursor:pointer;transition:all .12s;box-shadow:var(--sh)}
+.ideate-block-tile:hover{border-color:var(--accent-light);transform:translateY(-1px)}
+.ideate-block-tile.selected{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.ideate-block-tile .ibt-check{position:absolute;top:6px;right:6px;width:20px;height:20px;border-radius:50%;background:var(--surface);border:2px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;transition:all .12s;z-index:2;cursor:pointer}
+.ideate-block-tile.selected .ibt-check{background:var(--accent);border-color:var(--accent);color:#fff}
+.ibt-thumb{height:130px;background:#f0efe8;display:flex;align-items:center;justify-content:center;overflow:hidden;position:relative}
+.ibt-thumb img{width:100%;height:100%;object-fit:cover}
+.ibt-body{padding:8px 10px}
+.ibt-title{font-size:12px;font-weight:600;line-height:1.3;margin-bottom:3px}
+.ibt-meta{font-size:10px;color:var(--muted)}
+.ideate-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh)}
+.ideate-card-head{padding:14px 18px;background:var(--surface-2);border-bottom:1px solid var(--border)}
+.ideate-card-title{font-size:14px;font-weight:700;line-height:1.4}
+.ideate-card-badges{display:flex;gap:5px;flex-wrap:wrap;margin-top:6px;align-items:center}
+.ideate-card-body{padding:16px 18px;font-size:13px;line-height:1.65}
+.ideate-section{margin-bottom:12px}
+.ideate-label{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:4px}
+.ideate-val{font-size:13px;line-height:1.6}
+.ideate-val.script{background:var(--bg);border-left:3px solid var(--accent);padding:10px 14px;border-radius:0 6px 6px 0;font-style:italic}
+.ideate-val.film{white-space:pre-line;font-size:12px;background:var(--nav);color:#bbb;padding:10px 14px;border-radius:6px;font-family:monospace}
+.ideate-hook-pill{background:#e8f0fd;border:1px solid #b8c8f0;border-radius:20px;padding:3px 10px;font-size:10px;color:#3050aa;font-weight:600}
+.restyle-btn{display:inline-flex;align-items:center;gap:5px;background:none;border:1px solid var(--border);border-radius:5px;padding:3px 9px;font-size:11px;color:var(--muted);cursor:pointer;margin-top:6px;transition:all .15s}
+.restyle-btn:hover{border-color:var(--accent);color:var(--accent)}
+#restyle-modal-inner{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px;width:min(560px,92vw);max-height:85vh;overflow-y:auto}
+#restyle-modal-inner h3{margin:0 0 4px;font-size:15px}
+.restyle-meta{font-size:11px;color:var(--muted);margin-bottom:16px}
+#restyle-progress{font-size:12px;color:var(--accent);padding:8px 0;min-height:22px}
+#restyle-result textarea{width:100%;min-height:140px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:13px;line-height:1.6;resize:vertical;background:var(--bg);color:var(--text);box-sizing:border-box}
+#restyle-transcript-preview{font-size:10px;color:var(--muted);margin-top:8px;font-style:italic;line-height:1.5}
+.ideate-card-foot{padding:10px 18px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center}
+
+</style>
+</head>
+<body>
+<nav id="nav">
+  <div class="nav-logo">Phixo <span>Admin</span></div>
+  <div class="nav-section">Clients</div>
+  <button class="nb on" data-view="pipeline" onclick="showView('pipeline',this)"><span class="ico">👤</span> Pipeline</button>
+  <button class="nb" onclick="openNewClient()"><span class="ico">＋</span> New Client</button>
+  <button class="nb" data-view="discovery" onclick="showView('discovery',this)"><span class="ico">🔭</span> Discovery</button>
+  <button class="nb" onclick="openNewProspect()"><span class="ico">＋</span> New Target</button>
+  <div class="nav-section">Research</div>
+  <button class="nb" data-view="research" onclick="showView('research',this)"><span class="ico">📚</span> All Blocks</button>
+  <button class="nb" onclick="openAddBlock()"><span class="ico">＋</span> Add Block</button>
+  <div class="nav-section">Content</div>
+  <button class="nb" data-view="calendar" onclick="showView('calendar',this)"><span class="ico">📅</span> Calendar</button>
+  <button class="nb" onclick="openNewPost()"><span class="ico">✏️</span> New Post</button>
+  <button class="nb" data-view="strategy" onclick="showView('strategy',this)"><span class="ico">🗺</span> Strategy Hub</button>
+  <div class="nav-foot">
+    <span><span class="dot"></span>Connected</span>
+    <a href="/auth/logout">Sign out</a>
+  </div>
+</nav>
+<button id="ask-fab" onclick="openAskLibrary()" title="Ask your library" style="position:fixed;bottom:24px;right:24px;z-index:200;background:var(--accent);color:#fff;border:none;border-radius:50%;width:52px;height:52px;font-size:22px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;transition:transform .15s" onmouseenter="this.style.transform='scale(1.1)'" onmouseleave="this.style.transform='scale(1)'">🧠</button>
+<div id="main">
+<div id="v-pipeline" class="view on">
+  <div class="ph"><h1>Client <em>pipeline</em></h1><p>Active leads, bookings, and deliveries.</p></div>
+  <div class="tb">
+    <input type="text" id="pl-search" placeholder="Search clients..." oninput="debouncedLoad('loadPipeline')">
+    <select id="pl-status" onchange="loadPipeline()" style="width:140px">
+      <option value="">All statuses</option>
+      <option value="lead">Lead</option><option value="booked">Booked</option>
+      <option value="shot">Shot</option><option value="delivered">Delivered</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="syncClients()" title="Import client folders from Drive">↻ Sync from Drive</button>
+    <button class="btn btn-dark btn-sm" onclick="openNewClient()">+ New Client</button>
+  </div>
+  <div id="pipeline-grid" class="card-grid"></div>
+</div>
+<div id="v-client-file" class="view">
+  <button class="back-btn" onclick="showView('pipeline')">← Pipeline</button>
+  <div id="cf-body"></div>
+</div>
+<div id="v-discovery" class="view">
+  <div class="ph"><h1>Discovery <em>board</em></h1><p>Who do you want to shoot next?</p></div>
+  <div class="tb">
+    <input type="text" id="disc-search" placeholder="Search targets..." oninput="debouncedLoad('loadDiscovery')">
+    <select id="disc-status" onchange="loadDiscovery()" style="width:150px">
+      <option value="">All statuses</option>
+      <option value="watching">Watching</option><option value="outreach-ready">Outreach Ready</option>
+      <option value="contacted">Contacted</option><option value="not-a-fit">Not a Fit</option>
+    </select>
+    <button class="btn btn-ghost btn-sm" onclick="syncDiscovery()" title="Import discovery folders from Drive">↻ Sync from Drive</button>
+    <button class="btn btn-dark btn-sm" onclick="openNewProspect()">+ New Target</button>
+  </div>
+  <div id="discovery-grid" class="card-grid"></div>
+</div>
+<div id="v-prospect-file" class="view">
+  <button class="back-btn" onclick="showView('discovery')">← Discovery</button>
+  <div id="pf-body"></div>
+</div>
+<div id="v-research" class="view">
+  <div class="ph"><h1>Research <em>library</em></h1><p>Every block — poses, memes, SFX, articles, notes. One place.</p></div>
+  
+  <!-- Research Tabs -->
+  <div style="display:flex; gap:15px; padding:0 20px 15px; border-bottom:2px solid #ddd">
+    <button id="tab-library" class="research-tab active">📚 Library</button>
+  </div>
+  
+  <!-- Library Tab -->
+  <div id="research-library-content" class="research-tab-content">
+    <div class="tb">
+      <input type="text" id="res-search" placeholder="Search blocks..." oninput="debouncedLoad('loadResearch')">
+      <select id="res-type" onchange="loadResearch()" style="width:150px">
+        <option value="">All types</option>
+        <option value="pose">Pose</option><option value="meme">Meme</option>
+        <option value="sfx">SFX / Audio</option><option value="image">Image</option>
+        <option value="url">URL / Article</option><option value="conversation">Conversation</option>
+        <option value="note">Note</option><option value="pdf">PDF</option>
+      </select>
+      <select id="res-funnel" onchange="loadResearch()" style="width:130px">
+        <option value="" selected>All stages</option>
+        <option value="tof">TOF</option><option value="mof">MOF</option><option value="bof">BOF</option>
+      </select>
+      <button class="btn btn-dark btn-sm" onclick="openAddBlock()">+ Add Block</button>
+      <button class="btn btn-ghost btn-sm" id="sync-btn" onclick="syncDrive()" title="Scan all Drive folders and import any new files">↻ Sync Drive</button>
+      <button class="btn btn-ghost btn-sm" id="cleanup-btn" onclick="cleanupDeleted()" title="Remove files that were deleted from Drive">🗑️ Clean Up</button>
+      <button class="btn btn-ghost btn-sm" id="repair-btn" onclick="repairThumbnails()" title="Fix broken thumbnails on existing blocks">🔧 Fix Thumbs</button>
+    </div>
+    
+    <!-- Generate Ideas from Reference Videos -->
+    <div class="scard" style="margin:20px;background:linear-gradient(135deg, rgba(184,103,62,0.05) 0%, rgba(184,103,62,0.02) 100%)">
+      <div class="scard-body">
+        <h3 style="font-size:16px;margin-bottom:12px;font-family:var(--caslon)">🎬 Generate Ideas from Reference Videos</h3>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:12px">Mark videos as "reference" in block details, then generate adapted ideas here.</p>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:12px;align-items:end">
+          <div>
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);display:block;margin-bottom:6px">Funnel Stage</label>
+            <select id="gen-stage" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px">
+              <option value="">All Stages</option>
+              <option value="tof">ToFu</option>
+              <option value="mof">MoFu</option>
+              <option value="bof">BoFu</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);display:block;margin-bottom:6px">Topic Tags</label>
+            <input id="gen-tags" type="text" placeholder="lighting, setup, pricing..." style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px">
+          </div>
+          <div>
+            <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);display:block;margin-bottom:6px"># of Ideas</label>
+            <input id="gen-count" type="number" value="3" min="1" max="5" style="width:100%;padding:8px;border:1px solid var(--border);border-radius:6px">
+          </div>
+          <button id="gen-ideas-btn" class="btn btn-dark" onclick="generateFromVideos()" style="padding:10px 24px">Generate Ideas</button>
+        </div>
+        <div id="gen-status" style="margin-top:8px;font-size:12px;color:var(--muted)"></div>
+      </div>
+    </div>
+    
+    <!-- Generated Ideas Display -->
+    <div id="generated-ideas" style="display:none;margin:20px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="font-size:16px;margin:0;font-family:var(--hind);font-weight:700">Generated Ideas</h3>
+        <div style="display:flex;gap:8px">
+          <button class="bb bb-sec" onclick="regenerateIdeas()" title="Don't like these? Get new ideas">
+            Regenerate All
+          </button>
+          <button class="bb bb-main" onclick="saveAllIdeas()" title="Save all ideas to Ideas column">
+            Save All as Ideas
+          </button>
+        </div>
+      </div>
+      <div id="generated-ideas-grid" style="display:grid;gap:14px"></div>
+    </div>
+    
+    <div id="research-grid" class="block-grid"></div>
+  </div>
+</div>
+<div id="v-calendar" class="view">
+  <div class="ph"><h1>Content <em>calendar</em></h1><p>Idea to posted — assemble posts from your research blocks.</p></div>
+  <div class="tb">
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-dark btn-sm" id="view-toggle-kanban" onclick="toggleCalendarView('kanban')">📊 Kanban</button>
+      <button class="btn btn-ghost btn-sm" id="view-toggle-month" onclick="toggleCalendarView('month')">📅 Month</button>
+    </div>
+    <div style="display:flex;gap:8px">
+      <select id="cal-plat" onchange="loadCalendar()" style="width:140px">
+        <option value="">All platforms</option>
+        <option>Instagram</option><option>TikTok</option><option>LinkedIn</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="deleteUntitledPosts()" title="Delete all untitled/empty posts">🗑️ Clean Untitled</button>
+      <button class="btn btn-dark btn-sm" onclick="openNewPost()">+ New Post</button>
+    </div>
+  </div>
+  
+  <!-- Kanban View -->
+  <div id="kanban-view" class="kanban">
+    <div class="kcol"><div class="kcol-head">💡 Idea</div><div id="k-idea"></div></div>
+    <div class="kcol"><div class="kcol-head">✏️ Draft</div><div id="k-draft"></div></div>
+    <div class="kcol"><div class="kcol-head">✅ Ready</div><div id="k-ready"></div></div>
+    <div class="kcol"><div class="kcol-head">🚀 Posted</div><div id="k-posted"></div></div>
+  </div>
+  
+  <!-- Month View -->
+  <div id="month-view" style="display:none">
+    <div class="month-nav">
+      <button class="btn btn-ghost btn-sm" onclick="changeMonth(-1)">←</button>
+      <h2 id="month-title" style="font-size:18px;font-weight:700;margin:0"></h2>
+      <button class="btn btn-ghost btn-sm" onclick="changeMonth(1)">→</button>
+    </div>
+    <div class="month-grid" id="month-grid"></div>
+  </div>
+</div>
+<div id="v-post-builder" class="view">
+  <button class="back-btn" onclick="showView('calendar')">← Calendar</button>
+  <div id="pb-body"></div>
+</div>
+<div id="v-strategy" class="view">
+  <div class="ph"><h1>Content <em>strategy hub</em></h1><p>Brand anchor, weekly workflow, content bank, and format reference — all in one place.</p></div>
+
+  <!-- SUB-NAV TABS -->
+  <div style="display:flex;gap:6px;margin-bottom:28px;flex-wrap:wrap;border-bottom:1px solid var(--border);padding-bottom:0">
+    <button class="stab on" data-stab="voice" onclick="showStab('voice',this)">Voice & Values</button>
+    <button class="stab" data-stab="pillars" onclick="showStab('pillars',this)">Content Pillars</button>
+    <button class="stab" data-stab="lanes" onclick="showStab('lanes',this)">Client Lanes</button>
+    <button class="stab" data-stab="objections" onclick="showStab('objections',this)">Objections</button>
+    <button class="stab" data-stab="model" onclick="showStab('model',this)">Business Model</button>
+    <button class="stab" data-stab="workflow" onclick="showStab('workflow',this)">Workflow Calendar</button>
+    <button class="stab" data-stab="weekly" onclick="showStab('weekly',this)">Weekly Strategy</button>
+    <button class="stab" data-stab="bank" onclick="showStab('bank',this)">Content Bank</button>
+    <button class="stab" data-stab="ideation" onclick="showStab('ideation',this)" style="color:var(--accent);font-weight:700">✦ Ideation</button>
+    <button class="stab" data-stab="formats" onclick="showStab('formats',this)">Format Reference</button>
+  </div>
+
+  <!-- ── VOICE & VALUES ── -->
+  <div class="spanel on" id="sp-voice">
+    <div class="sh2">How Phixo Sounds</div>
+    <div class="scard sl-accent" style="margin-bottom:14px">
+      <div class="scard-body">Warm. Real. Like a friend who knows his stuff but isn't making a thing of it. There's skill underneath everything but it doesn't announce itself — it just shows up in how things go.<br><br>Write like Ian talks. Sentences can start with "and" or "but." Thoughts can land casually. Clear and professional, just human.<br><br>When it's time to sell, it sounds like "come by, I'll take care of you" — not a funnel.</div>
+    </div>
+    <div class="sh2" style="margin-top:24px">The One True Thing</div>
+    <div class="scard sl-accent" style="margin-bottom:14px">
+      <div class="scard-body">People want a photo that actually looks like them. Some need help getting there. Some just show up ready. Either way, the job is the same — create the conditions where that can happen, and let them see it in real time.<br><br>That's the filter. Every piece of content either connects back to that or it doesn't.</div>
+    </div>
+    <div class="sh2" style="margin-top:24px">Never</div>
+    <div class="scard sl-red">
+      <div class="scard-body">
+        <div class="dont-item">Stunning, perfect, gorgeous — none of it</div>
+        <div class="dont-item">Pain-point fishing — not everyone is struggling, some people just want a good photo</div>
+        <div class="dont-item">AI hype language or corporate polish</div>
+        <div class="dont-item">Big statements about journeys or transformations</div>
+        <div class="dont-item">"We" unless it's the studio experience with a client. "I" is Ian. Emojis: never.</div>
+      </div>
+    </div>
+    <div class="sh2" style="margin-top:24px">Proof Phrases — Evidence Only, Never Taglines</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+      <span class="proof-pill">Tethered Shooting</span>
+      <span class="proof-pill">Natural Retouching</span>
+      <span class="proof-pill">Guided Experience</span>
+      <span class="proof-pill">Color-Managed Workflow</span>
+    </div>
+    <div class="scard" style="margin-top:12px"><div class="scard-body" style="color:var(--muted);font-size:12px">These are evidence phrases, not slogans. Define them in context on first use only. Tethered Shooting always gets its definition: "images appear on screen in real time so you can see and adjust as we go."</div></div>
+  </div>
+
+  <!-- ── CONTENT PILLARS ── -->
+  <div class="spanel" id="sp-pillars">
+    <div class="snotice">Two systems, one content. <strong>Pillars</strong> answer: what am I making? <strong>ToFu / MoFu / BoFu</strong> answer: who am I talking to? Use both. Every post has a pillar and a funnel stage — and once you know which is which, making content gets a lot easier.</div>
+
+    <div class="sh2" style="margin-bottom:14px">How They Work Together</div>
+    <table class="stab-table" style="margin-bottom:28px">
+      <thead><tr><th>Funnel Stage</th><th>Who They Are</th><th>Best Pillars</th><th>Why</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="funnel-label fl-tof">ToFu</span></td>
+          <td>Strangers scrolling. Don't know you exist.</td>
+          <td><strong>Educate</strong> + <strong>Entertain</strong></td>
+          <td>They're not looking for a photographer. You earn their attention by being useful or relatable — not by pitching.</td>
+        </tr>
+        <tr>
+          <td><span class="funnel-label fl-mof">MoFu</span></td>
+          <td>Someone who found you and is looking around.</td>
+          <td><strong>Educate</strong> + <strong>Tell</strong></td>
+          <td>They're asking: can this person actually do it? What's working with them like? Education shows expertise. Stories show personality.</td>
+        </tr>
+        <tr>
+          <td><span class="funnel-label fl-bof">BoFu</span></td>
+          <td>Someone who's basically decided. Just needs the practical info.</td>
+          <td><strong>Promote</strong></td>
+          <td>They want pricing, process, and what to expect. Honest and direct removes the last bit of friction before they book.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="sh2" style="margin-bottom:14px">The Four Pillars</div>
+    <div class="scard-grid" style="grid-template-columns:repeat(2,1fr);margin-bottom:24px">
+      <div class="scard sl-accent">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div class="scard-label" style="margin-bottom:0">Educate</div>
+          <span class="funnel-label fl-tof" style="font-size:10px">ToFu</span>
+          <span class="funnel-label fl-mof" style="font-size:10px">MoFu</span>
+        </div>
+        <div class="scard-body">Teach something anyone could use. Lighting, posing, what to wear, how to prepare, what makes a good portrait, how the camera sees versus how the eye sees.<br><br>The point is to give something away for free that makes people think: <em>this person actually knows what they're doing.</em> Works at both ToFu (new people find you) and MoFu (deepens trust with warm audiences).<br><br><span style="font-size:12px;color:var(--muted)">Why you look different in photos than in the mirror · One change that makes any portrait better · What soft light actually does to your face</span></div>
+      </div>
+      <div class="scard sl-accent">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div class="scard-label" style="margin-bottom:0">Entertain</div>
+          <span class="funnel-label fl-tof" style="font-size:10px">ToFu</span>
+        </div>
+        <div class="scard-body">Make someone stop scrolling. Relatable photography moments, light memes, quick observations about the process. Doesn't have to be a joke — just something that lands and feels human.<br><br>This is almost pure ToFu. You're not building toward a booking yet — you're earning attention and showing personality. That's the whole job.<br><br><span style="font-size:12px;color:var(--muted)">When a client says they hate photos and then absolutely delivers · The before and after of just fixing someone's posture · Every person who's ever had their photo taken</span></div>
+      </div>
+      <div class="scard sl-accent">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div class="scard-label" style="margin-bottom:0">Tell</div>
+          <span class="funnel-label fl-mof" style="font-size:10px">MoFu</span>
+        </div>
+        <div class="scard-body">Stories. A moment from a session, something that happened, something you noticed about a client or the work. First person, personal, specific. Not a case study — just a real moment told simply.<br><br>This is almost pure MoFu. Someone already knows you exist. They're deciding if they trust you. A real story does more here than any amount of credentials.<br><br><span style="font-size:12px;color:var(--muted)">Had a client last week who almost cancelled · Something I noticed after shooting my first self-portrait in the studio · Why I show every client their photos in real time</span></div>
+      </div>
+      <div class="scard sl-accent">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">
+          <div class="scard-label" style="margin-bottom:0">Promote</div>
+          <span class="funnel-label fl-bof" style="font-size:10px">BoFu</span>
+        </div>
+        <div class="scard-body">Be direct about what Phixo is and what it costs. Pricing, what's included, how to book, what the session looks like. No pressure tactics. No fake urgency. Just honest information for someone who's already thinking about it.<br><br>This is almost pure BoFu. The person is at the door. They just need the handle. Give them the practical info and make it easy to say yes.<br><br><span style="font-size:12px;color:var(--muted)">Here's exactly what you get in a Signature Session · What to expect start to finish · Saturday sessions are open — here's how it works</span></div>
+      </div>
+    </div>
+
+    <div class="sh2">Content Style — How to Actually Film It</div>
+    <div class="scard sl-accent" style="margin-bottom:12px">
+      <div class="scard-label">The Format: Talking Head. Vertical. Casual Setting.</div>
+      <div class="scard-body">Film yourself talking into the camera. Sit in your car. Sit in a chair. Sit on the edge of your desk. Put the phone on a stack of books. Hold it yourself. It doesn't need a ring light. It doesn't need a backdrop. It doesn't need to look produced.<br><br>The whole pitch is that sessions are warm, relaxed, and feel like talking to someone who knows what they're doing. If your content looks like that too — casual, direct, real — people already know what they're getting before they ever book. <strong>The content is the proof.</strong><br><br>A car video or a chair video says "this is a real person talking to you" in a way that a produced studio piece never will. And for a one-person studio in a new city where nobody knows your name yet, that feeling of familiarity is everything.</div>
+    </div>
+    <div class="scard-grid">
+      <div class="scard">
+        <div class="scard-label" style="color:#2a7a2a">What Good Looks Like</div>
+        <div class="scard-body" style="font-size:13px">
+          <div style="padding:4px 0;border-bottom:1px solid var(--bg)">30–60 seconds</div>
+          <div style="padding:4px 0;border-bottom:1px solid var(--bg)">Start mid-thought — no "hey guys" or long intros</div>
+          <div style="padding:4px 0;border-bottom:1px solid var(--bg)">One idea per video. Get in, get out.</div>
+          <div style="padding:4px 0;border-bottom:1px solid var(--bg)">Natural light is fine — a window works</div>
+          <div style="padding:4px 0;border-bottom:1px solid var(--bg)">Look at the camera, not at yourself on screen</div>
+          <div style="padding:4px 0">Talk like you'd talk to someone sitting across from you</div>
+        </div>
+      </div>
+      <div class="scard sl-red">
+        <div class="scard-label">What to Avoid</div>
+        <div class="scard-body" style="font-size:13px">
+          <div class="dont-item">Over-produced intros or outros</div>
+          <div class="dont-item">Text-heavy graphics as the main content</div>
+          <div class="dont-item">Reading off a script (notes are fine, reading is not)</div>
+          <div class="dont-item">Switching settings mid-video for no reason</div>
+          <div class="dont-item">Treating it like a photoshoot — it's a conversation</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="spanel" id="sp-lanes">
+    <div class="snotice">All three lanes are equal. No lane is subordinate. The studio's strength is a wide net and a consistent approach across all of them. Not everyone walks in with a problem — some people just want a good photo and that's enough.</div>
+    <div class="scard-grid" style="grid-template-columns:repeat(3,1fr)">
+      <div class="scard sl-accent">
+        <div class="scard-label">Lane 1 — Career & Professional</div>
+        <div class="scard-body"><em>Professionals in transition, job seekers, leaders, founders, anyone who needs a portrait that matches where they're headed.</em><br><br>
+        They want something that works — on LinkedIn, in a press kit, on a website. They're not usually nervous. They're busy and want the process to be efficient and the result to be right.<br><br>
+        <strong>What they're after:</strong> A photo that represents them at this stage, not five years ago.<br><br>
+        <strong>When they show up:</strong> New job, promotion, job search, speaking engagement, personal rebrand.<br><br>
+        <strong>What matters in the session:</strong> Efficiency, real-time review, getting the right frame on the first try.
+        </div>
+      </div>
+      <div class="scard sl-accent">
+        <div class="scard-label">Lane 2 — Personal & Milestone</div>
+        <div class="scard-body"><em>Graduates, young women, creatives, anyone marking a moment or wanting a portrait that feels like them — not a stock photo version of them.</em><br><br>
+        This is a confidence thing, a milestone thing, a "I want to remember this version of myself" thing. Some are camera-shy. Some come in completely comfortable. Either works.<br><br>
+        <strong>What they're after:</strong> A photo that looks like them — not stiff, not fake, just real.<br><br>
+        <strong>When they show up:</strong> Graduation, birthday, personal milestone, creative project, or just feeling good and wanting to capture it.<br><br>
+        <strong>What matters in the session:</strong> Low pressure, collaborative energy, real-time feedback so they can see it working.
+        </div>
+      </div>
+      <div class="scard sl-accent">
+        <div class="scard-label">Lane 3 — Family & Legacy</div>
+        <div class="scard-body"><em>Families, couples, multi-generational groups. They want to preserve something — a connection, a moment, a season of life.</em><br><br>
+        The challenge isn't the photography, it's the coordination. Getting everyone there, keeping it loose, not letting it turn stiff.<br><br>
+        <strong>What they're after:</strong> Photos that feel like them as a group — natural, warm, real.<br><br>
+        <strong>When they show up:</strong> Birthdays, anniversaries, reunions, holidays, new baby, before a kid leaves for school.<br><br>
+        <strong>What matters in the session:</strong> Easy direction, relaxed pace, letting the group be themselves rather than posing them like a catalogue.
+        </div>
+      </div>
+    </div>
+    <div class="snotice" style="margin-top:16px"><strong>Seasonal emphasis:</strong> Fall → Families · Spring → Grads / Lane 2 · Year-round → Lane 1 Professionals</div>
+  </div>
+
+  <!-- ── OBJECTIONS ── -->
+  <div class="spanel" id="sp-objections">
+    <div class="sh2">Common Objections & Responses</div>
+    <table class="stab-table">
+      <thead><tr><th>What they say</th><th>What you say</th></tr></thead>
+      <tbody>
+        <tr><td style="font-style:italic;color:var(--muted)">"I hate having my photo taken."</td><td>Totally fair — most people feel that way. The session is pretty low-key though. You see the photos as we go so nothing's a surprise.</td></tr>
+        <tr><td style="font-style:italic;color:var(--muted)">"I don't want to look fake or over-edited."</td><td>That's actually the whole point of how I work. I'm not smoothing anyone into a different person. The editing just cleans things up — it doesn't replace you.</td></tr>
+        <tr><td style="font-style:italic;color:var(--muted)">"I don't have a lot of time."</td><td>Sessions are 30 minutes. Everything's set up before you arrive.</td></tr>
+        <tr><td style="font-style:italic;color:var(--muted)">"What if I don't like my photos?"</td><td>You're picking them during the session. You see what works in real time, so by the time we're done you already know what you're keeping.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── BUSINESS MODEL ── -->
+  <div class="spanel" id="sp-model">
+    <div class="sh2">Key Numbers</div>
+    <div class="stat-row">
+      <div class="stat-box"><div class="stat-val">10–12</div><div class="stat-lbl">Sessions / Month (Cap)</div></div>
+      <div class="stat-box"><div class="stat-val">$175</div><div class="stat-lbl">Signature Session</div></div>
+      <div class="stat-box"><div class="stat-val">$220</div><div class="stat-lbl">Target AOV</div></div>
+      <div class="stat-box"><div class="stat-val">~$876</div><div class="stat-lbl">Monthly Net (Optimizer)</div></div>
+      <div class="stat-box"><div class="stat-val">3 hrs</div><div class="stat-lbl">Max Admin / Week</div></div>
+      <div class="stat-box"><div class="stat-val">7–10 days</div><div class="stat-lbl">Delivery SLA</div></div>
+    </div>
+    <div class="sh2" style="margin-top:24px">Pricing</div>
+    <div class="scard-grid">
+      <div class="scard sl-accent">
+        <div class="scard-label">Signature Session — $175</div>
+        <div class="scard-body">• 30-minute guided session<br>• 10 final retouched high-resolution images<br>• Online gallery for selection<br>• Natural, non-destructive retouching</div>
+      </div>
+      <div class="scard">
+        <div class="scard-label">Add-Ons (drive AOV toward $220–$250)</div>
+        <div class="scard-body">• Additional retouched images — $40 each or 3 for $99<br>• All Proofs (unretouched, personal-use license) — $149<br>• Rush Turnaround (48 hours) — $99</div>
+      </div>
+    </div>
+    <div class="sh2" style="margin-top:24px">Shooting Windows</div>
+    <table class="stab-table">
+      <thead><tr><th>Day</th><th>Window</th><th>Purpose</th></tr></thead>
+      <tbody>
+        <tr><td>Saturday</td><td>9:00 AM – 1:00 PM</td><td>Sessions</td></tr>
+        <tr><td>Wednesday</td><td>6:00 PM – 9:00 PM</td><td>Sessions</td></tr>
+        <tr><td>Sunday afternoon</td><td>One dedicated block</td><td>Editing & admin</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── WORKFLOW CALENDAR ── -->
+  <div class="spanel" id="sp-workflow">
+    <div class="snotice">7 days — 2 heavy production days, 2 medium, 2 light, 1 off. Total real production time: roughly 2–3 hours spread across 4 days.</div>
+    <div class="wf-grid">
+      <div class="wf-day" style="border-top:3px solid var(--tof)">
+        <div class="wf-day-name">Monday</div>
+        <div class="wf-day-type" style="color:var(--tof)">Short Video</div>
+        <div class="wf-effort"><span class="ef-dot fill"></span><span class="ef-dot fill"></span><span class="ef-dot fill"></span><span class="ef-label">Heavy</span></div>
+        <div class="wf-detail">Your heaviest lift. Meme format, relatable moment, something in photography anyone would stop for. Film, edit, post.</div>
+        <div class="wf-hint">TikTok first, then cross-post</div>
+        <div class="wf-plats"><span>TikTok</span><span>Reels</span><span>FB</span></div>
+        <div class="wf-time">~45–60 min</div>
+      </div>
+      <div class="wf-day" style="border-top:3px solid var(--mof)">
+        <div class="wf-day-name">Tuesday</div>
+        <div class="wf-day-type" style="color:var(--mof)">Portfolio Image</div>
+        <div class="wf-effort"><span class="ef-dot fill"></span><span class="ef-dot"></span><span class="ef-dot"></span><span class="ef-label">Light</span></div>
+        <div class="wf-detail">One strong portrait. You already have the image. Caption does the MoFu work — what was happening, what you saw in the person.</div>
+        <div class="wf-hint">Pull from a recent session</div>
+        <div class="wf-plats"><span>Instagram</span><span>Facebook</span></div>
+        <div class="wf-time">~10 min</div>
+      </div>
+      <div class="wf-day" style="border-top:3px solid var(--bof)">
+        <div class="wf-day-name">Wednesday</div>
+        <div class="wf-day-type" style="color:var(--bof)">Graphic or Short Video</div>
+        <div class="wf-effort"><span class="ef-dot fill"></span><span class="ef-dot fill"></span><span class="ef-dot"></span><span class="ef-label">Medium</span></div>
+        <div class="wf-detail">Pricing, what to wear, how to book. Simple Canva graphic or a quick talking-head video. Answers the question a ready person already has.</div>
+        <div class="wf-hint">Canva graphic = 10 min. Talking head = 15 min.</div>
+        <div class="wf-plats"><span>Facebook</span><span>Instagram</span><span>TikTok</span></div>
+        <div class="wf-time">~15–30 min</div>
+      </div>
+      <div class="wf-day" style="border-top:3px solid var(--mof)">
+        <div class="wf-day-name">Thursday</div>
+        <div class="wf-day-type" style="color:var(--mof)">Carousel or BTS Clip</div>
+        <div class="wf-effort"><span class="ef-dot fill"></span><span class="ef-dot fill"></span><span class="ef-dot"></span><span class="ef-label">Medium</span></div>
+        <div class="wf-detail">3 shots from a recent session, or a behind the scenes moment. Shows your process, your eye, what working with you actually looks like.</div>
+        <div class="wf-hint">Pull from this week's shoot if you have one</div>
+        <div class="wf-plats"><span>Instagram</span><span>TikTok</span><span>Facebook</span></div>
+        <div class="wf-time">~20–30 min</div>
+      </div>
+      <div class="wf-day" style="border-top:3px solid var(--tof)">
+        <div class="wf-day-name">Friday</div>
+        <div class="wf-day-type" style="color:var(--tof)">Short Video</div>
+        <div class="wf-effort"><span class="ef-dot fill"></span><span class="ef-dot fill"></span><span class="ef-dot"></span><span class="ef-label">Medium</span></div>
+        <div class="wf-detail">Your second video. Lighter than Monday — could be a portfolio shot with a voiceover, not a full production. Still broad, still relatable.</div>
+        <div class="wf-hint">Voiceover over an image works fine</div>
+        <div class="wf-plats"><span>TikTok</span><span>Reels</span><span>FB</span></div>
+        <div class="wf-time">~20–30 min</div>
+      </div>
+      <div class="wf-day" style="border-top:3px solid var(--mof)">
+        <div class="wf-day-name">Saturday</div>
+        <div class="wf-day-type" style="color:var(--mof)">Stories Only</div>
+        <div class="wf-effort"><span class="ef-dot fill"></span><span class="ef-dot"></span><span class="ef-dot"></span><span class="ef-label">Light</span></div>
+        <div class="wf-detail">You're shooting Saturday mornings. A quick sneak peek straight to Stories. Not creating content — just showing what's already happening.</div>
+        <div class="wf-hint">Film 10 seconds during session, post it after</div>
+        <div class="wf-plats"><span>IG Stories</span><span>FB Stories</span></div>
+        <div class="wf-time">~5 min</div>
+      </div>
+      <div class="wf-day" style="border-top:3px solid var(--border);opacity:.45">
+        <div class="wf-day-name">Sunday</div>
+        <div class="wf-day-type" style="color:var(--muted)">Off</div>
+        <div class="wf-detail" style="color:var(--muted)">Editing and admin block. No content creation today.</div>
+      </div>
+    </div>
+    <div class="sh2" style="margin-top:28px">Creation Workflow — Same Process Every Time</div>
+    <div class="scard-grid" style="grid-template-columns:repeat(3,1fr);margin-top:12px">
+      <div class="scard"><div class="scard-label" style="font-size:22px;color:var(--border);font-weight:800;margin-bottom:6px">01</div><div class="scard-label">Open the planner</div><div class="scard-body">Sunday or Monday morning. Pick your concept for each slot from the Content Bank. Fill in format, lane, and hook before you create anything.</div></div>
+      <div class="scard"><div class="scard-label" style="font-size:22px;color:var(--border);font-weight:800;margin-bottom:6px">02</div><div class="scard-label">Create for the primary platform</div><div class="scard-body">TikTok or Instagram Reels first. Vertical video, proper aspect ratio, captions on. Don't optimize for every platform yet.</div></div>
+      <div class="scard"><div class="scard-label" style="font-size:22px;color:var(--border);font-weight:800;margin-bottom:6px">03</div><div class="scard-label">Cross-post</div><div class="scard-body">Same file, pushed to the other two platforms. Adjust caption slightly if needed. You're not rebuilding — just distributing.</div></div>
+    </div>
+    <div class="sh2" style="margin-top:24px">Caption Formula — Pillar + Funnel Stage</div>
+    <table class="stab-table" style="margin-top:12px">
+      <thead><tr><th>Funnel Stage</th><th>Pillar</th><th>Formula</th></tr></thead>
+      <tbody>
+        <tr><td><span class="funnel-label fl-tof">ToFu</span></td><td><strong>Educate / Entertain</strong></td><td>Name what you're about to say → say it in 2–3 lines → no CTA, no mention of booking</td></tr>
+        <tr><td><span class="funnel-label fl-mof">MoFu</span></td><td><strong>Educate / Tell</strong></td><td>What was happening in this moment → what you noticed or did → soft trail to your profile or link</td></tr>
+        <tr><td><span class="funnel-label fl-bof">BoFu</span></td><td><strong>Promote</strong></td><td>State the thing directly → explain it simply → clear next step (DM me / link in bio / book)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- ── WEEKLY STRATEGY ── -->
+  <div class="spanel" id="sp-weekly">
+    <div class="snotice">Three posts per week minimum. Each post has a funnel stage (ToFu / MoFu / BoFu) and a content pillar (Educate, Entertain, Tell, Promote). Monday is ToFu — reach strangers with Educate or Entertain content. Wednesday is MoFu — build trust with Educate or Tell. Friday is BoFu — remove friction with Promote. The days are a guide. The three types showing up consistently is the actual requirement.</div>
+    <div id="weekly-posts"></div>
+    <div class="scard sl-accent" style="margin-top:12px"><div class="scard-body"><strong>Batch or don't — both work.</strong> If you film everything Sunday, great. If you shoot a quick talking-head in the car Monday on your lunch break, also great. The format is casual by design. Don't let the schedule become another reason not to post.</div></div>
+  </div>
+
+  <div class="spanel" id="sp-bank">
+    <div class="snotice" style="margin-bottom:16px"><strong>160 viral hooks filtered for photography.</strong> Each idea is tagged by funnel stage (ToFu / MoFu / BoFu) and maps to a content pillar. <strong>ToFu = Educate + Entertain</strong> (reach strangers). <strong>MoFu = Educate + Tell</strong> (build trust). <strong>BoFu = Promote</strong> (answer the last questions). Filter below to find what you need for each day.</div>
+    <div class="tb" style="margin-bottom:20px">
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="bfilt on" data-f="all" onclick="filterBank('all',this)">All (30)</button>
+        <button class="bfilt" data-f="ToFu" onclick="filterBank('ToFu',this)" style="color:var(--tof)">ToFu — Educate / Entertain (10)</button>
+        <button class="bfilt" data-f="MoFu" onclick="filterBank('MoFu',this)" style="color:var(--mof)">MoFu — Educate / Tell (10)</button>
+        <button class="bfilt" data-f="BoFu" onclick="filterBank('BoFu',this)" style="color:var(--bof)">BoFu — Promote (10)</button>
+      </div>
+      <span id="bank-used-count" style="font-size:12px;color:var(--muted);margin-left:auto;align-self:center"></span>
+    </div>
+    <div id="bank-grid" class="scard-grid"></div>
+  </div>
+
+  <!-- ── IDEATION ── -->
+  <div class="spanel" id="sp-ideation">
+    <div class="snotice" style="margin-bottom:20px">The strategy hub is the only data source. Every idea passes through your voice rules, pillars, lanes, and funnel mapping. Hooks come from your real 1004-hook library — Claude picks the most creative fit, never invents one.</div>
+
+    <!-- Mode Tabs -->
+    <div style="display:flex;gap:10px;margin-bottom:24px;flex-wrap:wrap">
+      <button class="ideate-mode on" data-mode="scratch" onclick="setIdeateMode('scratch',this)">
+        <div style="font-size:20px;margin-bottom:5px">✦</div>
+        <div style="font-weight:700;font-size:13px">From Scratch</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Pick a pillar + funnel stage</div>
+      </button>
+      <button class="ideate-mode" data-mode="riff" onclick="setIdeateMode('riff',this)">
+        <div style="font-size:20px;margin-bottom:5px">↻</div>
+        <div style="font-weight:700;font-size:13px">Riff on Idea</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Build variations from an existing idea</div>
+      </button>
+      <button class="ideate-mode" data-mode="research" onclick="setIdeateMode('research',this)">
+        <div style="font-size:20px;margin-bottom:5px">📚</div>
+        <div style="font-weight:700;font-size:13px">From Research</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:2px">Pick blocks from your library</div>
+      </button>
+    </div>
+
+    <!-- SCRATCH FORM -->
+    <div id="ideate-form-scratch" class="ideate-form">
+      <div class="scard" style="padding:20px 22px;margin-bottom:16px">
+        <div class="sh2" style="margin-bottom:16px">Generate from scratch</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr auto;gap:12px;align-items:end">
+          <div>
+            <label>Funnel Stage</label>
+            <select id="ideate-stage">
+              <option value="ToFu">ToFu — reach strangers</option>
+              <option value="MoFu">MoFu — build trust</option>
+              <option value="BoFu">BoFu — remove friction</option>
+            </select>
+          </div>
+          <div>
+            <label>Content Pillar</label>
+            <select id="ideate-pillar">
+              <option value="Educate">Educate</option>
+              <option value="Entertain">Entertain</option>
+              <option value="Tell">Tell</option>
+              <option value="Promote">Promote</option>
+            </select>
+          </div>
+          <div>
+            <label>Client Lane</label>
+            <select id="ideate-lane">
+              <option value="any">Any / Mix</option>
+              <option value="career">Career & Professional</option>
+              <option value="personal">Personal & Milestone</option>
+              <option value="family">Family & Legacy</option>
+            </select>
+          </div>
+          <div>
+            <label># of Ideas</label>
+            <input id="ideate-count-scratch" type="number" value="3" min="1" max="5">
+          </div>
+          <button class="btn btn-dark" onclick="runIdeation('scratch')" id="ideate-btn-scratch">Generate →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIFF FORM -->
+    <div id="ideate-form-riff" class="ideate-form hide">
+      <div class="scard" style="padding:20px 22px;margin-bottom:16px">
+        <div class="sh2" style="margin-bottom:16px">Riff on an existing idea</div>
+        <label>Paste an idea, hook, script snippet, or bank card title to riff from</label>
+        <textarea id="ideate-seed" placeholder="e.g. 'Why you look different in photos than in the mirror — talking head in the car, explain lens compression vs mirror flip'" style="min-height:90px;margin-bottom:12px"></textarea>
+        <div style="display:flex;gap:12px;align-items:end">
+          <div style="flex:0 0 130px"><label># of Variations</label><input id="ideate-count-riff" type="number" value="3" min="1" max="5"></div>
+          <button class="btn btn-dark" onclick="runIdeation('riff')" id="ideate-btn-riff">Generate Variations →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- RESEARCH FORM — visual block picker -->
+    <div id="ideate-form-research" class="ideate-form hide">
+      <div class="scard" style="padding:20px 22px;margin-bottom:16px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+          <div class="sh2" style="margin-bottom:0">Pick blocks from your library</div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <span id="ideate-selected-count" style="font-size:12px;color:var(--muted)">0 selected</span>
+            <input id="ideate-block-search" type="text" placeholder="Search blocks..." style="width:180px;font-size:12px;padding:6px 10px" oninput="filterIdeateBlocks(this.value)">
+            <div style="flex:0 0 100px"><label style="margin-top:0"># of Ideas</label><input id="ideate-count-research" type="number" value="3" min="1" max="5" style="font-size:12px;padding:6px 10px"></div>
+            <button class="btn btn-dark" onclick="runIdeation('research')" id="ideate-btn-research">Generate →</button>
+          </div>
+        </div>
+        <div id="ideate-block-grid" class="ideate-block-grid">
+          <div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--muted);font-size:13px">Loading your library...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Status + Results -->
+    <div id="ideate-status" style="font-size:12px;color:var(--muted);margin-bottom:12px;display:none"></div>
+    <div id="ideate-results" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted)" id="ideate-results-label">Ideas</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="clearIdeation()">Clear</button>
+          <button class="btn btn-dark btn-sm" onclick="saveAllIdeationIdeas()">Save All to Calendar</button>
+        </div>
+      </div>
+      <div id="ideate-results-grid" style="display:grid;gap:14px"></div>
+    </div>
+  </div>
+
+  <!-- ── FORMAT REFERENCE ── -->
+  <div class="spanel" id="sp-formats">
+    <div class="snotice">Format names are official platform terminology. The funnel stage (ToFu / MoFu / BoFu) and pillar (Educate, Entertain, Tell, Promote) shown for each format are a guide — not a rule. ToFu content reaches strangers, MoFu builds trust, BoFu removes friction before someone books.</div>
+    <div id="formats-body"></div>
+  </div>
+
+</div>
+</div>
+<!-- MODALS -->
+<div class="mbg off" id="m-client"><div class="modal">
+  <div class="mh"><h2>New Client</h2><button class="mx" onclick="closeM('m-client')">✕</button></div>
+  <div class="mb">
+    <div class="g2">
+      <div><label>Name *</label><input id="mc-name"></div>
+      <div><label>Platform</label>
+        <select id="mc-platform"><option>Instagram</option><option>Facebook</option><option>Referral</option><option>Website</option><option>Other</option></select>
+      </div>
+    </div>
+    <div class="g2">
+      <div><label>Session Type</label>
+        <select id="mc-stype"><option>Professional Headshots</option><option>Personal / Confidence</option><option>Family / Legacy</option><option>Graduate</option><option>Creative</option></select>
+      </div>
+      <div><label>Session Date</label><input id="mc-date" placeholder="e.g. March 8"></div>
+    </div>
+    <div class="g2">
+      <div><label>Offer / Package</label><input id="mc-offer" placeholder="e.g. Signature $175"></div>
+      <div><label>Status</label>
+        <select id="mc-status"><option value="lead">Lead</option><option value="booked">Booked</option><option value="shot">Shot</option><option value="delivered">Delivered</option></select>
+      </div>
+    </div>
+    <label>First Contact</label><input id="mc-contact" placeholder="e.g. March 1">
+    <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeM('m-client')">Cancel</button>
+      <button class="btn btn-dark" onclick="saveClient()">Create Client File →</button>
+    </div>
+  </div>
+</div></div>
+
+<div class="mbg off" id="m-prospect"><div class="modal">
+  <div class="mh"><h2>New Discovery Target</h2><button class="mx" onclick="closeM('m-prospect')">✕</button></div>
+  <div class="mb">
+    <div class="g2">
+      <div><label>Name / Brand *</label><input id="mp-name"></div>
+      <div><label>Handle</label><input id="mp-handle" placeholder="@handle"></div>
+    </div>
+    <div class="g2">
+      <div><label>Platform</label>
+        <select id="mp-platform"><option>Instagram</option><option>TikTok</option><option>LinkedIn</option><option>Facebook</option></select>
+      </div>
+      <div><label>Category</label>
+        <select id="mp-category"><option value="">— select —</option><option value="founder">Founder</option><option value="artist">Artist / Creator</option><option value="realtor">Realtor</option><option value="fitness">Fitness</option><option value="brand">Local Brand</option><option value="professional">Professional</option><option value="collab">Collab Idea</option></select>
+      </div>
+    </div>
+    <label>Why them?</label>
+    <textarea id="mp-why" placeholder="What makes this person worth reaching out to?"></textarea>
+    <div style="margin-top:18px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeM('m-prospect')">Cancel</button>
+      <button class="btn btn-dark" onclick="saveProspect()">Add to Discovery →</button>
+    </div>
+  </div>
+</div></div>
+
+<div class="mbg off" id="m-addblock"><div class="modal">
+  <div class="mh"><h2>Add Block</h2><button class="mx" onclick="closeM('m-addblock')">✕</button></div>
+  <div class="mb">
+    <div class="tabs">
+      <button class="tab on" onclick="switchTab('abt','url',this)">🔗 URL</button>
+      <button class="tab" onclick="switchTab('abt','upload',this)">📁 Upload</button>
+      <button class="tab" onclick="switchTab('abt','drive',this)">☁️ Drive</button>
+      <button class="tab" onclick="switchTab('abt','text',this)">✏️ Text</button>
+    </div>
+    <div id="abt-url" class="tc on">
+      <label>URL *</label><input id="ab-url" type="url" placeholder="https://..." oninput="checkVideoUrl()">
+      <div id="ab-url-video-hint" style="display:none;background:#1a1a0e;border:1px solid #333;border-radius:8px;padding:12px 14px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;color:var(--accent);margin-bottom:3px">🎬 Video detected</div>
+        <div style="font-size:11px;color:#888;line-height:1.5">Downloads the video, captures frames, transcribes with Whisper, summarizes key points. Takes 30–90 seconds.</div>
+        <div style="font-size:11px;color:#aaa;margin-top:6px;line-height:1.6">
+          ✓ TikTok &nbsp;·&nbsp; ✓ YouTube &nbsp;·&nbsp; ✓ Instagram <span style="color:#666">(needs cookie setup below)</span>
+        </div>
+        <details style="margin-top:8px">
+          <summary style="font-size:10px;color:#666;cursor:pointer;user-select:none">Instagram setup (one time)</summary>
+          <div style="font-size:10px;color:#777;line-height:1.8;margin-top:6px;padding:8px;background:#111;border-radius:6px">
+            1. Install <strong style="color:#aaa">Cookie-Editor</strong> extension in Chrome<br>
+            2. Go to instagram.com and log in<br>
+            3. Click Cookie-Editor → <strong style="color:#aaa">Export → Export as Netscape</strong><br>
+            4. Copy the entire text output<br>
+            5. In Railway → your service → Variables → add <code style="background:#222;padding:1px 4px;border-radius:3px">INSTAGRAM_COOKIES</code> → paste as value<br>
+            6. Redeploy<br>
+            <span style="color:#555;margin-top:4px;display:block">Cookies expire every few months — you'll get a clear error when it's time to refresh.</span>
+          </div>
+        </details>
+      </div>
+      <div class="g2">
+        <div><label>Type</label><select id="ab-url-type" onchange="checkVideoUrl()"><option value="url">Article / Link</option><option value="video">🎬 TikTok / Reel / Video</option><option value="image">Image</option></select></div>
+        <div><label>Category</label><input id="ab-url-cat" placeholder="e.g. marketing, posing"></div>
+      </div>
+      <div class="g2">
+        <div><label>Funnel Stage</label><select id="ab-url-funnel"><option value="">—</option><option value="tof">TOF</option><option value="mof">MOF</option><option value="bof">BOF</option></select></div>
+        <div><label>Tags</label><input id="ab-url-tags" placeholder="comma separated"></div>
+      </div>
+      <div id="ab-url-progress" style="display:none;margin:14px 0">
+        <div class="progress-card">
+          <div class="progress-spinner"></div>
+          <div class="progress-step"><strong id="ab-prog-step">Starting...</strong><span id="ab-prog-msg"></span></div>
+        </div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end" id="ab-url-actions">
+        <button class="btn btn-ghost" onclick="closeM('m-addblock')">Cancel</button>
+        <button class="btn btn-dark" id="ab-url-btn" onclick="handleUrlIngest()">Save Block →</button>
+      </div>
+    </div>
+    <div id="abt-upload" class="tc">
+      <div style="border:2px dashed var(--border);border-radius:var(--r);padding:20px;text-align:center;color:var(--muted);cursor:pointer" onclick="document.getElementById('ab-file').click()">
+        <div style="font-size:28px;margin-bottom:5px">📁</div>
+        <p style="font-size:13px">Drop file or <span style="color:var(--accent)">browse</span></p>
+        <input type="file" id="ab-file" style="display:none" onchange="handleAbFile(this)">
+      </div>
+      <div id="ab-file-info" style="font-size:12px;color:var(--muted);margin:6px 0;display:none"></div>
+      <div class="g3">
+        <div><label>Type</label><select id="ab-up-type"><option value="image">Image</option><option value="video">Video</option><option value="meme">Meme</option><option value="pose">Pose</option><option value="sfx">SFX</option><option value="pdf">PDF</option></select></div>
+        <div><label>Category</label><input id="ab-up-cat"></div>
+        <div><label>Funnel</label><select id="ab-up-funnel"><option value="">—</option><option value="tof">TOF</option><option value="mof">MOF</option><option value="bof">BOF</option></select></div>
+      </div>
+      <label>Title</label><input id="ab-up-title">
+      <label>Tags</label><input id="ab-up-tags" placeholder="comma separated">
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeM('m-addblock')">Cancel</button>
+        <button class="btn btn-dark" id="ab-up-btn" onclick="uploadBlock()">Upload →</button>
+      </div>
+    </div>
+    <div id="abt-drive" class="tc">
+      <div style="background:#f5f4f0;border-radius:8px;padding:10px 12px;margin-bottom:10px;font-size:11px;color:var(--muted);line-height:1.6">
+        <strong style="color:var(--text);font-size:11px">Your Drive folder structure:</strong><br>
+        <code style="font-size:10px;letter-spacing:.3px">My Drive / Pose</code> → poses &nbsp;·&nbsp;
+        <code style="font-size:10px">My Drive / Meme</code> → memes &nbsp;·&nbsp;
+        <code style="font-size:10px">My Drive / SFX</code> → audio &nbsp;·&nbsp;
+        <code style="font-size:10px">My Drive / Music</code> → music<br>
+        <code style="font-size:10px">My Drive / Phixo Knowledge</code> → PDFs/docs &nbsp;·&nbsp;
+        <code style="font-size:10px">My Drive / Tik Tok Scripts</code> → scripts
+      </div>
+      <div class="g2" style="margin-bottom:8px">
+        <div><label>Folder to browse</label>
+          <select id="ab-drive-folder" onchange="loadDriveFolder()">
+            <option value="Pose">Pose</option>
+            <option value="Meme">Meme</option>
+            <option value="SFX">SFX</option>
+            <option value="Music">Music</option>
+            <option value="Phixo Knowledge">Phixo Knowledge</option>
+            <option value="Tik Tok Scripts">Tik Tok Scripts</option>
+          </select>
+        </div>
+        <div><label>Block type to assign</label>
+          <select id="ab-drive-type" onchange="syncDriveType()">
+            <option value="pose">Pose</option>
+            <option value="meme">Meme</option>
+            <option value="sfx">SFX / Audio</option>
+            <option value="image">Image</option>
+            <option value="pdf">PDF</option>
+          </select>
+        </div>
+      </div>
+      <div class="g2" style="margin-bottom:8px">
+        <div><label>Category (optional)</label><input id="ab-drive-cat" placeholder="auto-fills from folder"></div>
+        <div><label>Tags</label><input id="ab-drive-tags" placeholder="comma separated"></div>
+      </div>
+      <div id="ab-drive-grid" class="drive-grid" style="margin-bottom:10px;min-height:80px">
+        <div style="font-size:12px;color:var(--muted);padding:8px;grid-column:1/-1">Loading...</div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;align-items:center">
+        <span id="ab-drive-count" style="font-size:12px;color:var(--muted);margin-right:auto">0 selected</span>
+        <button class="btn btn-ghost" onclick="closeM('m-addblock')">Cancel</button>
+        <button class="btn btn-dark" id="ab-drive-btn" onclick="saveBlocksFromDrive()" disabled>Add Selected →</button>
+      </div>
+    </div>
+    <div id="abt-text" class="tc">
+      <div class="g2">
+        <div><label>Type</label><select id="ab-txt-type"><option value="note">Note</option><option value="conversation">Conversation</option><option value="transcript">Transcript</option></select></div>
+        <div><label>Category</label><input id="ab-txt-cat"></div>
+      </div>
+      <label>Title</label><input id="ab-txt-title">
+      <label>Content *</label><textarea id="ab-txt-content" style="min-height:120px"></textarea>
+      <div class="g2">
+        <div><label>Funnel</label><select id="ab-txt-funnel"><option value="">—</option><option value="tof">TOF</option><option value="mof">MOF</option><option value="bof">BOF</option></select></div>
+        <div><label>Tags</label><input id="ab-txt-tags" placeholder="comma separated"></div>
+      </div>
+      <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeM('m-addblock')">Cancel</button>
+        <button class="btn btn-dark" onclick="saveTextBlock()">Save Block →</button>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<div class="mbg off" id="m-block-detail"><div class="modal">
+  <div class="mh"><h2 id="bd-title">Block</h2><button class="mx" onclick="closeM('m-block-detail')">✕</button></div>
+  <div class="mb" id="bd-body"></div>
+</div></div>
+
+<div class="mbg off" id="m-block-picker"><div class="modal wide">
+  <div class="mh"><h2 id="bkp-title">Pick Blocks</h2><button class="mx" onclick="closeM('m-block-picker')">✕</button></div>
+  <div class="mb">
+    <div style="display:flex;gap:8px;margin-bottom:12px">
+      <input type="text" id="bkp-search" placeholder="Search..." oninput="loadPickerBlocks()" style="flex:1">
+      <select id="bkp-type" onchange="loadPickerBlocks()" style="width:140px">
+        <option value="">All types</option>
+        <option value="pose">Pose</option><option value="meme">Meme</option>
+        <option value="sfx">SFX</option><option value="image">Image</option>
+        <option value="url">URL</option><option value="note">Note</option>
+        <option value="conversation">Conversation</option>
+      </select>
+      <span id="bkp-sel-count" style="font-size:12px;color:var(--muted);align-self:center">0 selected</span>
+    </div>
+    <div id="bkp-grid" class="bpm-grid"></div>
+    <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeM('m-block-picker')">Cancel</button>
+      <button class="btn btn-dark" id="bkp-attach" onclick="confirmPickerAttach()" disabled>Attach →</button>
+    </div>
+  </div>
+</div></div>
+
+<div class="mbg off" id="m-analyze"><div class="modal">
+  <div class="mh"><h2>Analyze Conversation</h2><button class="mx" onclick="closeM('m-analyze')">✕</button></div>
+  <div class="mb">
+    <div class="tabs">
+      <button class="tab on" onclick="switchTab('az','text',this)">Paste Text</button>
+      <button class="tab" onclick="switchTab('az','img',this)">Screenshot</button>
+    </div>
+    <div id="az-text" class="tc on">
+      <label>Full DM conversation</label>
+      <textarea id="az-conv" style="min-height:200px" placeholder="Paste the entire thread..."></textarea>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeM('m-analyze')">Cancel</button>
+        <button class="btn btn-dark" id="az-btn" onclick="analyzeConversation()">Analyze with Claude →</button>
+      </div>
+    </div>
+    <div id="az-img" class="tc">
+      <div style="border:2px dashed var(--border);border-radius:var(--r);padding:24px;text-align:center;color:var(--muted);cursor:pointer" onclick="document.getElementById('az-file').click()">
+        <div style="font-size:28px;margin-bottom:5px">📷</div>
+        <p style="font-size:13px">Drop screenshot or <span style="color:var(--accent)">browse</span></p>
+        <input type="file" id="az-file" accept="image/*" style="display:none" onchange="handleAzFile(this)">
+      </div>
+      <div id="az-preview" style="display:none;margin:10px 0"><img id="az-img-prev" style="max-width:100%;border-radius:8px;max-height:160px;object-fit:contain"></div>
+      <div style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end">
+        <button class="btn btn-ghost" onclick="closeM('m-analyze')">Cancel</button>
+        <button class="btn btn-dark" id="az-img-btn" onclick="analyzeImage()">Analyze Screenshot →</button>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<div class="mbg off" id="m-editfield"><div class="modal" style="max-width:440px">
+  <div class="mh"><h2 id="ef-label">Edit</h2><button class="mx" onclick="closeM('m-editfield')">✕</button></div>
+  <div class="mb">
+    <textarea id="ef-val" style="min-height:100px"></textarea>
+    <div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeM('m-editfield')">Cancel</button>
+      <button class="btn btn-dark" onclick="confirmEditField()">Save</button>
+    </div>
+  </div>
+</div></div>
+
+<div class="mbg off" id="m-hooks"><div class="modal">
+  <div class="mh"><h2>Hook Library</h2><button class="mx" onclick="closeM('m-hooks')">✕</button></div>
+  <div class="mb">
+    <div style="display:flex;gap:8px;margin-bottom:10px">
+      <input type="text" id="hook-search" placeholder="Search hooks..." oninput="loadHooks()" style="flex:1">
+      <select id="hook-cat" onchange="loadHooks()" style="width:140px">
+        <option value="">All categories</option>
+        <option value="story">Story</option><option value="contrarian">Contrarian</option>
+        <option value="mistake">Mistake</option><option value="educational">Educational</option>
+        <option value="curiosity">Curiosity</option><option value="if-then">If-Then</option>
+        <option value="before-after">Before/After</option><option value="question">Question</option>
+        <option value="number-list">Number List</option>
+      </select>
+      <button class="btn btn-ghost btn-sm" onclick="ingestHooksPdf()" id="hooks-ingest-btn">↻ PDF</button>
+    </div>
+    <div id="hooks-list" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:8px"></div>
+    <div style="margin-top:10px;display:flex;justify-content:flex-end">
+      <button class="btn btn-ghost" onclick="closeM('m-hooks')">Close</button>
+    </div>
+  </div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+<script>
+// ═══ STATE ═══
+let CID=null,PROID=null,POST_ID=null,ef_key=null,ef_entity=null;
+let ab_file=null,az_file=null,driveFiles=[];
+let ab_driveSelIds=new Set(),picker_sel=new Set();
+let pickerEntity=null,pickerEntityId=null;
+let assistHistory=[],postModules=[],allBlocks=[];
+let dragSrcIdx=null;
+
+// ═══ UTILS ═══
+function toast(msg,type=''){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.className='toast on '+type;
+  clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('on'),2800);
+}
+const dtimers={};
+function debouncedLoad(fn){clearTimeout(dtimers[fn]);dtimers[fn]=setTimeout(()=>window[fn](),280);}
+
+async function api(method,url,body){
+  const opts={method,headers:{}};
+  if(body instanceof FormData){opts.body=body;}
+  else if(body){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(body);}
+  const r=await fetch(url,opts);
+  if(!r.ok){const e=await r.json().catch(()=>({error:'Failed'}));throw new Error(e.error||'Failed');}
+  return r.json();
+}
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function typeIcon(t){return{pose:'🧍',meme:'😂',sfx:'🎵',audio:'🎵',image:'🖼️',url:'📄',video:'🎬',conversation:'💬',note:'📝',pdf:'📋',transcript:'📝'}[t]||'📁';}
+function funnelBadge(f){if(!f)return'';const l={tof:'TOF',mof:'MOF',bof:'BOF'};return`<span class="funnel-label fl-${f}">${l[f]||f}</span>`;}
+function statusClass(s){return{lead:'t-lead',booked:'t-booked',shot:'t-shot',delivered:'t-delivered',watching:'t-watching','outreach-ready':'t-outreach',contacted:'t-contacted','not-a-fit':'t-notfit'}[s]||'t-lead';}
+function tempClass(t){if(!t)return't-lead';const l=t.toLowerCase();return l.startsWith('hot')?'t-hot':l.startsWith('warm')?'t-warm':l.startsWith('cold')?'t-cold':'t-lead';}
+
+function showView(name,navEl){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('on'));
+  const v=document.getElementById('v-'+name);
+  if(v)v.classList.add('on');
+  if(navEl)navEl.classList.add('on');
+  else{const nb=document.querySelector(`.nb[data-view="${name}"]`);if(nb)nb.classList.add('on');}
+  if(name==='pipeline')loadPipeline();
+  else if(name==='research')loadResearch();
+  else if(name==='discovery')loadDiscovery();
+  else if(name==='calendar')loadCalendar();
+  else if(name==='strategy'){renderBank();renderWeekly();renderFormats();}
 }
 
-const app = express();
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
-
-app.set('trust proxy', 1);
-app.use(express.json({ limit: '15mb' }));
-app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(cookieSession({
-  name: 'phixo-session',
-  secret: process.env.SESSION_SECRET || 'phixo-secret-v3',
-  maxAge: 30 * 24 * 60 * 60 * 1000,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax'
-}));
-
-// ═══════════════════════════════════════════════════
-// DATABASE
-// ═══════════════════════════════════════════════════
-if (!process.env.DATABASE_URL) {
-  console.error('⚠️  DATABASE_URL not set — database features will fail');
+// ── Ask Library ──────────────────────────────────────────────────────────────
+function openAskLibrary(){
+  document.getElementById('ask-input').value='';
+  openModal('m-ask-library');
+  setTimeout(()=>document.getElementById('ask-input').focus(),100);
 }
 
-const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('localhost')
-    ? { rejectUnauthorized: false }
-    : false,
-  connectionTimeoutMillis: 5000,
-  idleTimeoutMillis: 30000,
-});
+async function askLibrary(){
+  const q = document.getElementById('ask-input').value.trim();
+  if(!q) return;
+  const btn = document.getElementById('ask-btn');
+  const status = document.getElementById('ask-status');
+  const history = document.getElementById('ask-history');
+  btn.disabled=true; btn.textContent='Thinking...';
+  status.style.display='block'; status.textContent='Reading your library...';
+  history.style.display='flex';
 
-pool.on('error', (err) => {
-  console.error('Postgres pool error:', err.message);
-});
+  // Add user message
+  const userMsg = document.createElement('div');
+  userMsg.style.cssText='align-self:flex-end;background:var(--accent);color:#fff;border-radius:12px 12px 2px 12px;padding:10px 14px;font-size:13px;max-width:85%;line-height:1.6';
+  userMsg.textContent=q;
+  history.appendChild(userMsg);
+  history.scrollTop=history.scrollHeight;
+  document.getElementById('ask-input').value='';
 
-async function initDb() {
-  const c = await pool.connect();
   try {
-    await c.query(`
-      -- Universal content unit
-      CREATE TABLE IF NOT EXISTS blocks (
-        id SERIAL PRIMARY KEY,
-        type TEXT NOT NULL,
-        title TEXT NOT NULL,
-        category TEXT,
-        tags TEXT[],
-        funnel_stage TEXT,
-        source TEXT DEFAULT 'manual',
-        source_url TEXT,
-        drive_file_id TEXT,
-        file_name TEXT,
-        file_mime TEXT,
-        content_payload TEXT,
-        thumbnail_url TEXT,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      );
-
-      -- Polymorphic attachment: blocks to clients/prospects/posts
-      CREATE TABLE IF NOT EXISTS block_attachments (
-        id SERIAL PRIMARY KEY,
-        block_id INTEGER REFERENCES blocks(id) ON DELETE CASCADE,
-        entity_type TEXT NOT NULL,
-        entity_id INTEGER NOT NULL,
-        position INTEGER DEFAULT 0,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        UNIQUE(block_id, entity_type, entity_id)
-      );
-
-      -- Pipeline clients
-      CREATE TABLE IF NOT EXISTS clients (
-        id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL,
-        platform TEXT,
-        thread_id TEXT,
-        session_type TEXT,
-        session_date TEXT,
-        offer TEXT,
-        first_contact TEXT,
-        status TEXT DEFAULT 'lead',
-        lead_temperature TEXT,
-        what_they_want TEXT,
-        emotional_read TEXT,
-        red_flags TEXT,
-        opportunity TEXT,
-        how_to_open TEXT,
-        things_to_avoid TEXT,
-        key_question TEXT,
-        things_to_talk_about TEXT,
-        what_they_need TEXT,
-        moment_to_watch TEXT,
-        how_to_close TEXT,
-        lighting_setup TEXT,
-        conversation_log TEXT,
-        draft_reply TEXT,
-        final_reply TEXT,
-        notes TEXT,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      );
-
-      -- Discovery prospects
-      CREATE TABLE IF NOT EXISTS prospects (
-        id SERIAL PRIMARY KEY,
-        name TEXT NOT NULL,
-        handle TEXT,
-        platform TEXT,
-        category TEXT,
-        status TEXT DEFAULT 'watching',
-        why_them TEXT,
-        notes TEXT,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      );
-
-      -- Content calendar posts
-      CREATE TABLE IF NOT EXISTS posts (
-        id SERIAL PRIMARY KEY,
-        platform TEXT,
-        funnel_stage TEXT,
-        post_goal TEXT,
-        status TEXT DEFAULT 'idea',
-        post_date TEXT,
-        notes TEXT,
-        created_at TIMESTAMPTZ DEFAULT NOW(),
-        updated_at TIMESTAMPTZ DEFAULT NOW()
-      );
-
-      -- Ordered module stack inside a post
-      CREATE TABLE IF NOT EXISTS post_modules (
-        id SERIAL PRIMARY KEY,
-        post_id INTEGER REFERENCES posts(id) ON DELETE CASCADE,
-        module_type TEXT NOT NULL,
-        block_id INTEGER REFERENCES blocks(id) ON DELETE SET NULL,
-        content TEXT,
-        position INTEGER DEFAULT 0,
-        collapsed BOOLEAN DEFAULT false,
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      );
-
-      -- Hook library (extracted from PDF or manual)
-      CREATE TABLE IF NOT EXISTS hooks (
-        id SERIAL PRIMARY KEY,
-        text TEXT NOT NULL,
-        category TEXT,
-        source TEXT DEFAULT 'manual',
-        created_at TIMESTAMPTZ DEFAULT NOW()
-      );
-    `);
-    // Migrations for existing DBs
-    await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'`);
-    await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS source_type VARCHAR(50)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_blocks_source_type ON blocks(source_type)`);
+    const r = await api('POST','/api/library/ask',{question:q});
     
-    // v3.40: Drive sync and discovery enhancements
-    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS drive_folder_id TEXT`);
-    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS screenshots JSONB DEFAULT '[]'`);
-    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS mission TEXT`);
-    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS vision TEXT`);
-    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS ideas TEXT`);
-    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS posing_notes TEXT`);
-    
-    await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS drive_folder_id TEXT`);
-    await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS screenshots JSONB DEFAULT '[]'`);
-    await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS mission TEXT`);
-    await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS vision TEXT`);
-    await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS ideas TEXT`);
-    await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS posing_notes TEXT`);
-    
-    // v3.44: Post builder redesign
-    await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS post_type VARCHAR(50) DEFAULT 'photo'`);
-    await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS content_structure JSONB DEFAULT '{}'`);
-    
-    // v3.46: Research Library - Video generation
-    await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS is_reference BOOLEAN DEFAULT false`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_blocks_reference ON blocks(is_reference) WHERE is_reference = true`);
-    
-    console.log('DB v3.46 ready (Research video generation)');
-  } catch (err) {
-    console.error('DB init error:', err.message);
-  } finally { c.release(); }
-}
+    // Add AI answer
+    const aiMsg = document.createElement('div');
+    aiMsg.style.cssText='align-self:flex-start;background:var(--surface-2);border-radius:2px 12px 12px 12px;padding:12px 14px;font-size:13px;max-width:90%;line-height:1.7;white-space:pre-wrap;border:1px solid var(--border)';
+    aiMsg.textContent=r.answer;
 
-// ═══════════════════════════════════════════════════
-// VIRAL HOOKS - Load CSV on startup
-// ═══════════════════════════════════════════════════
-const VIRAL_HOOKS_DATA = [{"id": "EDU_0001", "category": "EDUCATIONAL", "template": "This represents your X before, during, and after X", "exampleUrl": "https://www.instagram.com/p/C-ta_pvhfvK/"}, {"id": "EDU_0002", "category": "EDUCATIONAL", "template": "Here\u2019s exactly how much (insert action/item) you need to (insert result)", "exampleUrl": "https://www.instagram.com/reel/C9vqgHxuz1E/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWFlZA=="}, {"id": "EDU_0003", "category": "EDUCATIONAL", "template": "Can you tell us how to (insert result) in 60 seconds?", "exampleUrl": "https://www.instagram.com/p/C8dJXv1PjzF/"}, {"id": "EDU_0004", "category": "EDUCATIONAL", "template": "This is what (insert thing) looks like when you\u2019re (insert action). And this is what they look like when you\u2019re not (insert action).", "exampleUrl": "https://www.instagram.com/reel/C4tAzeYL8yA/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWFlZA=="}, {"id": "EDU_0005", "category": "EDUCATIONAL", "template": "I\u2019m going to tell you how to get (Insert result), (insert mind blowing method).", "exampleUrl": "https://www.instagram.com/p/C7WV9_TI5dT/"}, {"id": "EDU_0006", "category": "EDUCATIONAL", "template": "It took me 10 years to learn this but I\u2019ll teach it to you in less than 1 minute.", "exampleUrl": "https://www.instagram.com/p/C-sSyDpoyMX/"}, {"id": "EDU_0007", "category": "EDUCATIONAL", "template": "When you get (insert item/result) here are the # things you got to do right away.", "exampleUrl": "https://www.instagram.com/p/C9bUq2CtvUv/"}, {"id": "EDU_0008", "category": "EDUCATIONAL", "template": "If you don\u2019t have (insert item/action), do (insert item/action).", "exampleUrl": "https://www.instagram.com/p/C8rJipAy8I8/"}, {"id": "EDU_0009", "category": "EDUCATIONAL", "template": "My money rules as a (insert description) working towards financial independence.", "exampleUrl": "https://www.instagram.com/p/C_-u411xe4m/"}, {"id": "EDU_0010", "category": "EDUCATIONAL", "template": "Money can buy you (insert item) but it can not buy you (insert result).", "exampleUrl": "https://www.instagram.com/p/DBkvHncxD2t/"}, {"id": "EDU_0011", "category": "EDUCATIONAL", "template": "Here's how to develop a (insert skill) so strong that you physically can't stop (doing skill).", "exampleUrl": "https://www.instagram.com/reel/C-CPzwMReyb/?igsh=MXBiYmdmc3dudm5vcg%3D%3D"}, {"id": "EDU_0012", "category": "EDUCATIONAL", "template": "This is what (insert #) of (insert item) looks like.", "exampleUrl": "https://www.instagram.com/alexgamblecoach/reel/C60q1FPPrLW/"}, {"id": "EDU_0013", "category": "EDUCATIONAL", "template": "If I woke up (insert pain point) tomorrow, and wanted to (insert dream result) by (insert time) here\u2019s exactly what I would do.", "exampleUrl": "https://www.instagram.com/p/DGOZZYhS1cj/"}, {"id": "EDU_0014", "category": "EDUCATIONAL", "template": "If you're a (insert target audience) and you want (insert", "exampleUrl": "https://www.instagram.com/reel/DE9tW4dyxlJ/?igs"}, {"id": "EDU_0015", "category": "EDUCATIONAL", "template": "If you are (insert age group or range) do not do (insert action).", "exampleUrl": "https://www.instagram.com/reel/DEsW49SM6z3/?igsh=MXc4eXFleDU0cDB4OA=="}, {"id": "EDU_0016", "category": "EDUCATIONAL", "template": "As an (insert trait) responsible (insert age) year old with a goal to (insert goal) here are 3 things I will never regret doing.", "exampleUrl": "https://www.instagram.com/reel/DBZT2Q5RJ2W/?igsh=MTBtc3gwNXVyM2ppdg%3D%3D"}, {"id": "EDU_0017", "category": "EDUCATIONAL", "template": "Not to flex, but I'm fretty f*cking good at (insert skill/niche).", "exampleUrl": "https://www.instagram.com/p/C-SR22KOEDY/"}, {"id": "EDU_0018", "category": "EDUCATIONAL", "template": "This is what (insert object/item) looks like when you are using/doing (insert product/service).", "exampleUrl": "https://www.instagram.com/sethwickstrom_fitness/reel/DAtNQtAxUNQ/"}, {"id": "EDU_0019", "category": "EDUCATIONAL", "template": "Are you still (insert action)? I\u2019ve got (insert result) in (insert time frame) and I have never (insert action).", "exampleUrl": "https://www.instagram.com/reel/C4YY12SxuRo/"}, {"id": "EDU_0020", "category": "EDUCATIONAL", "template": "3 Youtube channels that will teach you more than any (insert industry/niche) degree.", "exampleUrl": "https://www.instagram.com/p/DBfqo-0zxTb/"}, {"id": "EDU_0021", "category": "EDUCATIONAL", "template": "I think I just found the biggest (insert niche/industry) cheat code.", "exampleUrl": "https://www.instagram.com/p/DB6kCMQR0oX/"}, {"id": "EDU_0022", "category": "EDUCATIONAL", "template": "Here are 3 people who will make you a better (insert title).", "exampleUrl": "https://www.instagram.com/p/C9uwXS_uJJ6/"}, {"id": "EDU_0023", "category": "EDUCATIONAL", "template": "(insert trait) Guy vs (insert trait) Guy.", "exampleUrl": "https://www.instagram.com/share/_9R_a4MER"}, {"id": "EDU_0024", "category": "EDUCATIONAL", "template": "I see you doing nothing but (insert action) after (insert event) so follow this agenda to avoid that.", "exampleUrl": "https://www.instagram.com/share/BADjOvZhzs"}, {"id": "EDU_0025", "category": "EDUCATIONAL", "template": "Want to be the first (insert dream result) in your family?", "exampleUrl": "https://www.instagram.com/reel/DEVCeefOF08/?igsh=MThxZXZyMnFkZXNj"}, {"id": "EDU_0026", "category": "EDUCATIONAL", "template": "This is how many (insert item) you need to (insert result).", "exampleUrl": "https://www.instagram.com/reel/C83vXP6NqXU/"}, {"id": "EDU_0027", "category": "EDUCATIONAL", "template": "Everyone tells you to (insert action) but nobody actually tells you how to do it. Here is a # second step by step tutorial that you can save.", "exampleUrl": "https://www.instagram.com/reel/DC2pqKUpy7C/?igsh=ZzBjeG93cDh6aWoy"}, {"id": "EDU_0028", "category": "EDUCATIONAL", "template": "If you're (insert age range) these are the # things you need to do so you don't end up (insert pain point) by (insert age).", "exampleUrl": "https://www.instagram.com/reel/C9atuV6s3J0/?igsh=aDhtdm5wNXNzOTk5"}, {"id": "EDU_0029", "category": "EDUCATIONAL", "template": "If I were starting over in my (insert age range) with no (insert item) here are the top # things I would do to (insert dream result).", "exampleUrl": "https://www.tiktok.com/t/ZT2MLqDUQ/"}, {"id": "EDU_0030", "category": "EDUCATIONAL", "template": "Here are some slightly unethical (insert industry/niche) hacks that you should know if you're (insert target audience).", "exampleUrl": "https://www.instagram.com/reel/C-8RO71JxRv/?igsh=MTdrZzdrZWdnbTdzZA=="}, {"id": "EDU_0031", "category": "EDUCATIONAL", "template": "Here's exactly how you're gonna lock in if you want to (insert dream result).", "exampleUrl": "https://www.instagram.com/reel/DC5P-_EMzFm/?igsh=MTZyajlweWk5ZGI1cQ=="}, {"id": "EDU_0032", "category": "EDUCATIONAL", "template": "This is the same exact (insert thing) but the first is/got (insert result and the second is/got X", "exampleUrl": "https://www.instagram.com/p/DIBDSW9Maq7/"}, {"id": "EDU_0033", "category": "EDUCATIONAL", "template": "If you want to end up (insert pain point) then skip this video.", "exampleUrl": "https://www.instagram.com/p/DDfZ4qZPTN8/"}, {"id": "EDU_0034", "category": "EDUCATIONAL", "template": "We have never used (insert noun) in our home because we have found it to be generally (insert trait/traits).", "exampleUrl": "https://www.instagram.com/p/DGF_p8lORgI/"}, {"id": "EDU_0035", "category": "EDUCATIONAL", "template": "(insert action) for (insert period of time) and you will get (insert dream result).", "exampleUrl": "https://www.instagram.com/georgiaheins/reel/C8Z9DfdMgZ_/"}, {"id": "EDU_0036", "category": "EDUCATIONAL", "template": "If you\u2019re between the ages of (insert age) to (insert age) and you feel like (insert pain point).", "exampleUrl": "https://www.instagram.com/p/DH2KovNtk8l/"}, {"id": "EDU_0037", "category": "EDUCATIONAL", "template": "(insert before state) to (insert after state) in # simple steps in under # of seconds.", "exampleUrl": "https://www.instagram.com/p/DHD4frVya7Z/"}, {"id": "EDU_0038", "category": "EDUCATIONAL", "template": "If you're trying to (insert dream results) then here is the one (insert thing) you should do.", "exampleUrl": "https://www.instagram.com/p/DFCyBHfNnlZ/"}, {"id": "EDU_0039", "category": "EDUCATIONAL", "template": "How long do you think you have to (insert action) to (insert result).", "exampleUrl": "https://www.instagram.com/reel/C50_VCluWFe/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWFlZA=="}, {"id": "EDU_0040", "category": "EDUCATIONAL", "template": "If you want to do this, first do this.", "exampleUrl": "https://www.instagram.com/p/C5AmorRpUqF/"}, {"id": "EDU_0041", "category": "EDUCATIONAL", "template": "If you\u2019re trying to (insert dream result) and you haven't got a clue what to (insert action) on a daily basis I am going to show you an example.", "exampleUrl": "https://www.instagram.com/p/C5yjeP-REZx/"}, {"id": "EDU_0042", "category": "EDUCATIONAL", "template": "This is how many (insert item) you need to (insert result).", "exampleUrl": "https://www.instagram.com/p/C-M1nkcNPAV/"}, {"id": "EDU_0043", "category": "EDUCATIONAL", "template": "I\u2019m gonna save you # of minutes off your next workout with # of simple tips.", "exampleUrl": "https://www.instagram.com/jeffnippard/reel/C9zuGtYJ8ck/"}, {"id": "EDU_0044", "category": "EDUCATIONAL", "template": "If I only had (insert time frame) in the (insert location/place) this is exactly what I would do to get (insert dream result).", "exampleUrl": "https://www.instagram.com/p/C-9slRRoYAA/"}, {"id": "EDU_0045", "category": "EDUCATIONAL", "template": "How long can you skip (insert action) before losing (insert result).", "exampleUrl": "https://www.instagram.com/sethwickstrom_fitness/reel/DB1WXxVx6B4/"}, {"id": "EDU_0046", "category": "EDUCATIONAL", "template": "If you want to (insert dream result) a week for the next (insert weeks) without (insert pain point) then listen up.", "exampleUrl": "https://www.instagram.com/reform.nutrition.training/reel/C6SEO0svXyy/"}, {"id": "EDU_0047", "category": "EDUCATIONAL", "template": "If you just turned (insert age) and you don\u2019t want to (insert pain point) then you should do the following # things immediately.", "exampleUrl": "https://www.instagram.com/share/BAKR4pqxlZ"}, {"id": "EDU_0048", "category": "EDUCATIONAL", "template": "You can have a perfect (insert dream result) by simply dumbing it down.", "exampleUrl": "https://www.instagram.com/share/BAOoa4qroW"}, {"id": "EDU_0049", "category": "EDUCATIONAL", "template": "Did you know that this, this, this, and this get (insert dream result).", "exampleUrl": "https://www.instagram.com/share/BAExbVPhak"}, {"id": "EDU_0050", "category": "EDUCATIONAL", "template": "Don\u2019t start doing (insert action) until you learn how to do this.", "exampleUrl": "https://www.instagram.com/share/BA7hIj8Es8"}, {"id": "EDU_0051", "category": "EDUCATIONAL", "template": "(insert industry) tier list for (insert year).", "exampleUrl": "https://www.instagram.com/p/DEirLE_s0QS/"}, {"id": "EDU_0052", "category": "EDUCATIONAL", "template": "In 60 seconds i\u2019m going to teach you more about (insert thing) than you have ever learned in your entire life.", "exampleUrl": "https://www.instagram.com/p/DEqFNhryVXt/"}, {"id": "EDU_0053", "category": "EDUCATIONAL", "template": "Everyone tells you to (insert action) but no one actually shows you how to do it. Here is a # second step by step tutorial that you can save for later.", "exampleUrl": "https://www.instagram.com/calltoleap/reel/C2tER1GvhOc/"}, {"id": "EDU_0054", "category": "EDUCATIONAL", "template": "If you\u2019re in your (insert 20\u2019s, 30\u2019s, 40\u2019s, 50\u2019s, 60\u2019, etc) then these are the # of things you need to do to make sure you don;t end up (insert pain point) by (insert age).", "exampleUrl": "https://www.instagram.com/calltoleap/reel/C9atuV6s3J0/"}, {"id": "EDU_0055", "category": "EDUCATIONAL", "template": "(Insert noun) loses (Insert noun) on this, so they can make (insert noun) on this.", "exampleUrl": "https://www.instagram.com/marktilbury/reel/DEkDrvSojnz/"}, {"id": "EDU_0056", "category": "EDUCATIONAL", "template": "You have (insert noun) tomorrow but you have no time to (insert action). Here\u2019s how you save your (insert noun).", "exampleUrl": "https://www.instagram.com/ultimateivyleagueguide/reel/CoNHORnOLUt/"}, {"id": "EDU_0057", "category": "EDUCATIONAL", "template": "(Insert scenario) and (Insert dream result), here are the # of steps to get (insert dream result).", "exampleUrl": "https://www.instagram.com/ultimateivyleagueguide/reel/Co5Kp8QLhRZ/"}, {"id": "EDU_0058", "category": "EDUCATIONAL", "template": "Everyone tells you to do (insert action) but you think it\u2019s too late because you are (Insert age). I am a (insert occupation) and these are # of things you need to know in your (Insert age).", "exampleUrl": "https://www.instagram.com/calltoleap/reel/C4wQD6DPqTe/"}, {"id": "EDU_0059", "category": "EDUCATIONAL", "template": "(Insert target audience) if you're serious about playing at the next level.", "exampleUrl": "https://www.instagram.com/kelseypoulter/reel/DDp"}, {"id": "EDU_0060", "category": "EDUCATIONAL", "template": "You only have to be dialed in on # of things to be an elite (insert title).", "exampleUrl": "https://www.instagram.com/kelseypoulter/reel/DAK0EOTRweE/"}, {"id": "EDU_0061", "category": "EDUCATIONAL", "template": "(Insert noun) for dummies.", "exampleUrl": "https://www.instagram.com/share/BA6XRL1fXU"}, {"id": "EDU_0062", "category": "EDUCATIONAL", "template": "Don\u2019t hate me but I don\u2019t really mind (insert noun).", "exampleUrl": "https://www.instagram.com/p/DFydpeiy6GJ/"}, {"id": "EDU_0063", "category": "EDUCATIONAL", "template": "If you want to do this, first do this.", "exampleUrl": "https://www.instagram.com/p/C5nXYgsy6RR/andhttps://www.instagram.com/alexandramilne_/reel/C"}, {"id": "EDU_0064", "category": "EDUCATIONAL", "template": "Best ways to save money while (insert action).", "exampleUrl": "https://www.instagram.com/p/DCkE_cUo3mq/"}, {"id": "EDU_0065", "category": "EDUCATIONAL", "template": "This is every way to (insert action).", "exampleUrl": "https://www.instagram.com/p/DHtlJGYN5wB/"}, {"id": "EDU_0066", "category": "EDUCATIONAL", "template": "What if I told you this (insert item) could (insert result).", "exampleUrl": "https://www.instagram.com/p/DChgwnJyE3b/"}, {"id": "EDU_0067", "category": "EDUCATIONAL", "template": "Did you know that if you (insert action, (Insert action), (insert action), etc.", "exampleUrl": "https://www.instagram.com/p/C-Alb5KsBwA/"}, {"id": "EDU_0068", "category": "EDUCATIONAL", "template": "The (insert thing) you have now in you (insert age group) is so (insert noun).", "exampleUrl": "https://www.instagram.com/p/DBhHzSeJ_L6/"}, {"id": "EDU_0069", "category": "EDUCATIONAL", "template": "At age (insert age) the age that many (insert target audience) is when (insert pain point).", "exampleUrl": "https://www.instagram.com/p/DGkzdT8Mc21/"}, {"id": "EDU_0070", "category": "EDUCATIONAL", "template": "Listen if you\u2019re not forcing your (insert person/persons) to (insert action) in their (insert current state) don\u2019t expect them to be (insert trait) in their (insert after state).", "exampleUrl": "https://www.instagram.com/p/DHQ-medJYC2/"}, {"id": "EDU_0071", "category": "EDUCATIONAL", "template": "Would you rather watch your (insert person/persons) (insert pain point) or join them in their (insert niche) journey to save their lives?", "exampleUrl": "https://www.instagram.com/p/DGDkKWdPN7W/"}, {"id": "EDU_0072", "category": "EDUCATIONAL", "template": "This is the amount of (insert noun) you would lose per day in a (insert state).", "exampleUrl": "https://www.instagram.com/p/DGN4d45NAga/"}, {"id": "EDU_0073", "category": "EDUCATIONAL", "template": "If your in a (insert dream result) journey, this is exactly what you need to do to (insert dream goal) in # simple steps.", "exampleUrl": "https://www.instagram.com/p/DFGXCydPPOM/"}, {"id": "EDU_0074", "category": "EDUCATIONAL", "template": "If you told me # of years ago I\u2019d be (insert dream result) I wouldn't have believed you.", "exampleUrl": "https://www.instagram.com/p/DGs6ZD6NMaE/"}, {"id": "EDU_0075", "category": "EDUCATIONAL", "template": "If your getting (insert adjective) or know someone (insert adjective) there are # of incredulity important things you need to make sure you can do physically in order to (dream result).", "exampleUrl": "https://www.instagram.com/p/DEgJY7yOUYp/"}, {"id": "EDU_0076", "category": "EDUCATIONAL", "template": "If you don\u2019t want to fail (insert life event).", "exampleUrl": "https://www.instagram.com/p/C-TyArttuFT/"}, {"id": "EDU_0077", "category": "EDUCATIONAL", "template": "I crammed the hardest (insert noun) and (insert dream result).", "exampleUrl": "https://www.instagram.com/p/CzjQfxOLpKO/"}, {"id": "EDU_0078", "category": "EDUCATIONAL", "template": "If you\u2019re cooked for your (insert life event) but still can\u2019t find the motivation to do (insert action) you\u2019re gonna want to see this.", "exampleUrl": "https://www.instagram.com/p/DC3Zn1Vx7O9/"}, {"id": "EDU_0079", "category": "EDUCATIONAL", "template": "Here\u2019s the difference between (insert title), (insert title) , and (insert title).", "exampleUrl": "https://www.instagram.com/p/DFKZBcFRisK/"}, {"id": "EDU_0080", "category": "EDUCATIONAL", "template": "If I were in my (insert age range) here is exactly how I would avoid (insert bad result).", "exampleUrl": "https://www.instagram.com/p/DEICudmOqeQ/"}, {"id": "EDU_0081", "category": "EDUCATIONAL", "template": "Here\u2019s every (insert noun) that you actually need to know.", "exampleUrl": "https://www.instagram.com/p/DBhdAc3RY-X/"}, {"id": "EDU_0082", "category": "EDUCATIONAL", "template": "The most important things I will teach my kids as a (insert job title).", "exampleUrl": "https://www.instagram.com/p/DDce9wDuc8j/"}, {"id": "EDU_0083", "category": "EDUCATIONAL", "template": "If you can\u2019t solve this (insert problem) in under 5 seconds go back to (insert pre-qualifying stage).", "exampleUrl": "https://www.instagram.com/p/C0g-j3EJuM6/"}, {"id": "EDU_0084", "category": "EDUCATIONAL", "template": "30 seconds of (insert industry) advice I give my best friend if he/she were starting from scratch.", "exampleUrl": "https://www.instagram.com/p/DDyGbH-xMoc/"}, {"id": "EDU_0085", "category": "EDUCATIONAL", "template": "I would do this before quitting your job.", "exampleUrl": "https://www.instagram.com/p/C_D27RuxXHn/"}, {"id": "EDU_0086", "category": "EDUCATIONAL", "template": "If you do this you\u2019ll (insert result).", "exampleUrl": "https://www.instagram.com/p/DEP_swuolhm/"}, {"id": "EDU_0087", "category": "EDUCATIONAL", "template": "If your a (insert target audience) who (insert pain point) and you want to (insert dream result) let's go over a very simple # step plan you can follow to quickly (insert dream result).", "exampleUrl": "https://www.instagram.com/p/Cpf3cfujvTd/"}, {"id": "EDU_0088", "category": "EDUCATIONAL", "template": "Here are 5 books to (insert dream result) better than 99% of other people.", "exampleUrl": "https://www.instagram.com/p/DG3T4N9xdXD/"}, {"id": "EDU_0089", "category": "EDUCATIONAL", "template": "If you're somebody who (insert action) and your goal is to (insert dream result) and (insert dream result) at the same time. Then here are my # best tips.", "exampleUrl": "https://www.instagram.com/p/DGn7kKyu_5G/"}, {"id": "EDU_0090", "category": "EDUCATIONAL", "template": "If you can't do (insert action).", "exampleUrl": "https://www.instagram.com/p/DC7SzidSNOX/"}, {"id": "EDU_0091", "category": "EDUCATIONAL", "template": "If you can do # of (insert action), than you can do # of (insert action).", "exampleUrl": "https://www.instagram.com/p/DDKZbeoo1gF/"}, {"id": "EDU_0092", "category": "EDUCATIONAL", "template": "If your mom didn\u2019t teach you how to make (insert", "exampleUrl": "https://www.instagram.com/p/DBEeZ2MvZ16/"}, {"id": "EDU_0093", "category": "EDUCATIONAL", "template": "Never lose a game of (insert game) for the rest of your life.", "exampleUrl": "https://www.instagram.com/p/DCoC6YHJ_k1/"}, {"id": "EDU_0094", "category": "EDUCATIONAL", "template": "3 levels of (insert noun).", "exampleUrl": "https://www.instagram.com/p/DBt0hSaNxqH/"}, {"id": "EDU_0095", "category": "EDUCATIONAL", "template": "Did you know that if you\u2026 (Insert action), (insert action), (insert action), etc", "exampleUrl": "https://www.instagram.com/p/DIGJHsKPfj2/"}, {"id": "EDU_0096", "category": "EDUCATIONAL", "template": "I am a professional (insert industry) hacker, and here's every hack at (insert store/location/event/etc).", "exampleUrl": "https://www.instagram.com/p/DG3-nRhyvRq/"}, {"id": "EDU_0097", "category": "EDUCATIONAL", "template": "I have a very long list of (insert noun) that I (insert action) that I gate keep from other people. But today I feel like giving back so I am going to tell you.", "exampleUrl": "https://www.instagram.com/p/DCpBTqzpGdp/"}, {"id": "EDU_0098", "category": "EDUCATIONAL", "template": "I am going to teach you how to identify a good (insert noun) to a bad (insert noun).", "exampleUrl": "https://www.instagram.com/p/DHWUyptyp9B/"}, {"id": "EDU_0099", "category": "EDUCATIONAL", "template": "I went to (insert school type) so you don't have to.", "exampleUrl": "https://www.instagram.com/p/DCrxn_5RFDS/"}, {"id": "EDU_0100", "category": "EDUCATIONAL", "template": "Ranking all the most popular (insert noun), so I can rank them from worst to best.", "exampleUrl": "https://www.instagram.com/p/DIPGBRQR0Sb/"}, {"id": "EDU_0101", "category": "EDUCATIONAL", "template": "Here is how I (insert action) as a (insert label) (insert age).", "exampleUrl": "https://www.instagram.com/p/C6Hkr_QRQ60/"}, {"id": "EDU_0102", "category": "EDUCATIONAL", "template": "You wouldn't get (insert bad result) when you (insert action) if you (insert action).", "exampleUrl": "https://www.instagram.com/p/DHlNHSfuHoh/"}, {"id": "EDU_0103", "category": "EDUCATIONAL", "template": "This is harder than getting into Harvard.", "exampleUrl": "https://www.instagram.com/p/DFNdSUruSOQ/"}, {"id": "EDU_0104", "category": "EDUCATIONAL", "template": "Now how much does it really cost to (insert action).", "exampleUrl": "https://www.instagram.com/p/DE75-Fhyg_T/"}, {"id": "EDU_0105", "category": "EDUCATIONAL", "template": "This is why no one remembers you.", "exampleUrl": "https://www.instagram.com/p/DFaQuJYueF1/"}, {"id": "EDU_0106", "category": "EDUCATIONAL", "template": "I'm 20 which means my teenage years are officially over, so here;s everything I learned from the 7 most weirdest years of my life.", "exampleUrl": "https://www.instagram.com/p/Cuq324pIiKY/"}, {"id": "EDU_0107", "category": "EDUCATIONAL", "template": "If you're a (target audience) and you want to become (insert dream result) by (insert action) then listen to this video because you have such a big advantage and I will tell you how to conquer it.", "exampleUrl": "https://www.instagram.com/p/DE9tW4dyxlJ/"}, {"id": "EDU_0108", "category": "EDUCATIONAL", "template": "If you take (insert noun) it will (insert result).", "exampleUrl": "https://www.instagram.com/p/DIMBlJ4MgHH/"}, {"id": "EDU_0109", "category": "EDUCATIONAL", "template": "I just made a website called (insert the longest but", "exampleUrl": "https://www.instagram.com/p/DIWeFGhRT9u/"}, {"id": "EDU_0110", "category": "EDUCATIONAL", "template": "How to turn just one (insert noun) into a lifetime of free (insert noun).", "exampleUrl": "https://www.instagram.com/p/DIEbK1dSZJ2/"}, {"id": "EDU_0111", "category": "EDUCATIONAL", "template": "Things that are damaging your (insert noun) without you even realizing it.", "exampleUrl": "https://www.instagram.com/p/DDxIde3vWO7/"}, {"id": "EDU_0112", "category": "EDUCATIONAL", "template": "If you have when you see a girl and she just has (insert dream result).", "exampleUrl": "https://www.instagram.com/p/DFNwwbpvxzi/"}, {"id": "EDU_0113", "category": "EDUCATIONAL", "template": "I've (insert dream result) despite having (insert pain point) and this is the routine that did it.", "exampleUrl": "https://www.instagram.com/p/DHbXdlkIoZh/"}, {"id": "EDU_0114", "category": "EDUCATIONAL", "template": "Swap these (insert noun) for better (insert result).", "exampleUrl": "https://www.instagram.com/p/DE5r6TspMQA/"}, {"id": "EDU_0115", "category": "EDUCATIONAL", "template": "Did you know that this, this, and this target (insert dream result).", "exampleUrl": "https://www.instagram.com/p/DFk6dhNykvl/"}, {"id": "EDU_0116", "category": "EDUCATIONAL", "template": "Your (insert noun) looks like this and you want them to look like this.", "exampleUrl": "https://www.instagram.com/p/DD0PRBppkqQ/"}, {"id": "EDU_0117", "category": "EDUCATIONAL", "template": "(Insert last year) (insert noun), (insert current year) (insert noun).", "exampleUrl": "https://www.instagram.com/p/DEDdSAESaFJ/"}, {"id": "EDU_0118", "category": "EDUCATIONAL", "template": "Okay (insert pain point), how about we don't f up (insert current year)", "exampleUrl": "https://www.instagram.com/p/DDiWd5eSlPC/"}, {"id": "EDU_0119", "category": "EDUCATIONAL", "template": "This is the program/steps I would follow if I was trying to (insert dream result).", "exampleUrl": "https://www.instagram.com/p/DB4om1CIUoZ/"}, {"id": "EDU_0120", "category": "EDUCATIONAL", "template": "If your (insert noun) looks anything like this, these are not (insert noun) these are (insert noun) and here is how you can get (insert dream result).", "exampleUrl": "https://www.instagram.com/p/DDGYmIHxlhH/"}, {"id": "EDU_0121", "category": "EDUCATIONAL", "template": "Here are some (insert action) you can do without (insert noun).", "exampleUrl": "https://www.instagram.com/p/DB-HjvtP1A9/"}, {"id": "EDU_0122", "category": "EDUCATIONAL", "template": "Let's find out what (insert noun) you are in # steps.", "exampleUrl": "https://www.instagram.com/p/DHXLZyrSP0w/"}, {"id": "EDU_0123", "category": "EDUCATIONAL", "template": "Most people can only do (insert action) when trying to (insert action) but as an (insert title) you should be able to (insert action).", "exampleUrl": "https://www.instagram.com/p/C_3kQAkIuKn/"}, {"id": "EDU_0124", "category": "EDUCATIONAL", "template": "As an (insert title) you should be able to do this, if you can't (insert diagnosis).", "exampleUrl": "https://www.instagram.com/reel/DF_Cn86o0Ki/"}, {"id": "EDU_0125", "category": "EDUCATIONAL", "template": "If you're an (insert title) you should be able to do this, this, and this. If you can't I got you, just do this # step/routine/program to (insert dream result).", "exampleUrl": "https://www.instagram.com/reel/DDo0rP9o4Yl/"}, {"id": "EDU_0126", "category": "EDUCATIONAL", "template": "If you have (insert pain point), (insert pain point), and (insert pain point) you might be (insert action) wrong.", "exampleUrl": "https://www.instagram.com/p/DDCdiwNO6cO/"}, {"id": "EDU_0127", "category": "EDUCATIONAL", "template": "If you feel like your never (insert point) here is everything you need for a (insert dream result).", "exampleUrl": "https://www.instagram.com/p/DCkDGtppM_u/"}, {"id": "EDU_0128", "category": "EDUCATIONAL", "template": "Do you have a (insert pain point) don\u2019t waste your money trying to (insert solution) it's just going to come back.", "exampleUrl": "https://www.instagram.com/p/DEu0CsYu3Qa/"}, {"id": "EDU_0129", "category": "EDUCATIONAL", "template": "If giving yourself (insert result) causes (insert pain point), (insert pain point), and (insert pain point) here is how I cheat it.", "exampleUrl": "https://www.instagram.com/p/DCh2GnEzezF/"}, {"id": "EDU_0130", "category": "EDUCATIONAL", "template": "You don't have (insert pain point), your not (insert adjective), your not (insert adjective) you just need to (insert solution) and I am going to tell you how to do it.", "exampleUrl": "https://www.instagram.com/p/DHSIRSHJuWc/"}, {"id": "EDU_0131", "category": "EDUCATIONAL", "template": "Worst thing you can do for your (insert thing) is to ignore your (insert noun) when (insert scenario).", "exampleUrl": "https://www.instagram.com/p/DFGZHpOpv9E/"}, {"id": "EDU_0132", "category": "EDUCATIONAL", "template": "Ladies, you can do all the (insert action) but that's not going to do sh*t for your (insert noun).", "exampleUrl": "https://www.instagram.com/p/DFLUAphSOE0/"}, {"id": "EDU_0133", "category": "EDUCATIONAL", "template": "Never (insert action) first and then (insert action).", "exampleUrl": "https://www.instagram.com/p/DF58v36zILq/"}, {"id": "EDU_0134", "category": "EDUCATIONAL", "template": "What happens when you go X hours/days/weeks/years without (insert noun).", "exampleUrl": "https://www.instagram.com/p/DHQcFEpuMHI/"}, {"id": "EDU_0135", "category": "EDUCATIONAL", "template": "There is no doubt in my mind that (insert action) are the best (insert noun) for your (insert noun).", "exampleUrl": "https://www.instagram.com/p/DFnjpQ1x5mZ/"}, {"id": "EDU_0136", "category": "EDUCATIONAL", "template": "Don't touch this.", "exampleUrl": "https://www.instagram.com/p/DAMZdJhRaKj/"}, {"id": "EDU_0137", "category": "EDUCATIONAL", "template": "What I wish I knew at (insert age) instead of (insert age).", "exampleUrl": "https://www.instagram.com/p/C3-e4acrDdB/"}, {"id": "EDU_0138", "category": "EDUCATIONAL", "template": "You're damaging your (insert noun) if you (insert noun) looks like this or like this.", "exampleUrl": "https://www.instagram.com/p/C-AwpFRxDcg/"}, {"id": "EDU_0139", "category": "EDUCATIONAL", "template": "My most complemented (insert noun) of (insert year).", "exampleUrl": "https://www.instagram.com/p/DDhpuYgRmps/"}, {"id": "EDU_0140", "category": "EDUCATIONAL", "template": "I have been dating my girlfriend/boyfriend for # years here are # basics I learned that every guy/girl should do for a partner in (insert scenario).", "exampleUrl": "https://www.instagram.com/p/DEbs2tsxl8_/"}, {"id": "EDU_0141", "category": "EDUCATIONAL", "template": "When I say I (insert action) everyday and I don't (insert action) everyday people always ask me\u2026", "exampleUrl": "https://www.instagram.com/p/DGDy2KMJfQH/"}, {"id": "EDU_0142", "category": "EDUCATIONAL", "template": "# of ways to raise (insert adjective) children.", "exampleUrl": "https://www.instagram.com/p/DDP0DJDvdAL/"}, {"id": "EDU_0143", "category": "EDUCATIONAL", "template": "It's okay f you mom didn't talk to you about", "exampleUrl": "https://www.instagram.com/p/DCJwFyKvi03/"}, {"id": "EDU_0144", "category": "EDUCATIONAL", "template": "The reason you can't (insert dream result) to get that (insert dream result) you keep talking about is because\u2026", "exampleUrl": "https://www.instagram.com/p/DDKbMBDPz-R/"}, {"id": "EDU_0145", "category": "EDUCATIONAL", "template": "This is your (insert noun) on a regular day, this is you (insert noun) on (insert scenario).", "exampleUrl": "https://www.instagram.com/p/DFGFur-uB7M/"}, {"id": "EDU_0146", "category": "EDUCATIONAL", "template": "You guys know this look, when someone perfectly (insert action) and (insert action) I am obsessed with this (insert noun).", "exampleUrl": "https://www.instagram.com/p/DDpulHmx30Z/"}, {"id": "EDU_0147", "category": "EDUCATIONAL", "template": "You crave (insert noun) on your (insert scenario) here's why.", "exampleUrl": "https://www.instagram.com/p/DFYO1KMxUoy/"}, {"id": "EDU_0148", "category": "EDUCATIONAL", "template": "This is you (insert noun) when you (insert action), and this is your (insert noun) when you (insert action).", "exampleUrl": "https://www.instagram.com/p/DHI7KYmOgHL/"}, {"id": "EDU_0149", "category": "EDUCATIONAL", "template": "I have (insert noun) commercial (insert noun).", "exampleUrl": "https://www.instagram.com/p/DH6Nb_7JpIT/"}, {"id": "EDU_0150", "category": "EDUCATIONAL", "template": "Stop (insert action) if you actually want to (insert dream result).", "exampleUrl": "https://www.instagram.com/p/DGaYM9PIO9b/"}, {"id": "EDU_0151", "category": "EDUCATIONAL", "template": "This is how much (insert dream result) you achieve if you (insert action), and this is how much (insert dream result) if you (insert action) and these # of hacks.", "exampleUrl": "https://www.instagram.com/p/DE8lZdOOLDa/"}, {"id": "EDU_0152", "category": "EDUCATIONAL", "template": "If you want to (insert # of dream result) per week this is how you are going to do it.", "exampleUrl": "https://www.instagram.com/p/DBumWY_tbj-/"}, {"id": "EDU_0153", "category": "EDUCATIONAL", "template": "This is for the homies who promised (insert person/persons) and nice and fancy (insert noun).", "exampleUrl": "https://www.instagram.com/p/DHZJfckxUnr/"}, {"id": "EDU_0154", "category": "EDUCATIONAL", "template": "What if I told you, you could (insert action) for only (insert low cost).", "exampleUrl": "https://www.instagram.com/p/DGjhMiPO7bd/"}, {"id": "EDU_0155", "category": "EDUCATIONAL", "template": "Why did it take me over # years to realize you can make (insert result) in # minutes.", "exampleUrl": "https://www.instagram.com/p/DHGjH0Gioy2/"}, {"id": "EDU_0156", "category": "EDUCATIONAL", "template": "Don't hate me but I don\u2019t really mind (insert basic niche thing) but don;t worry I am going to show you how to make it way better.", "exampleUrl": "https://www.instagram.com/p/DIKPqy-TeZ9/andhttps://www.instagram.com/p/DFydpeiy6GJ/"}, {"id": "EDU_0157", "category": "EDUCATIONAL", "template": "(insert dream result) and (insert dream result) with these # of tips. For reference I have (insert personal result).", "exampleUrl": "https://www.instagram.com/p/DA35oVOpAAe/"}, {"id": "EDU_0158", "category": "EDUCATIONAL", "template": "If you have a (insert dream result) keep scrolling. Today we are going to talk about a (insert routine, method", "exampleUrl": "https://www.instagram.com/p/DDmm7ygxvVp/"}, {"id": "EDU_0159", "category": "EDUCATIONAL", "template": "Did you know that if you (insert action), (insert action), (insert action), etc.", "exampleUrl": "https://www.instagram.com/p/DFvcBZRp0kh/"}, {"id": "EDU_0160", "category": "EDUCATIONAL", "template": "Here's exactly how much (insert noun) you can make with under (insert dollar amount).", "exampleUrl": "https://www.instagram.com/p/DG8MN0rAwpR/"}, {"id": "EDU_0161", "category": "EDUCATIONAL", "template": "The lack of clinical studies on (insert noun) isn't because it doesn't work, it's because\u2026", "exampleUrl": "https://www.instagram.com/p/DHjYM2oukHZ/"}, {"id": "EDU_0162", "category": "EDUCATIONAL", "template": "You'll never get (insert dream result) in your (insert age range) if you don;t do these 3 things when you turn (insert age).", "exampleUrl": "https://www.instagram.com/p/DHeJtx9IAFv/"}, {"id": "EDU_0163", "category": "EDUCATIONAL", "template": "# lessons, # of (insert person/persons), in # of days/weeks/months.", "exampleUrl": "https://www.instagram.com/p/DH64SMas1b1/"}, {"id": "EDU_0164", "category": "EDUCATIONAL", "template": "I make more money than doctors, engineers, and lawyers and no I didn't go to college for more than 6 years to get a degree.", "exampleUrl": "https://www.instagram.com/p/DIW3NDOORrg/"}, {"id": "EDU_0165", "category": "EDUCATIONAL", "template": "I worked at (insert company) for X months/years and now I am exposing everything they keep from customers.", "exampleUrl": "https://www.instagram.com/p/DINXKt8pBaq/"}, {"id": "EDU_0166", "category": "EDUCATIONAL", "template": "This is what (insert money amount) will get you in (insert location).", "exampleUrl": "https://www.instagram.com/p/DHQ7CG0xxmr/"}, {"id": "EDU_0167", "category": "EDUCATIONAL", "template": "How much do I need to make or buy a (insert price) (insert noun).", "exampleUrl": "https://www.instagram.com/p/DCQFABDNVWG/"}, {"id": "EDU_0168", "category": "EDUCATIONAL", "template": "I make (insert hourly rate) can I qualify/buy (insert loan/noun).", "exampleUrl": "https://www.instagram.com/p/C8k9RkJtXv5/"}, {"id": "EDU_0169", "category": "EDUCATIONAL", "template": "Let's see what your monthly payment would look like if you owned (insert noun).", "exampleUrl": "https://www.instagram.com/p/C5w9HV9Axfe/"}, {"id": "EDU_0170", "category": "EDUCATIONAL", "template": "Lets see what $1,800 a month gets you in (insert location).", "exampleUrl": "https://www.instagram.com/p/DAUl55ypr-C/"}, {"id": "EDU_0171", "category": "EDUCATIONAL", "template": "If you are paying over (insert price amount) for a (insert noun), you might as well buy a (insert noun).", "exampleUrl": "https://www.instagram.com/p/C55wTztrNF0/"}, {"id": "EDU_0172", "category": "EDUCATIONAL", "template": "I have made a spreadsheet with over (insert large number) of (insert noun).", "exampleUrl": "https://www.instagram.com/p/DIb7EjNxtK4/"}, {"id": "EDU_0173", "category": "EDUCATIONAL", "template": "This is (insert large number) of (insert noun).", "exampleUrl": "https://www.instagram.com/georgiaheins/reel/C9uzMCJMrEL/"}, {"id": "EDU_0174", "category": "EDUCATIONAL", "template": "There is one thing above all that sets the top (insert title) apart from the rest.", "exampleUrl": "https://www.instagram.com/p/DGESNTBT_3p/"}, {"id": "EDU_0175", "category": "EDUCATIONAL", "template": "This is how I would (insert action) if I were starting from scratch).", "exampleUrl": "https://www.instagram.com/share/BBMxvJRjNv"}, {"id": "EDU_0176", "category": "EDUCATIONAL", "template": "If you're spending a lot of money on (insert noun) then you need to try this (insert recipe/method/strategy) because it's super easy and (insert dream outcome).", "exampleUrl": "https://www.instagram.com/p/DGmf0uKMWyK/"}, {"id": "EDU_0177", "category": "EDUCATIONAL", "template": "If you have a (insert noun) you have probably experienced this.", "exampleUrl": "https://www.instagram.com/p/DIpVvJUSKam/"}, {"id": "EDU_0178", "category": "EDUCATIONAL", "template": "(insert noun) (insert trait) (insert similar noun) (insert trait).", "exampleUrl": "https://www.instagram.com/p/DE_9DHKoM-8/"}, {"id": "EDU_0179", "category": "EDUCATIONAL", "template": "It looks like you haven't done (insert noun) since (insert time frame).", "exampleUrl": "https://www.instagram.com/p/DETjcTPN0Zh/"}, {"id": "EDU_0180", "category": "EDUCATIONAL", "template": "I don\u2019t know who needs to see this but if you have a (insert symptom) this is how I literally (insert dream result) every single time.", "exampleUrl": "https://www.instagram.com/p/DFt1sIdSaJU/"}, {"id": "EDU_0181", "category": "EDUCATIONAL", "template": "Oh look I found (insert $), that means I am going to (insert verb) I only need this.", "exampleUrl": "https://www.instagram.com/p/DDD1Dk7OjTQ/"}, {"id": "EDU_0182", "category": "EDUCATIONAL", "template": "One (insert noun), one (insert noun), and you have (insert time frame).", "exampleUrl": "https://www.instagram.com/p/DIkf9ExCbNb/"}, {"id": "EDU_0183", "category": "EDUCATIONAL", "template": "The reason your (insert noun) sucks, is because you have no freaking (insert adjective).", "exampleUrl": "https://www.instagram.com/p/DIwiSA7zyyd/"}, {"id": "EDU_0184", "category": "EDUCATIONAL", "template": "You\u2019ve heard of the viral (insert method/strategy/noun name) right? Well I invested that!", "exampleUrl": "https://www.instagram.com/p/DI9QVVaRbur/"}, {"id": "EDU_0185", "category": "EDUCATIONAL", "template": "(insert noun) I would make for you based on your favorite (insert noun).", "exampleUrl": "https://www.instagram.com/p/DF-hWdEu9Pr/"}, {"id": "EDU_0186", "category": "EDUCATIONAL", "template": "Here are (insert #) of (insert noun) from (insert noun) that I am going to (insert verb) in (insert time frame).", "exampleUrl": "https://www.instagram.com/p/DGwvVNDMQBA/"}, {"id": "EDU_0187", "category": "EDUCATIONAL", "template": "How we saved (insert $) on our (insert noun), and one thing we wish we did differently.", "exampleUrl": "https://www.instagram.com/p/DD2B1rIRisK/"}, {"id": "EDU_0188", "category": "EDUCATIONAL", "template": "This is everything I bought at (insert store) today to stay (insert adjective) at (insert age).", "exampleUrl": "https://www.instagram.com/p/DDaqJN4P--I/"}, {"id": "EDU_0189", "category": "EDUCATIONAL", "template": "(insert verb) is expensive. Here is how to (insert noun) for (insert time frame) for only (insert $).", "exampleUrl": "https://www.instagram.com/p/DGsWskqTaQj/"}, {"id": "EDU_0190", "category": "EDUCATIONAL", "template": "How to (insert verb) you (insert noun) from a (insert title).", "exampleUrl": "https://www.instagram.com/p/C2zqnBULDa1/"}, {"id": "EDU_0191", "category": "EDUCATIONAL", "template": "How many (insert nouns) can you make with only (insert $).", "exampleUrl": "https://www.instagram.com/p/DFbJ-1QPOc0/"}, {"id": "EDU_0192", "category": "EDUCATIONAL", "template": "I present a challenge (insert noun) (insert noun).", "exampleUrl": "https://www.instagram.com/p/DGoS2GHSMy1/"}, {"id": "EDU_0193", "category": "EDUCATIONAL", "template": "This is every way to make (insert noun).", "exampleUrl": "https://www.instagram.com/p/DIxgLtupDzP/"}, {"id": "EDU_0194", "category": "EDUCATIONAL", "template": "If I have to learn (insert noun) again here\u2019s 5 tips of everything I would do in # seconds.", "exampleUrl": "https://www.instagram.com/p/DEGMBBOo_XH/"}, {"id": "EDU_0195", "category": "EDUCATIONAL", "template": "(insert company/individual) if I (insert verb) (insert noun) for you this is what I would do.", "exampleUrl": "https://www.instagram.com/p/DIfQ_5cvLv-/"}, {"id": "EDU_0196", "category": "EDUCATIONAL", "template": "This is what it would (insert adjective) like if (insert number) of (insert noun) were in one (insert noun).", "exampleUrl": "https://www.instagram.com/p/DICZf5jBuNh/"}, {"id": "EDU_0197", "category": "EDUCATIONAL", "template": "This (insert adjective) (insert noun) gets (insert verb) by this (insert adjective) (insert noun).", "exampleUrl": "https://www.instagram.com/p/DHXK02AS5gs/"}, {"id": "EDU_0198", "category": "EDUCATIONAL", "template": "In this video see if you can tell what\u2019s real and what\u2019s (inset noun).", "exampleUrl": "https://www.instagram.com/p/DIeIvIfJVq1/"}, {"id": "EDU_0199", "category": "EDUCATIONAL", "template": "I have no idea why I have no (insert adjective/noun).", "exampleUrl": "https://www.instagram.com/p/DE7egL7M38Z/"}, {"id": "EDU_0200", "category": "EDUCATIONAL", "template": "I avoid all toxic (insert noun), here is how to clean up your (insert noun).", "exampleUrl": "https://www.instagram.com/p/C-AvGm9M0UA/"}, {"id": "EDU_0201", "category": "EDUCATIONAL", "template": "Here are # of questions I ask before (insert verb).", "exampleUrl": "https://www.instagram.com/p/DFnkbJcPxqc/"}, {"id": "EDU_0202", "category": "EDUCATIONAL", "template": "Since (insert noun) from (insert prace/location) are basically (insert fact), you might as well learn how to make them from home.", "exampleUrl": "https://www.instagram.com/p/DFGc51Ly8v3/"}, {"id": "EDU_0203", "category": "EDUCATIONAL", "template": "Every wonder how the same (insert noun) can result in drastically different (insert noun).", "exampleUrl": "https://www.instagram.com/p/DDXkZs6vFMb/"}, {"id": "EDU_0204", "category": "EDUCATIONAL", "template": "Here\u2019s what to look for when buying (insert noun) in (insert location).", "exampleUrl": "https://www.instagram.com/p/DGgSRpFuIjD/"}, {"id": "EDU_0205", "category": "EDUCATIONAL", "template": "If your (insert noun) look like this, and this pay attention.", "exampleUrl": "https://www.instagram.com/p/DIaTxoIJvRL/"}, {"id": "EDU_0206", "category": "EDUCATIONAL", "template": "Today I am going to show you have to make the perfect (insert noun) because I went to (insert school) so you don\u2019t have to.", "exampleUrl": "https://www.instagram.com/p/DFMzB5sO4TF/"}, {"id": "EDU_0207", "category": "EDUCATIONAL", "template": "It took me # full hours to (insert verb) this (insert noun) and I originally allotted myself # minutes.", "exampleUrl": "https://www.instagram.com/p/C_s9bBHxACz/"}, {"id": "EDU_0208", "category": "EDUCATIONAL", "template": "(Insert noun) (insert noun) (insert noun) where the 3 themes for this (insert noun). And you guys I delivered.", "exampleUrl": "https://www.instagram.com/p/DFQmtK9x_w_/"}, {"id": "EDU_0209", "category": "EDUCATIONAL", "template": "Take your (insert noun) from this to this.", "exampleUrl": "https://www.instagram.com/p/DHl84zXOnWK/"}, {"id": "EDU_0210", "category": "EDUCATIONAL", "template": "I have to ask, girl, how do you (insert adjective) so good?", "exampleUrl": "https://www.instagram.com/p/DEnNQCEv0S6/"}, {"id": "EDU_0211", "category": "EDUCATIONAL", "template": "I got to (insert verb) for (insert noun) (insert time), but let me just (insert verb) for a bit.", "exampleUrl": "https://www.instagram.com/p/DEgLL4XOMGi/"}, {"id": "EDU_0212", "category": "EDUCATIONAL", "template": "Give me 10 seconds and I will let you know what one suits you best.", "exampleUrl": "https://www.instagram.com/p/DGsHot9xC6R/"}, {"id": "EDU_0213", "category": "EDUCATIONAL", "template": "Give me 10 seconds and I will let you know if you have a (insert noun) or a (insert noun).", "exampleUrl": "https://www.instagram.com/p/DH-d8R2xUkT/"}, {"id": "EDU_0214", "category": "EDUCATIONAL", "template": "Anyone even notice how some people look naturally (insert adjective) without doing anything crazy.", "exampleUrl": "https://www.instagram.com/p/DDKn9iXPSOS/"}, {"id": "EDU_0215", "category": "EDUCATIONAL", "template": "If you\u2019ve ever secretly (insert action) and hope no one noticed this is for you.", "exampleUrl": "https://www.instagram.com/p/DIUEhBYOica/"}, {"id": "EDU_0216", "category": "EDUCATIONAL", "template": "Today we are going to play did you know (insert noun) edition.", "exampleUrl": "https://www.instagram.com/p/DDsm8Cny941/"}, {"id": "EDU_0217", "category": "EDUCATIONAL", "template": "If this is your first time being (insert adjective) I am (insert name) and I am trying to make it (insert adjective) to (insert verb) by using (insert noun).", "exampleUrl": "https://www.instagram.com/p/DIFlyqrtHSg/"}, {"id": "EDU_0218", "category": "EDUCATIONAL", "template": "My (insert noun) never (insert pain point) no matter what I do.", "exampleUrl": "https://www.instagram.com/p/DBeJWwWOtMw/"}, {"id": "EDU_0219", "category": "EDUCATIONAL", "template": "(insert noun) level 1.", "exampleUrl": "https://www.instagram.com/p/DFvT9fMIoE6/"}, {"id": "EDU_0220", "category": "EDUCATIONAL", "template": "Here are # of ways to make (insert noun).", "exampleUrl": "https://www.instagram.com/p/DGg2PpYpPsD/"}, {"id": "EDU_0221", "category": "EDUCATIONAL", "template": "Those little (insert nouns) are called (insert name) I am a (insert title) and I am going to show you how (insert result).", "exampleUrl": "https://www.instagram.com/p/DGrS_7YRUo7/"}, {"id": "EDU_0222", "category": "EDUCATIONAL", "template": "You want to know why it takes (insert noun) to get (insert result) again.", "exampleUrl": "https://www.instagram.com/p/DHLps0HiJ2L/"}, {"id": "EDU_0223", "category": "EDUCATIONAL", "template": "If your (insert noun) goes (insert result) when you (insert verb) while (insert noun) and (insert adjective) really (insert result) by now you know you have (insert noun) so why aren't you doing a (insert noun) routine.", "exampleUrl": "https://www.instagram.com/p/DHGaZL2uwW0/"}, {"id": "EDU_0224", "category": "EDUCATIONAL", "template": "If your (insert noun) is (insert adjective) like this, you are likely (insert diagnosis).", "exampleUrl": "https://www.instagram.com/p/DAbxF7ZSHq0/"}, {"id": "EDU_0225", "category": "EDUCATIONAL", "template": "Stop buying your (insert noun) like this, and start buying them like this.", "exampleUrl": "https://www.instagram.com/p/DE5ONXRsxs3/"}, {"id": "EDU_0226", "category": "EDUCATIONAL", "template": "Did you know this tip, it\u2019s going to blow your mind.", "exampleUrl": "https://www.instagram.com/p/DHRrPveSTcg/"}, {"id": "EDU_0227", "category": "EDUCATIONAL", "template": "If I (insert action) right now would you believe me if I told you (insert truth).", "exampleUrl": "https://www.instagram.com/p/DCcIsddvdu-/"}, {"id": "EDU_0228", "category": "EDUCATIONAL", "template": "This is what (insert noun) looks like. I am a pro (insert title) and this is the proper way to (insert action).", "exampleUrl": "https://www.instagram.com/p/DEnW3Mmvswc/"}, {"id": "EDU_0229", "category": "EDUCATIONAL", "template": "Does it actually matter what type of (insert noun) you use.", "exampleUrl": "https://www.instagram.com/p/DHMtL1GSsy-/"}, {"id": "EDU_0230", "category": "EDUCATIONAL", "template": "You would need to (insert verb) (insert number) (insert noun) today to get the same (insert result) you grandparents obtained from just (insert verb) (insert number).", "exampleUrl": "https://www.instagram.com/p/DC4dQVdPuUS/"}, {"id": "EDU_0231", "category": "EDUCATIONAL", "template": "Let\u2019s (insert verb) our (insert noun).", "exampleUrl": "https://www.instagram.com/p/DHvgHMqRVWI/"}, {"id": "EDU_0232", "category": "EDUCATIONAL", "template": "This is what you would (insert verb) for (insert person) if you weren't terrified to talk to them.", "exampleUrl": "https://www.instagram.com/p/C8FTNDKualt/"}, {"id": "EDU_0233", "category": "EDUCATIONAL", "template": "When making (insert noun) the (insert noun) is just as important as the (insert noun).", "exampleUrl": "https://www.instagram.com/p/DDz9y_yyCkz/"}, {"id": "EDU_0234", "category": "EDUCATIONAL", "template": "Today I am going to show you the # most common ways to order your (insert noun) at a (insert place/location).", "exampleUrl": "https://www.instagram.com/p/DD9tTgdCq_N/"}, {"id": "EDU_0235", "category": "EDUCATIONAL", "template": "Guys this is so nerdy but it\u2019s the coolest thing I have ever done with my (insert noun).", "exampleUrl": "https://www.instagram.com/p/DFpcFScJxjW/"}, {"id": "EDU_0236", "category": "EDUCATIONAL", "template": "(insert noun), (insert noun), (insert noun), makes a (insert noun).", "exampleUrl": "https://www.instagram.com/p/DGB30hXBY7K/"}, {"id": "EDU_0237", "category": "EDUCATIONAL", "template": "Here are # of (insert noun) from across the world, let\u2019s break them down to their core components.", "exampleUrl": "https://www.instagram.com/p/DG39EdnJxuK/"}, {"id": "EDU_0238", "category": "EDUCATIONAL", "template": "There are way too many (insert noun) in the world that sort of all look that same, but are they?", "exampleUrl": "https://www.instagram.com/p/DGojr4HBH4d/"}, {"id": "EDU_0239", "category": "EDUCATIONAL", "template": "(insert noun), (insert noun), (insert noun), are the basic components of a (insert noun).", "exampleUrl": "https://www.instagram.com/p/DFJYlNVIzSa/"}, {"id": "EDU_0240", "category": "EDUCATIONAL", "template": "Here's a little (insert noun) 101 for you.", "exampleUrl": "https://www.instagram.com/p/DIloBsPuj-B/"}, {"id": "EDU_0241", "category": "EDUCATIONAL", "template": "These are the 3 most common mistakes I see when people are making (insert noun).", "exampleUrl": "https://www.instagram.com/p/DF9FMnIJpNJ/"}, {"id": "EDU_0242", "category": "EDUCATIONAL", "template": "A quick guide to (insert verb) (insert noun) some basic and some unusual.", "exampleUrl": "https://www.instagram.com/p/DCPkRMtodQd/"}, {"id": "EDU_0243", "category": "EDUCATIONAL", "template": "I see so many people using their (insert noun) just like this or maybe like this even when you (insert action). So let me show you the trick to perfectly (insert action).", "exampleUrl": "https://www.instagram.com/p/DETUL1KR3U_/"}, {"id": "EDU_0244", "category": "EDUCATIONAL", "template": "Here\u2019s how the form of (insert noun) you add into (insert noun) affects them.", "exampleUrl": "https://www.instagram.com/p/DD-sH_PPLJ4/"}, {"id": "EDU_0245", "category": "EDUCATIONAL", "template": "Why (insert action) like a normal person, when you can be a psycho instead.", "exampleUrl": "https://www.instagram.com/p/DGRrGUKPoZb/"}, {"id": "EDU_0246", "category": "EDUCATIONAL", "template": "This is everything I got for free on my (insert event).", "exampleUrl": "https://www.instagram.com/p/DGTqgBAxh3d/"}, {"id": "EDU_0247", "category": "EDUCATIONAL", "template": "(insert noun) is my second (insert noun) so here are # of (insert noun) that I used to do a lot and I recommend my students as well.", "exampleUrl": "https://www.instagram.com/p/DFfX1XQTzfP/"}, {"id": "EDU_0248", "category": "EDUCATIONAL", "template": "If you gave me (insert time frame) to get a job as a (insert title) this is what I would do.", "exampleUrl": "https://www.instagram.com/p/DHAewSpJVWu/"}, {"id": "EDU_0249", "category": "EDUCATIONAL", "template": "Did you know if you have a (insert noun), (insert noun), (insert noun), (insert noun), (insert noun) then you can (insert dream result).", "exampleUrl": "https://www.instagram.com/p/DGiv5Q0M1-Q/"}, {"id": "EDU_0250", "category": "EDUCATIONAL", "template": "If you're the person who told me this I could kiss you right now because it literally saved my life.", "exampleUrl": "https://www.instagram.com/p/DIhOAUAPRMo/"}, {"id": "EDU_0251", "category": "EDUCATIONAL", "template": "I bought all the (insert noun) so you could find out which are the best in each category and which is not worth your money.", "exampleUrl": "https://www.instagram.com/p/DFtu2nnyrTW/"}, {"id": "EDU_0252", "category": "EDUCATIONAL", "template": "Here\u2019s how I get people the best (insert noun) on (insert noun).", "exampleUrl": "https://www.instagram.com/p/DIhq7P8PguS/"}, {"id": "EDU_0253", "category": "EDUCATIONAL", "template": "Did you know that there are # types of (insert noun).", "exampleUrl": "https://www.instagram.com/p/DIANQRkyYLb/"}, {"id": "EDU_0254", "category": "EDUCATIONAL", "template": "Here\u2019s how you can guess an almost perfect number every single time.", "exampleUrl": "https://www.instagram.com/p/DEDbAV7tpX5/"}, {"id": "EDU_0255", "category": "EDUCATIONAL", "template": "Here is how I make (insert noun) that lasts up to (insert time frame) and only costs (insert $).", "exampleUrl": "https://www.instagram.com/p/DG_4uqYOrJ_/"}, {"id": "EDU_0256", "category": "EDUCATIONAL", "template": "I teach (insert noun) to people like they are in kindergarten, and it's time for class.", "exampleUrl": "https://www.instagram.com/p/C-k_-Yev6DU/"}, {"id": "EDU_0257", "category": "EDUCATIONAL", "template": "(insert noun) can be reversed so let\u2019s talk about # things you can do to improve your (insert noun).", "exampleUrl": "https://www.instagram.com/p/DG9UDAUShLs/"}, {"id": "EDU_0258", "category": "EDUCATIONAL", "template": "This is how much (insert noun) you would lose at the end of the day with a (insert metric) (insert noun).", "exampleUrl": "https://www.instagram.com/p/DFFuLlcK9j4/"}, {"id": "EDU_0259", "category": "EDUCATIONAL", "template": "Did you know your (insert noun) are programmed to make your (insert result).", "exampleUrl": "https://www.instagram.com/p/DGcvCDdvEZ2/"}, {"id": "EDU_0260", "category": "EDUCATIONAL", "template": "This might be the ultimate (insert person) hack.", "exampleUrl": "https://www.instagram.com/p/DGYjc0dxhU-/"}, {"id": "EDU_0261", "category": "EDUCATIONAL", "template": "To (insert verb) the (insert metric) in this (insert noun) the average would have to (insert action) for (insert time frame).", "exampleUrl": "https://www.instagram.com/p/DFTappzSSBa/"}, {"id": "EDU_0262", "category": "EDUCATIONAL", "template": "If you (insert verb) this (insert noun) this is the amount of (insert noun) your body would (insert result).", "exampleUrl": "https://www.instagram.com/p/DFGDnHYg6hf/"}, {"id": "EDU_0263", "category": "EDUCATIONAL", "template": "The worst (insert noun) that you will regret buying for your (insert noun) is right here.", "exampleUrl": "https://www.instagram.com/p/DGPLBgRtX_g/"}, {"id": "EDU_0264", "category": "EDUCATIONAL", "template": "(insert noun) how to (insert action) and still (insert dream result).", "exampleUrl": "https://www.instagram.com/p/DIwSdSiIr2d/"}, {"id": "EDU_0265", "category": "EDUCATIONAL", "template": "Use this, to pay for this.", "exampleUrl": "https://www.instagram.com/p/ChGIhcPPogC/"}, {"id": "EDU_0266", "category": "EDUCATIONAL", "template": "I paid (insert $) to build this (insert noun) from scratch).", "exampleUrl": "https://www.instagram.com/p/DFqGUjORxG4/"}, {"id": "EDU_0267", "category": "EDUCATIONAL", "template": "If I told you, you would (insert result) form (insert action) you would probably believe me right? Well here\u2019s the thing\u2026", "exampleUrl": "https://www.instagram.com/p/DDfdDshTsXK/"}, {"id": "EDU_0268", "category": "EDUCATIONAL", "template": "How to budget with a (insert $) salary using this special (insert name) technique.", "exampleUrl": "https://www.instagram.com/p/DDU0jMMN-gr/"}, {"id": "EDU_0269", "category": "EDUCATIONAL", "template": "I spent (insert $) on new (insert noun) for my (insert noun).", "exampleUrl": "https://www.instagram.com/p/DGN72MwpsAB/"}, {"id": "EDU_0270", "category": "EDUCATIONAL", "template": "Here\u2019s a quick what to (insert result) (insert metric) of you (insert noun) legally.", "exampleUrl": "https://www.instagram.com/p/DDmhkgqO1FN/"}, {"id": "EDU_0271", "category": "EDUCATIONAL", "template": "(insert adjective) won\u2019t get this but hopefully you will.", "exampleUrl": "https://www.instagram.com/p/DGOENqwSVC6/"}, {"id": "EDU_0272", "category": "EDUCATIONAL", "template": "This is the exact order in which you should be (insert verb) for all of your (insert noun).", "exampleUrl": "https://www.instagram.com/p/DB4lAAPPbYZ/"}, {"id": "EDU_0273", "category": "EDUCATIONAL", "template": "Why is it we are all so stressed about (insert noun) but we also all have a (insert noun) in (insert location).", "exampleUrl": "https://www.instagram.com/p/DFtSk25uUH_/"}, {"id": "EDU_0274", "category": "EDUCATIONAL", "template": "Today my kids (insert noun) is due. So let\u2019s (insert action).", "exampleUrl": "https://www.instagram.com/p/DEEFWvqttJd/"}, {"id": "EDU_0275", "category": "EDUCATIONAL", "template": "There are # things I like to do when I buy a new (insert noun).", "exampleUrl": "https://www.instagram.com/p/DGMg-VPtL98/"}, {"id": "EDU_0276", "category": "EDUCATIONAL", "template": "Here are # of things you have been putting off around", "exampleUrl": "https://www.instagram.com/p/DEd9agVJsuO/"}, {"id": "EDU_0277", "category": "EDUCATIONAL", "template": "Show me the method of the best way to (insert result).", "exampleUrl": "https://www.instagram.com/p/DHxc_kEuDBo/"}, {"id": "EDU_0278", "category": "EDUCATIONAL", "template": "# things everyone needs to know how to fix in an (insert location).", "exampleUrl": "https://www.instagram.com/p/DFbZEG2yJ1k/"}, {"id": "EDU_0279", "category": "EDUCATIONAL", "template": "Why does nobody talk about the cost of (insert action).", "exampleUrl": "https://www.instagram.com/p/DIbM_TgS5se/"}, {"id": "EDU_0280", "category": "EDUCATIONAL", "template": "Top # ways not to (insert action) to the (insert person) you (insert noun).", "exampleUrl": "https://www.instagram.com/p/DDqCq5hpH56/"}, {"id": "EDU_0281", "category": "EDUCATIONAL", "template": "Top # deadliest (insert noun) that can kill (insert living thing) in one (insert verb).", "exampleUrl": "https://www.instagram.com/reel/CyB9bKLOoyp/?igsh=YWJ2cm11Znl4cGZs"}, {"id": "EDU_0282", "category": "EDUCATIONAL", "template": "So this is (insert weight) of (insert noun) if I (insert verb) that to a (insert noun) what is that equivalent to for humans.", "exampleUrl": "https://www.instagram.com/reel/DFhtYRTynQA/?igsh=dHlkZ29zdXNmODM1"}, {"id": "EDU_0283", "category": "EDUCATIONAL", "template": "What is this? This is your (insert description of visual) and this is this #1 reason that (insert noun) die.", "exampleUrl": "https://www.instagram.com/p/DDm0s8rsNV0/"}, {"id": "EDU_0284", "category": "EDUCATIONAL", "template": "The easiest way to keep you (insert noun) (insert adjective) is to pretend\u2026", "exampleUrl": "https://www.instagram.com/p/DDP6BaYxh8v/"}, {"id": "EDU_0285", "category": "EDUCATIONAL", "template": "If you're wanting to transfer your (insert noun) from this into (insert noun).", "exampleUrl": "https://www.instagram.com/p/DEAzDZxS0EH/"}, {"id": "EDU_0286", "category": "EDUCATIONAL", "template": "Let\u2019s see how many (insert noun) we can get out of this.", "exampleUrl": "https://www.instagram.com/p/DGZSeEvvepa/"}, {"id": "EDU_0287", "category": "EDUCATIONAL", "template": "This was the most popular (insert noun) in all of (insert year).", "exampleUrl": "https://www.instagram.com/p/DFT4wGoPISG/"}, {"id": "EDU_0288", "category": "EDUCATIONAL", "template": "Did you know that you could (insert verb) a year's worth of (insert noun) in (insert time frame).", "exampleUrl": "https://www.instagram.com/p/DDQwKwgx4iX/"}, {"id": "EDU_0289", "category": "EDUCATIONAL", "template": "That is crazy.", "exampleUrl": "https://www.instagram.com/reel/DEluu94R-dc/?igsh=ZHF4MXBod2pnODMx"}, {"id": "EDU_0290", "category": "EDUCATIONAL", "template": "Give me 60 seconds to show you how to (insert action) for the first time after (insert life event).", "exampleUrl": "https://www.instagram.com/reel/DC8EmdBPqWT/?igsh=MTAyNTFobmFzenY1eg=="}, {"id": "EDU_0291", "category": "EDUCATIONAL", "template": "Want a (insert noun) that (insert dream result) even when you (insert action).", "exampleUrl": "https://www.instagram.com/reel/DGMiUGoPLmU/?igsh=ZDR4czk2ZzNnMHYy"}, {"id": "EDU_0292", "category": "EDUCATIONAL", "template": "Mom/Dad of # of kids, here is how I treat being a mom/dad as a job.", "exampleUrl": "https://www.instagram.com/reel/Cx568_TA6DP/?igsh=aXhrb3phdmV6bDk3"}, {"id": "EDU_0293", "category": "EDUCATIONAL", "template": "# minutes ago (insert pain point) and had (insert pain", "exampleUrl": "https://www.instagram.com/reel/DFp0aJjuEq"}, {"id": "EDU_0294", "category": "EDUCATIONAL", "template": "If you have a (insert noun) in your house and a (insert noun) I am going to show you guys the # of the best things we did to (insert dream outcome).", "exampleUrl": "https://www.instagram.com/reel/DHe4tCOyyJP/?igsh=am9scXViZGtwcjBp"}, {"id": "EDU_0295", "category": "EDUCATIONAL", "template": "If I could suggest any tip to any (insert person) out these it would be this.", "exampleUrl": "https://www.instagram.com/reel/DFBFcSLSgHL/?igsh=OXY0b2d2YjRlaTJt"}, {"id": "EDU_0296", "category": "EDUCATIONAL", "template": "If you want to do this in (insert year). If you want (insert dream result) you have 3 main options to make it happen. I am going to go over them right now.", "exampleUrl": "https://www.instagram.com/reel/DEX6xCiPIqQ/?igsh=ZnR4cXQyeXdzeTl5"}, {"id": "EDU_0297", "category": "EDUCATIONAL", "template": "Your (insert noun) is to (insert adjective) and (insert adjective). Here are # of (insert noun) to (insert result).", "exampleUrl": "https://www.instagram.com/reel/DEKxvNauJNa/?igsh=dGQzaW41MGVva3p5"}, {"id": "EDU_0298", "category": "EDUCATIONAL", "template": "If you (insert verb) and (insert action) and it doesn't (insert result) it\u2019s time to (insert action).", "exampleUrl": "https://www.instagram.com/reel/DDxwEtsyLDo/?igsh=MTA0cTFrN3gzbHU0eQ=="}, {"id": "EDU_0299", "category": "EDUCATIONAL", "template": "I just made over # of (insert noun) in under (insert time) and I will show you how I did it.", "exampleUrl": "https://www.instagram.com/reel/DFhLiCCRCxz/?igsh=emhjdHVhdHFwM3lo"}, {"id": "EDU_0300", "category": "EDUCATIONAL", "template": "If you want to add (insert noun) to you (insert noun) in (insert year) and you don\u2019t know what (insert noun) to get I got you.", "exampleUrl": "https://www.instagram.com/reel/DF82wujO17l/?igsh=MWd3ZGR4NWRtN3F2eg=="}, {"id": "EDU_0301", "category": "EDUCATIONAL", "template": "If you storing your (insert noun) in (insert noun) stop what you're doing and watch this video.", "exampleUrl": "https://www.instagram.com/reel/DE0ZdAMpZpp/?igsh=MWlubWdoMTZidGxyZA=="}, {"id": "EDU_0302", "category": "EDUCATIONAL", "template": "We spent $ of (insert noun) for our family of #, and this will last us (insert time frame).", "exampleUrl": "https://www.instagram.com/reel/DGPAOVtgP2p/?igsh=cW1sYXI2ajh3b24="}, {"id": "EDU_0303", "category": "EDUCATIONAL", "template": "People always ask me (insert name) (insert fact) (insert question) well, let\u2019s find out.", "exampleUrl": "https://www.instagram.com/reel/DDkR4liv0sV/?igsh=MWNqZGcycDk4Z2c1Zw=="}, {"id": "EDU_0304", "category": "EDUCATIONAL", "template": "If you\u2019re wondering why when you (insert action) and don\u2019t (insert result). Then proceed to (insert action) and (insert result). It\u2019s because you are not doing this.", "exampleUrl": "https://www.instagram.com/reel/DEbPfOAs0Jj/?igsh=ZXcwZGlzamxiY3J3"}, {"id": "EDU_0305", "category": "EDUCATIONAL", "template": "Whatever you do, do not let you (insert person) (insert action).", "exampleUrl": "https://www.instagram.com/reel/DFvEpXyMsWi/?igsh=cjJtZ20zenNhdTh2"}, {"id": "EDU_0306", "category": "EDUCATIONAL", "template": "I am sick of hearing this word (insert word).", "exampleUrl": "https://www.instagram.com/reel/DGyTRjPs-tM/?igsh=MW02MDcwNXppdDJ6OQ=="}, {"id": "EDU_0307", "category": "EDUCATIONAL", "template": "It starts off like this\u2026", "exampleUrl": "https://www.instagram.com/reel/DC8xcCbJVSw/?igsh=MWx1YzNobWpud3Qydw=="}, {"id": "EDU_0308", "category": "EDUCATIONAL", "template": "After (insert time frame) of research here is why I choose (insert noun) and started (insert action).", "exampleUrl": "https://www.instagram.com/reel/DDcNdiARaeE/?igsh=MWdtaTluNHhhemxvbA=="}, {"id": "EDU_0309", "category": "EDUCATIONAL", "template": "Does your (insert person) (insert action) like this?", "exampleUrl": "https://www.instagram.com/reel/DEKcWm2Ipy-/?igsh=Ym5hcno0NXM2Ymwz"}, {"id": "EDU_0310", "category": "EDUCATIONAL", "template": "If you have a (insert person) at home, then (insert action) will dramatically change their (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DGqD6D4hoJq/?igsh=MXJkbG92Mjl1andzbg=="}, {"id": "EDU_0311", "category": "EDUCATIONAL", "template": "I built this (insert noun) for (insert $).", "exampleUrl": "https://www.instagram.com/reel/DDANx1BxN_O/?igsh=ZzdwODhsdHV4Ymp2"}, {"id": "EDU_0312", "category": "EDUCATIONAL", "template": "I bought this (insert noun) for (insert $) and let me show you what I did next.", "exampleUrl": "https://www.instagram.com/reel/DIABtwhxH-X/?igsh=MXBjOWx1N2VjbDAzaQ=="}, {"id": "EDU_0313", "category": "EDUCATIONAL", "template": "In (insert year) the (insert company/person) introduced the (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DIqAW_ARP4Y/?igsh=cXNqaDM5Mjd1eTQw"}, {"id": "EDU_0314", "category": "EDUCATIONAL", "template": "Here\u2019s the only way I will ever (insert action).", "exampleUrl": "https://www.instagram.com/reel/DIrAzqmhy1k/?igsh=MWIxb2syY2N2Y2dobA=="}, {"id": "EDU_0315", "category": "EDUCATIONAL", "template": "So I spent (insert $) at (insert store) on my last trip.", "exampleUrl": "https://www.instagram.com/reel/DElNzz_u22g/?igsh=MTFhNXAyNmJucGJq"}, {"id": "EDU_0316", "category": "EDUCATIONAL", "template": "I turned one (insert noun) into # different (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DFD6TSypE2P/?igsh=NXJ1am00cG94ZnE1"}, {"id": "EDU_0317", "category": "EDUCATIONAL", "template": "(insert company) did not sponsor me this year, so here is how to make their (insert noun) at home.", "exampleUrl": "https://www.instagram.com/reel/DCkHvJ1z-al/?igsh=MWs4MHBvdHdvMnFpeA=="}, {"id": "EDU_0318", "category": "EDUCATIONAL", "template": "Want a (insert person) who (insert dream result) every time, even when you don\u2019t (insert noun/action).", "exampleUrl": "https://www.instagram.com/reel/DGhCeDQPmKV/?igsh=MWpxNHViZHFkaXVobA=="}, {"id": "EDU_0319", "category": "EDUCATIONAL", "template": "It\u2019s (insert noun) season, so let\u2019s make a (insert noun) for your (insert person).", "exampleUrl": "https://www.instagram.com/reel/DISbkqXJ5SD/?igsh=NTRvbzNtYnNtNnN5"}, {"id": "EDU_0320", "category": "EDUCATIONAL", "template": "Your favorite (insert noun) hacks from (insert year).", "exampleUrl": "https://www.instagram.com/reel/DDprbmqSyib/?igsh=MWFxeTBvbDltN3EyNw=="}, {"id": "EDU_0321", "category": "EDUCATIONAL", "template": "# years as a (insert occupation) you guys still don\u2019t believe me when I say these things.", "exampleUrl": "https://www.instagram.com/reel/DIAPFYlsfuX/?igsh=MWd4d3ZpaWpodXRpbQ=="}, {"id": "EDU_0322", "category": "EDUCATIONAL", "template": "It\u2019s wild to think (insert type of stores) still sell (insert noun) for (insert result). But not everyone knows they actually (insert result).", "exampleUrl": "https://www.instagram.com/reel/DFV58iERvGm/?igsh=bmw0eXNhamZzZm54"}, {"id": "EDU_0323", "category": "EDUCATIONAL", "template": "I am not a DIY guy/girl but I am going to show you how I spent (insert $) to transform my (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DG8vTC4pie4/?igsh=cDI2aWtlc3ljMHZr"}, {"id": "EDU_0324", "category": "EDUCATIONAL", "template": "3 (insert noun) we do not recommend for the first time (insert noun) owners/users.", "exampleUrl": "https://www.instagram.com/reel/DB34v2osmcT/?igsh=MWdhOGJ6MzZ0aXVmcQ=="}, {"id": "EDU_0325", "category": "EDUCATIONAL", "template": "How to stop (insert verb).", "exampleUrl": "https://www.instagram.com/reel/C15ByRUp1Rv/?igsh=ZTR6ejYwdWY0YjUx"}, {"id": "EDU_0326", "category": "EDUCATIONAL", "template": "People keep asking me what to do with (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DHTamvwsQu8/?igsh=MXd6OXU5NDJ4enJxZg=="}, {"id": "EDU_0327", "category": "EDUCATIONAL", "template": "Does (insert noun) really kill (insert live thing).", "exampleUrl": "https://www.instagram.com/reel/DCvxgmazwDW/?igsh=Y2pjMm1jeWI2MXZz"}, {"id": "EDU_0328", "category": "EDUCATIONAL", "template": "I am going to show you how to (insert verb) your (insert noun) so they don\u2019t (insert pain point).", "exampleUrl": "https://www.instagram.com/reel/DGWHu_rSbku/?igsh=MWxoMjl1azExZ29qZQ=="}, {"id": "EDU_0329", "category": "EDUCATIONAL", "template": "# things you should never put in the (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DDxoAs_TciE/?igsh=MWc4anZoZXl0ZTM3ZA=="}, {"id": "EDU_0330", "category": "EDUCATIONAL", "template": "Almost everyone thinks they know how to (insert action).", "exampleUrl": "https://www.instagram.com/reel/DA9e_qHyahV/?igsh=MW05NGd1bHJ0YnBycw=="}, {"id": "EDU_0331", "category": "EDUCATIONAL", "template": "Let\u2019s start by mixing (insert noun) and (insert noun) and I am going to give it a good shake. What happens?", "exampleUrl": "https://www.instagram.com/reel/DBU47L9SRQ4/?igsh=MTNyMjBuNDVzc3Z2dA=="}, {"id": "EDU_0332", "category": "EDUCATIONAL", "template": "Apparently if you\u2026", "exampleUrl": "https://www.instagram.com/reel/DFViUxyuruw/?igsh=MXhldXVhOWk2YmozZw=="}, {"id": "EDU_0333", "category": "EDUCATIONAL", "template": "Let\u2019s get this brand new (insert noun) (insert action) so we can put it to good use.", "exampleUrl": "https://www.instagram.com/reel/DH3cSc0Rs3X/?igsh=MW4xdnJrNTFoZHh5Zw=="}, {"id": "EDU_0334", "category": "EDUCATIONAL", "template": "Throw out you (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DCVGFh9yqMK/?igsh=MXIzM3dmMGp6bXk0Ng=="}, {"id": "EDU_0335", "category": "EDUCATIONAL", "template": "This one mistake can actually kill your (insert living thing).", "exampleUrl": "https://www.instagram.com/reel/DGrhiv8zOQQ/?igsh=aTA5aWNpbGExb21n"}, {"id": "EDU_0336", "category": "EDUCATIONAL", "template": "This is kind of gross but I had to share.", "exampleUrl": "https://www.instagram.com/reel/DG1lPtBS_Lh/?igsh=Z29oYzkzNXoyamMy"}, {"id": "EDU_0337", "category": "EDUCATIONAL", "template": "(insert name), how do you (insert result)?", "exampleUrl": "https://www.instagram.com/reel/DIZzqD9u-cJ/?igsh=NDF2aGFoemQyY2F3"}, {"id": "EDU_0338", "category": "EDUCATIONAL", "template": "We are going to text (insert noun), today on how (insert adjective) is it.", "exampleUrl": "https://www.instagram.com/reel/DIRbQ9PvbTm/?igsh=MTB2ZWE5dzRtYjB2Mg=="}, {"id": "EDU_0339", "category": "EDUCATIONAL", "template": "All you need is a (insert amount) of (insert noun) and you can turn (insert amount) of (insert noun) into", "exampleUrl": "https://www.instagram.com/reel/DH3Kn86stmI/?igsh=MjN5MWZwb3B1dGc3"}, {"id": "EDU_0340", "category": "EDUCATIONAL", "template": "Here are # (insert noun) that you should never (insert action).", "exampleUrl": "https://www.instagram.com/reel/DG2_ufDxNQJ/?igsh=dHdyNHh6bDducTMw"}, {"id": "EDU_0341", "category": "EDUCATIONAL", "template": "If I can\u2019t do it in one step, I am not doing it. This is the #1 most efficient way to (insert verb) (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DCK537Ry9-c/?igsh=MTZndGo0NzBhbDd5ZQ=="}, {"id": "EDU_0342", "category": "EDUCATIONAL", "template": "When (insert occurrence) you will probably need a better (insert noun) than this.", "exampleUrl": "https://www.instagram.com/reel/DHzjcH2t5Rh/?igsh=NTRjNmo5NGFvczJ6"}, {"id": "EDU_0343", "category": "EDUCATIONAL", "template": "I found out why (insert noun) wasn\u2019t (insert result). So I am going to tell you what you\u2019re doing wrong.", "exampleUrl": "https://www.instagram.com/reel/DH_Y1jnsjde/?igsh=MnZhZDJqM3BtMDFl"}, {"id": "EDU_0344", "category": "EDUCATIONAL", "template": "This is the ultimate master trick to (insert result) in just # minutes.", "exampleUrl": "https://www.instagram.com/reel/DHB1amjNDLk/?igsh=NWkxemthMXo5MWU1"}, {"id": "EDU_0345", "category": "EDUCATIONAL", "template": "Did you know you only need # of ingredients to make (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DEYRmDGRTaU/?igsh=dXc4ZnVjcm5pbWpn"}, {"id": "EDU_0346", "category": "EDUCATIONAL", "template": "I am willing to bet, this (insert noun) is older than you.", "exampleUrl": "https://www.instagram.com/reel/DEkn1RAxZur/?igsh=YXhvc3l1aGxiYmIw"}, {"id": "EDU_0347", "category": "EDUCATIONAL", "template": "Did you know our chicken is dunked in chlorine?", "exampleUrl": "https://www.instagram.com/reel/DGGSGPGOKMa/?igsh=cXFta2FoOGRkMDRz"}, {"id": "EDU_0348", "category": "EDUCATIONAL", "template": "The viral (insert noun) hack that landed me in (insert news/magazine outlet).", "exampleUrl": "https://www.instagram.com/reel/CzohD-xx_17/?igsh=MTJocjlmaW5vcWEzZg=="}, {"id": "EDU_0349", "category": "EDUCATIONAL", "template": "I am a # generation (insert title) and I hope this shows you why you should (insert action) when (insert task).", "exampleUrl": "https://www.instagram.com/reel/DFOOvvaxdnT/?igsh=MTM5Z3JyMmU1MWJkcA=="}, {"id": "EDU_0350", "category": "EDUCATIONAL", "template": "Here are the # (insert noun) items you need to throw in the garbage right now.", "exampleUrl": "https://www.instagram.com/reel/DDgfQ8CqiQA/?igsh=cGw3YXVrYXFhbXpx"}, {"id": "EDU_0351", "category": "EDUCATIONAL", "template": "We\u2019re going to see if it\u2019s true, that (insert noun) are so filled with toxins that they don\u2019t burn when you hit them with a blow torch.", "exampleUrl": "https://www.instagram.com/reel/DEn8q3Av5Qw/?igsh=ZjhrcmIxMXhpcGJ0"}, {"id": "EDU_0352", "category": "EDUCATIONAL", "template": "Believe it or not, this simple device can prevent (insert pain point), (insert pain point), and (insert pain point).", "exampleUrl": "https://www.instagram.com/reel/C9QruINS4JX/?igsh=MXF2MWd2OWVnZXFqMw=="}, {"id": "EDU_0353", "category": "EDUCATIONAL", "template": "Here\u2019s why I never use a (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DDK76uDzcV2/?igsh=aWV1cXd1NHp6c2U3"}, {"id": "EDU_0354", "category": "EDUCATIONAL", "template": "Did you know you could take a (insert noun) like this, and quick (insert action).", "exampleUrl": "https://www.instagram.com/reel/DHV1A68Rl1I/?igsh=aWl3bml2a2dnenF5"}, {"id": "EDU_0355", "category": "EDUCATIONAL", "template": "Here are # (insert noun) as a (insert title) I would never own.", "exampleUrl": "https://www.instagram.com/reel/DGOAQp_xX5D/?igsh=dHM1a3NrYXlsMXM1"}, {"id": "EDU_0356", "category": "EDUCATIONAL", "template": "Want to find out what\u2019s hiding inside one of these (insert noun) when they are not properly maintenanced?", "exampleUrl": "https://www.instagram.com/reel/DD3L0x_yzh5/?igsh=MXV6bWI2bngyeGF5cw=="}, {"id": "EDU_0357", "category": "EDUCATIONAL", "template": "What I eat in a day on the (insert noun) diet.", "exampleUrl": "https://www.instagram.com/reel/DELePTnSGAD/?igsh=MWVwaHR5dmwwdG9qOQ=="}, {"id": "EDU_0358", "category": "EDUCATIONAL", "template": "These are # of (insert noun) I would not own as a (insert title).", "exampleUrl": "https://www.instagram.com/reel/DFF6w_INWWc/?igsh=ZXJ3OHp4c3VsbGVy"}, {"id": "EDU_0359", "category": "EDUCATIONAL", "template": "You should be able to look at her/his (insert noun) and see if come up to her/his (insert noun) here.", "exampleUrl": "https://www.instagram.com/reel/DIj99kYuTk0/?igsh=dGpkamZyMmhvYnF1"}, {"id": "EDU_0360", "category": "EDUCATIONAL", "template": "If you see (insert symptom), (insert symptom) especially on a (insert type of noun) you better worry about what\u2019s called (insert name).", "exampleUrl": "https://www.instagram.com/reel/DCkmbAcx2zN/?igsh=MTZkcmIyMHV4bDR4cQ=="}, {"id": "EDU_0361", "category": "EDUCATIONAL", "template": "If you have a (insert noun) and you see that the (insert noun) is (insert observation) that's a dead giveaway that they are (insert action).", "exampleUrl": "https://www.instagram.com/reel/DBZtE6ERLOK/?igsh=MWQ4cG84NmE1YTZncw=="}, {"id": "EDU_0362", "category": "EDUCATIONAL", "template": "(insert name), overused (insert noun)?", "exampleUrl": "https://www.instagram.com/reel/DDw2899RsgM/?igsh=a3VqZ3pyaDRkN3E5"}, {"id": "EDU_0363", "category": "EDUCATIONAL", "template": "Here are # human foods that can kill your (insert living thing).", "exampleUrl": "https://www.instagram.com/reel/DDZ30LXs9oL/?igsh=MXg3Y3N1dDZzZW5lMg=="}, {"id": "EDU_0364", "category": "EDUCATIONAL", "template": "Before you ever take you (insert living thing) on a (insert action) for the first time you need to watch this.", "exampleUrl": "https://www.instagram.com/reel/DFq5P8VSzVD/?igsh=ZXFoN3VsOHV0dmRr"}, {"id": "EDU_0365", "category": "EDUCATIONAL", "template": "Strange (insert noun) behaviors explained.", "exampleUrl": "https://www.instagram.com/reel/DF3E-zSuGCe/?igsh=YWJjdmVtOWt6YnVu"}, {"id": "EDU_0366", "category": "EDUCATIONAL", "template": "(insert name) what is your (insert title) trigger?", "exampleUrl": "https://www.instagram.com/reel/DHyUjujMh6O/?igsh=MWtjNWVyZmF0NGRsaA=="}, {"id": "EDU_0367", "category": "EDUCATIONAL", "template": "What\u2019s the most overrated (insert noun)?", "exampleUrl": "https://www.instagram.com/reel/DDPtPtwMZ9h/?igsh=ampodmR0ZHhvbGJr"}, {"id": "EDU_0368", "category": "EDUCATIONAL", "template": "The top # (insert noun) for (insert target audience).", "exampleUrl": "https://www.instagram.com/reel/DGlwOhMRkyG/?igsh=a293bmEydGlhNXFy"}, {"id": "EDU_0369", "category": "EDUCATIONAL", "template": "Here are the # (insert noun) that are the least likely to (insert result).", "exampleUrl": "https://www.instagram.com/reel/C6Zculqy94L/?igsh=Mzkyb2RoMW9kcWg0"}, {"id": "EDU_0370", "category": "EDUCATIONAL", "template": "If you (insert action) for (insert timeframe) what would happen?", "exampleUrl": "https://www.instagram.com/reel/DF-vR6fJuoY/?igsh=aHY0d3lyaTBiaTNy"}, {"id": "EDU_0371", "category": "EDUCATIONAL", "template": "This (insert noun) has something in it called (insert", "exampleUrl": "https://www.instagram.com/reel/DI6uLtcJhqi/"}, {"id": "EDU_0372", "category": "EDUCATIONAL", "template": "Here are # of things, every (insert person) should keep in their (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DIKsKR_PkNr/?igsh=MTJ1MjZyeXk1MmFreQ=="}, {"id": "EDU_0373", "category": "EDUCATIONAL", "template": "Man this, (insert noun) in (insert location) is trash. Maybe I should just get this cheap (insert noun). Yeah I wouldn't do that if I were you.", "exampleUrl": "https://www.instagram.com/reel/DE0C6tWPrdA/?igsh=bHJ5ZGpoYTBkZ2hs"}, {"id": "EDU_0374", "category": "EDUCATIONAL", "template": "This (insert noun) isn't bad for you. Yeah it has some (insert noun) but what does that even mean?", "exampleUrl": "https://www.instagram.com/reel/DIShYdlpxE_/?igsh=MXBnNDE0bGhwZGNsdQ=="}, {"id": "EDU_0375", "category": "EDUCATIONAL", "template": "So most people don\u2019t know that on a (insert noun) there is one (insert noun) every (insert noun) owner always (insert action).", "exampleUrl": "https://www.instagram.com/reel/DB7bgr7yH6v/?igsh=OGZwM2g0YjFzdjJ2"}, {"id": "EDU_0376", "category": "EDUCATIONAL", "template": "0 calorie (insert noun) I am not joking these are literally 0 calories.", "exampleUrl": "https://www.instagram.com/reel/DDvfNslO9bO/?igsh=MW51anowazI1OTByaw=="}, {"id": "EDU_0377", "category": "EDUCATIONAL", "template": "This guy bought a failing (insert type) company for (insert noun). Now it\u2019s worth over (insert $).", "exampleUrl": "https://www.instagram.com/reel/DEz3aett57y/?igsh=cjI1ZTZkaGxuanNh"}, {"id": "EDU_0378", "category": "EDUCATIONAL", "template": "Stop wearing (insert noun), it really is just like wearing (insert analogy to represent damage).", "exampleUrl": "https://www.instagram.com/reel/DGD75qfOv40/?igsh=MTBwcXdhdTExazBmaA=="}, {"id": "EDU_0379", "category": "EDUCATIONAL", "template": "We all have that one (insert label) in our life.", "exampleUrl": "https://www.instagram.com/reel/DG_UiWgyUgO/?igsh=eTdqYm42czV1OGM0"}, {"id": "EDU_0380", "category": "EDUCATIONAL", "template": "But it\u2019s just an (insert noun) and it\u2019s (insert positive) how bad could it be? Well this (insert noun) has the same amount of (insert metric) as # (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DD1SdWGv8WW/?igsh=cG4wcXBwNjR4Mzk="}, {"id": "EDU_0381", "category": "EDUCATIONAL", "template": "What if I told you that you could eat this entire jar of (insert noun) for less calories than 2 servings of their (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DG4GxNOuDk2/?igsh=YzI3ODhlaTRkbTk0"}, {"id": "EDU_0382", "category": "EDUCATIONAL", "template": "A # calorie deficit per day, for a month should be around (insert pounds/kilos) of weight loss.", "exampleUrl": "https://www.instagram.com/reel/DIjYAm5IQ_R/?igsh=MXNrOTA4NDJzNjFiYQ=="}, {"id": "EDU_0383", "category": "EDUCATIONAL", "template": "Welcome back to \u201cI can\u2019t (insert dream result)\u201d a series where I show you (insert routine/tutorial/steps to insert result) that take less than (insert time) to do/make.", "exampleUrl": "https://www.instagram.com/reel/DGD3gXtJSNH/?igsh=MW5tajcycHl3OXY4MQ=="}, {"id": "EDU_0384", "category": "EDUCATIONAL", "template": "What I am (insert verb) on my (insert goal) journey, (insert result) last month.", "exampleUrl": "https://www.instagram.com/reel/DEikNFLuFP2/?igsh=MXJrNHo5NThqNjZ4Mg=="}, {"id": "EDU_0385", "category": "EDUCATIONAL", "template": "If your (insert current state) you can\u2019t just (insert result) like everyone else.", "exampleUrl": "https://www.instagram.com/reel/C5B64cPIrhi/?igsh=MXZpYmlzc3RpNWFobA=="}, {"id": "EDU_0386", "category": "EDUCATIONAL", "template": "After over a decade of (insert action) here is what I wish someone would have told me from the start.", "exampleUrl": "https://www.instagram.com/reel/DImQ3laRb30/?igsh=MW9idTU1aWI2dTN4aw=="}, {"id": "EDU_0387", "category": "EDUCATIONAL", "template": "To everyone just doing (insert #) (insert action). Stop that.", "exampleUrl": "https://www.instagram.com/reel/DDSXasqCf_S/?igsh=MWtneXdyaHk4YnM0cg=="}, {"id": "EDU_0388", "category": "EDUCATIONAL", "template": "If you want to (insert dream result), (insert action) is the worst thing you can do.", "exampleUrl": "https://www.instagram.com/reel/DFGOcEtIjFv/?igsh=cGRsbjl6NzkwdA=="}, {"id": "EDU_0389", "category": "EDUCATIONAL", "template": "This is (insert metric) the exact same amount of (insert noun) you build everyday. If you (insert action) hard (insert #) times per week.", "exampleUrl": "https://www.instagram.com/reel/DCXFyoBobxU/?igsh=M3NtNzY2OHp2d3My"}, {"id": "EDU_0390", "category": "EDUCATIONAL", "template": "You want you (insert noun) to look like these? So did this guy.", "exampleUrl": "https://www.instagram.com/reel/DIJkuM_OW8I/?igsh=dWJiYTUwNWc5dXlp"}, {"id": "EDU_0391", "category": "EDUCATIONAL", "template": "If I had 90 days to go from being (insert current state) to (insert dream result) here\u2019s exactly how I would do it!", "exampleUrl": "https://www.instagram.com/reel/DE_2hH-M11D/?igsh=bGN4M2MzNjltaGln"}, {"id": "EDU_0392", "category": "EDUCATIONAL", "template": "You are (insert adjective) than you think.", "exampleUrl": "https://www.instagram.com/reel/DCmTJe5NpZ5/?igsh=c3poZmcycDZ4dWZn"}, {"id": "EDU_0393", "category": "EDUCATIONAL", "template": "You can put on/take off (insert metric) on your (insert mile/exercise/vertical/etc) in one workout with these simple tips.", "exampleUrl": "https://www.instagram.com/reel/DDxVEiCRlG8/?igsh=MW1zemVyMWh0MWZ4dQ=="}, {"id": "EDU_0394", "category": "EDUCATIONAL", "template": "If you have (insert symptom) you probably have (insert condition).", "exampleUrl": "https://www.instagram.com/reel/C8ht9iwpUk6/?igsh=dzVwbWRsaHdrYmp4"}, {"id": "EDU_0395", "category": "EDUCATIONAL", "template": "If you (insert action) but don't when to (insert action). You could be losing up to (insert metric) of you (insert dream result) without even realizing it.", "exampleUrl": "https://www.instagram.com/reel/DGLVKBUR6W0/?igsh=dm9tdTd6cGt4bDZj"}, {"id": "EDU_0396", "category": "EDUCATIONAL", "template": "If your (insert verb) (insert noun) and then (insert noun) and then (insert noun) that is literally the worst thing you could be doing.", "exampleUrl": "https://www.instagram.com/reel/DCCjwkbC7Oi/?igsh=MXNpZGJvdGRmdjU0aA=="}, {"id": "EDU_0397", "category": "EDUCATIONAL", "template": "The worst possible thing that can happen to a man/woman is developing (insert result).", "exampleUrl": "https://www.instagram.com/reel/DDfxpOkAk5a/?igsh=MTZkMDNjMWpuOGF1cg=="}, {"id": "EDU_0398", "category": "EDUCATIONAL", "template": "I grew about # (insert metric) in the past year at (insert age) by fixing my (insert condition) and (insert condition).", "exampleUrl": "https://www.instagram.com/reel/DEjBuqtxzZU/?igsh=MWxreTIycmhydjZzcQ=="}, {"id": "EDU_0399", "category": "EDUCATIONAL", "template": "Person #1: (insert large number) Person #2: What are you doing? Person #1: (insert action) I want to get a (insert dream result) before (insert time).", "exampleUrl": "https://www.instagram.com/reel/DI1viVSN5N9/?igsh=bDd2eG9iczRwZ3I1"}, {"id": "EDU_0400", "category": "EDUCATIONAL", "template": "So you want to impress you (insert person) when you (insert action) this (insert upcoming time).", "exampleUrl": "https://www.instagram.com/reel/DI2FmNmK-AN/?igsh=M284Y3o5ZXlxamg1"}, {"id": "EDU_0401", "category": "EDUCATIONAL", "template": "Person #1: What aren't my (insert noun) (insert adjective)? Person #2: It\u2019s because your (insert common mistake)", "exampleUrl": "https://www.instagram.com/reel/DCUaqmTzGkG/?igsh=MWlna2gyeXhvYmdrdA=="}, {"id": "EDU_0402", "category": "EDUCATIONAL", "template": "If you want to be the (insert adjective) person in the room, it all starts when you (insert action).", "exampleUrl": "https://www.instagram.com/reel/DDxd-jpvwNz/?igsh=b3I4ODBzdG5tMGIw"}, {"id": "EDU_0403", "category": "EDUCATIONAL", "template": "If you have (insert pain point) but not much time to (insert action) and you want to (insert result) then save these (insert noun) and (insert noun) steps/routines/tips.", "exampleUrl": "https://www.instagram.com/reel/DGbQ6H0t1Mv/?igsh=eW5yaWtyeTJzdzUx"}, {"id": "EDU_0404", "category": "EDUCATIONAL", "template": "I\u2019ve had a (insert drea result) since I was (insert age).", "exampleUrl": "https://www.instagram.com/reel/DHmabeBSFJT/?igsh=ZWUxbWJkNjBhaGV2"}, {"id": "EDU_0405", "category": "EDUCATIONAL", "template": "The reason I can (insert result) and be comfortable, not have any (insert pain point) is this right here.", "exampleUrl": "https://www.instagram.com/reel/DF0vHL3Pahk/?igsh=MTg1OGRxOWN0dDJ2bA=="}, {"id": "EDU_0406", "category": "EDUCATIONAL", "template": "I spent (insert #) whole years with (insert condition) so you don\u2019t have too.", "exampleUrl": "https://www.instagram.com/reel/C8fU6cyP3Hc/?igsh=MXF0aGVjNnZtMzJkaw=="}, {"id": "EDU_0407", "category": "EDUCATIONAL", "template": "I have a (insert metric) (insert noun) because this is one of my workouts/routines/steps/tips/strategies/methods.", "exampleUrl": "https://www.instagram.com/reel/DAB359mSW5F/?igsh=MTlleXp4Yms4Mm80Mw=="}, {"id": "EDU_0408", "category": "EDUCATIONAL", "template": "If you can\u2019t (insert skill), then follow this one minute routine/progressional/tutorial and you will have (insert skill) by the end of this video.", "exampleUrl": "https://www.instagram.com/reel/DEd6_6yJOi3/?igsh=MXN0bW9lb3QwcHVuaQ=="}, {"id": "EDU_0409", "category": "EDUCATIONAL", "template": "If your (insert current state) then the easiest way to have (insert dream state) is to have (insert result).", "exampleUrl": "https://www.instagram.com/reel/DGefW1ANb0D/?igsh=bXZreWliZ2thb2Vz"}, {"id": "EDU_0410", "category": "EDUCATIONAL", "template": "What would happen to you (insert noun) if you only (insert action) for an entire week.", "exampleUrl": "https://www.instagram.com/reel/DFyxVP4xBm6/?igsh=MXdmM2xhdTBlMDRjNA=="}, {"id": "EDU_0411", "category": "EDUCATIONAL", "template": "Taking a (insert noun) can increase your (insert result) but only with one strategy.", "exampleUrl": "https://www.instagram.com/reel/C_z-Hy2S4j7/?igsh=d3diN3lldGZ6cWZz"}, {"id": "EDU_0412", "category": "EDUCATIONAL", "template": "If you\u2019re serious about getting (insert result) then this is the only video you will ever need so save it for later and watch till the end.", "exampleUrl": "https://www.instagram.com/reel/CsVU4YTuQlg/?igsh=MWE3a2R0NWxqNXJrdQ=="}, {"id": "EDU_0413", "category": "EDUCATIONAL", "template": "If I had to start over and (insert verb) my (insert noun) from scratch, these are the only (insert noun) I would do for someone that is new to (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DGR8OoSsssd/?igsh=MTBmOG9nbjhrZ24zcg=="}, {"id": "EDU_0414", "category": "EDUCATIONAL", "template": "Let\u2019s see what\u2019s inside (insert noun).", "exampleUrl": "https://www.instagram.com/reel/C9z8e7aO6Z4/?igsh=MXdrZmdjaTZ3ZHI5cA=="}, {"id": "EDU_0415", "category": "EDUCATIONAL", "template": "This is the reason (insert noun) is the size they are.", "exampleUrl": "https://www.instagram.com/reel/DFUrWD3P_uA/?igsh=YzI4NmZveTc3ZDQy"}, {"id": "EDU_0416", "category": "EDUCATIONAL", "template": "Here is a tier list of the best (insert noun) sources based off of how good they are for you (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DCuVL0VPLjU/?igsh=MXgzZDd5NXNvaG02aA=="}, {"id": "EDU_0417", "category": "EDUCATIONAL", "template": "I don\u2019t really show the (insert noun) a lot of love because I don\u2019t like (insert action) but today I am going to show you (insert action).", "exampleUrl": "https://www.instagram.com/reel/DExHLTotGlt/?igsh=MTRxN3c4bm13MzF4Mw=="}, {"id": "EDU_0418", "category": "EDUCATIONAL", "template": "What if I told you to (insert verb) # (insert noun) everyday?", "exampleUrl": "https://www.instagram.com/reel/DFKru9CSKpb/?utm_source=ig_web_copy_link"}, {"id": "EDU_0419", "category": "EDUCATIONAL", "template": "What would happen if you (insert dangerous action).", "exampleUrl": "https://www.instagram.com/reel/DHgpcAXJMT8/?igsh=cmVoZ3VvOGM0bDJo"}, {"id": "EDU_0420", "category": "EDUCATIONAL", "template": "F*ck it, I am going to role # of (insert noun) in 60 seconds.", "exampleUrl": "https://www.instagram.com/reel/DEnKwgGJi9p/?igsh=MWV0eTU3YjhuYndsbA=="}, {"id": "EDU_0421", "category": "EDUCATIONAL", "template": "This is what a full (insert time) (insert action) looks like at top # (insert school) in (insert location).", "exampleUrl": "https://www.instagram.com/reel/DFbEwDjTJh-/?igsh=anFpdWFkM2ExajZo"}, {"id": "EDU_0422", "category": "EDUCATIONAL", "template": "What\u2019s hommies, I am going to give you a cash course of what (insert noun) to ask for, based on what you want that (insert noun) to do for you.", "exampleUrl": "https://www.instagram.com/reel/DFD3FqAvSh9/?igsh=MW11eGZhNmF5bDBuZQ=="}, {"id": "EDU_0423", "category": "EDUCATIONAL", "template": "If your between the heights (insert height) to (insert height).", "exampleUrl": "https://www.instagram.com/reel/DEaf5GfpUy7/?igsh=MXNsaDJtNHlnd21jMA=="}, {"id": "EDU_0424", "category": "EDUCATIONAL", "template": "This is a great trick.", "exampleUrl": "https://www.instagram.com/reel/DJC1PslvU1Z/?igsh=a2QzbGZyMm92Y241"}, {"id": "EDU_0425", "category": "EDUCATIONAL", "template": "(insert $) in (insert time) and people still think you need a 9-5.", "exampleUrl": "https://www.instagram.com/reel/DIXVEpRSrDR/?igsh=MXA3a3FodmNwenNl"}, {"id": "EDU_0426", "category": "EDUCATIONAL", "template": "They say you can\u2019t (insert result) with (insert noun) but they're wrong.", "exampleUrl": "https://www.instagram.com/reel/C17LtU2Ltov/?igsh=bmkzMm1saG04cTdh"}, {"id": "EDU_0427", "category": "EDUCATIONAL", "template": "Here are # of pricing mistakes we made when starting our (insert business).", "exampleUrl": "https://www.instagram.com/reel/DGmFoxiSikU/?igsh=ZTdzenI5aDdhbDVq"}, {"id": "EDU_0428", "category": "EDUCATIONAL", "template": "# things I'd do if I were to re-start (insert industry/niche/occupation/hobby).", "exampleUrl": "https://www.instagram.com/reel/DGVJ3n3SGhc/?igsh=MXQwbWJwcGg2cjc1eA=="}, {"id": "EDU_0429", "category": "EDUCATIONAL", "template": "The (insert noun) of a (insert noun) will tell you a lot about the (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DGT9NI2pbX5/?igsh=MWhnaDh3NTZhdHA1eg=="}, {"id": "EDU_0430", "category": "EDUCATIONAL", "template": "Here are some space saving (insert noun) hacks that saved our small space.", "exampleUrl": "https://www.instagram.com/reel/DHWAfqwv5Xf/?igsh=cm93YWIwemxvZDYy"}, {"id": "EDU_0431", "category": "EDUCATIONAL", "template": "Do you feel (insert pain point) by your (insert noun) consistent (insert pain point).", "exampleUrl": "https://www.instagram.com/reel/DCXqEOfya7M/?igsh=MXRmZjR6M2VqbjdycA=="}, {"id": "EDU_0432", "category": "EDUCATIONAL", "template": "My friends and I turned this (insert adjective) (insert noun) into this (insert adjective) (insert noun) in just (insert time).", "exampleUrl": "https://www.instagram.com/reel/DG8YeQTs9XW/?igsh=MmFvMDh6MHV1cG53"}, {"id": "EDU_0433", "category": "EDUCATIONAL", "template": "What happened to (insert adjective) (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DA_7YdHo3S2/?igsh=MWwzZWxuOTdrODU5eA=="}, {"id": "EDU_0434", "category": "EDUCATIONAL", "template": "(insert noun) used to have (insert trait), now they don\u2019t.", "exampleUrl": "https://www.instagram.com/reel/C5rJryFoZZH/?igsh=MWFwcW94aDVzcTNkMg=="}, {"id": "EDU_0435", "category": "EDUCATIONAL", "template": "Here is a complete cost breakdown to build my (insert sqft) home.", "exampleUrl": "https://www.instagram.com/reel/DFBxNBuuKZw/?igsh=MTRoZHZhcDF6cG1k"}, {"id": "EDU_0436", "category": "EDUCATIONAL", "template": "It cost (insert $) to build my own (insert noun), acting as my own general contractor. Here is the complete coast breakdown.", "exampleUrl": "https://www.instagram.com/reel/C_oT5Ibpvlf/?igsh=cjI2cjI2dzRidTQ0"}, {"id": "EDU_0437", "category": "EDUCATIONAL", "template": "I paid (insert $) to build my own dream home and pool as an (insert title). Here is the complete cost breakdown.", "exampleUrl": "https://www.instagram.com/reel/C_J2pr9uWut/?igsh=MW8zaHN4bHB0OTFxdQ=="}, {"id": "EDU_0438", "category": "EDUCATIONAL", "template": "I\u2019ve (insert verb) over (insert #) of (insert noun) here are # things I would never do.", "exampleUrl": "https://www.instagram.com/reel/DGgLtQEIgKH/?igsh=emgydmY5NzEyYnBv"}, {"id": "EDU_0439", "category": "EDUCATIONAL", "template": "If you want to (insert verb) in an exceptional (insert noun) you have got to stop half-assing things.", "exampleUrl": "https://www.instagram.com/reel/DDAJK6STXlR/?igsh=MWI4c2xpY3p1OXl1cw=="}, {"id": "EDU_0440", "category": "EDUCATIONAL", "template": "It\u2019s also super hard to get (insert result) especially with the (insert condition).", "exampleUrl": "https://www.instagram.com/reel/DENwo4Fvh6f/?igsh=dWVyMGZud3dteWs0"}, {"id": "EDU_0441", "category": "EDUCATIONAL", "template": "It has taken me # years if (insert occupation/skill/hobby) to realize I have been (insert action) wrong this entire time.", "exampleUrl": "https://www.instagram.com/reel/DFBJYnGyr_a/?igsh=b2NrM2o5MGw4OHhl"}, {"id": "EDU_0442", "category": "EDUCATIONAL", "template": "Remember (insert method/strategy name) for you next (insert noun).", "exampleUrl": "https://www.instagram.com/reel/C6a9V7vuein/?igsh=ZTNsd2QzZHBhbTJ2"}, {"id": "EDU_0443", "category": "EDUCATIONAL", "template": "Remember (insert #) (insert noun) combo for you next (insert noun).", "exampleUrl": "https://www.instagram.com/reel/C3nW4P4L_xf/?igsh=cXF5eno1eHVzMWY0"}, {"id": "EDU_0444", "category": "EDUCATIONAL", "template": "(insert industry/niche) tips for if you're broke.", "exampleUrl": "https://www.instagram.com/reel/DDkbXWpucvG/?igsh=dmI2NmgzbjExZzh0"}, {"id": "EDU_0445", "category": "EDUCATIONAL", "template": "What (insert noun) and (insert noun) do I really need?", "exampleUrl": "https://www.instagram.com/reel/DGoOJxMyffy/?igsh=OHF5NHJkbzB3dXow"}, {"id": "EDU_0446", "category": "EDUCATIONAL", "template": "Every time you (insert action) your passing you (insert adjective) (insert noun) just because you don\u2019t know what they are.", "exampleUrl": "https://www.instagram.com/reel/DEiHlooJM-L/?igsh=MWZ3dnl6anI3cTh4bA=="}, {"id": "EDU_0447", "category": "EDUCATIONAL", "template": "Alright you little DIY freaks here's how to build the sauciest (insert noun) of all time.", "exampleUrl": "https://www.instagram.com/reel/DGCUWxRJ0A4/?igsh=MWo2MzNvejQ5ZW5hNQ=="}, {"id": "EDU_0448", "category": "EDUCATIONAL", "template": "Normally I would never say this but please stop (insert action) until you're ready to (insert action).", "exampleUrl": "https://www.instagram.com/reel/DFVrVTFx1Cu/?igsh=cm56Zm11andjc2sx"}, {"id": "EDU_0449", "category": "EDUCATIONAL", "template": "(insert noun) for all the (insert condition) guys/girls out there.", "exampleUrl": "https://www.instagram.com/reel/DIj9O4Az5GC/?igsh=MWRpeGRrcGphb3o1eQ=="}, {"id": "EDU_0450", "category": "EDUCATIONAL", "template": "How to take better (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DFLP70LKvi1/?igsh=cXo1MWhodnNrYzg="}, {"id": "EDU_0451", "category": "EDUCATIONAL", "template": "This is every single (insert noun) in my collection.", "exampleUrl": "https://www.instagram.com/reel/DEaUlTYI47b/?igsh=MXhvcHVxZjZvZzd0bg=="}, {"id": "EDU_0452", "category": "EDUCATIONAL", "template": "Invest in (insert adjective) (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DGllDnGP4GS/?igsh=MXA2ZDE3NThvc2xjdg=="}, {"id": "EDU_0453", "category": "EDUCATIONAL", "template": "For people who (insert action) and are also into (insert noun) what the hell are we doing.", "exampleUrl": "https://www.instagram.com/reel/DAGWXZ5OnJ_/?igsh=a2NjMTRrMjl0dzk4"}, {"id": "EDU_0454", "category": "EDUCATIONAL", "template": "Here's how to build a good (insert noun) rotation.", "exampleUrl": "https://www.instagram.com/reel/DDkarIGP6Da"}, {"id": "EDU_0455", "category": "EDUCATIONAL", "template": "This guy has made (insert $) profit in one day using the technique he is about to use.", "exampleUrl": "https://www.instagram.com/reel/DFgTirDB5xe/?igsh=OG5pa2lnNTYwYzhw"}, {"id": "EDU_0456", "category": "EDUCATIONAL", "template": "This book will teach you more about the (insert niche/industry/topic) than all of these books here.", "exampleUrl": "https://www.instagram.com/reel/DE2qZvqoDAO/?igsh=MWUzanZ4ajNiemZxdA=="}, {"id": "EDU_0457", "category": "EDUCATIONAL", "template": "If you wear a (insert noun) or (insert noun) with (insert noun) and a different (insert trait) (insert noun) then you have (insert result).", "exampleUrl": "https://www.instagram.com/reel/DG1XhISy7_f/?"}, {"id": "EDU_0458", "category": "EDUCATIONAL", "template": "Every (insert noun) explained in one sentence.", "exampleUrl": "https://www.instagram.com/reel/DD7Z0GWJrMB/?igsh=MXBlNjF0YzF5c2tobg=="}, {"id": "EDU_0459", "category": "EDUCATIONAL", "template": "If you keep failing your (insert noun), just figure out where you're failing it.", "exampleUrl": "https://www.instagram.com/reel/DCUAbdBB_k_/?igsh=MTh5bWNwcjMyaTkyeA=="}, {"id": "EDU_0460", "category": "EDUCATIONAL", "template": "How long does it take to complete the impossible mile.", "exampleUrl": "https://www.instagram.com/reel/DEtSZ28PQi1/?igsh=MWxvcmN6cHl0bWpoMg=="}, {"id": "EDU_0461", "category": "EDUCATIONAL", "template": "(insert noun) is believed to be super bad for us. Causing (insert symptom), (insert symptom), (insert symptom), and even (insert symptom).", "exampleUrl": "https://www.instagram.com/reel/DIMbDQhsNyG/?igsh=MTl5dmVrbmV1OWgzdg=="}, {"id": "EDU_0462", "category": "EDUCATIONAL", "template": "(insert noun) can make you go bald!", "exampleUrl": "https://www.instagram.com/reel/DFnnhxyvDzC/?igsh=YXUxOGhoazRnc28w"}, {"id": "EDU_0463", "category": "EDUCATIONAL", "template": "I\u2019ll tell you a story, We have # (insert noun) that were invented to solve 3 different problems.", "exampleUrl": "https://www.instagram.com/reel/DF9D6aCT4R2/?igsh=NnVucjM3OWhkNnFj"}, {"id": "EDU_0464", "category": "EDUCATIONAL", "template": "(insert industry) tier list for 2025.", "exampleUrl": "https://www.instagram.com/reel/DG1WCj0PIML/?igsh=MWlwZzcydTdpc2V2aQ=="}, {"id": "EDU_0465", "category": "EDUCATIONAL", "template": "How to start your (insert noun) from scratch.", "exampleUrl": "https://www.instagram.com/reel/DG1VtMUSQ9h/?igsh=dzE3b3FlbXZjc3R6"}, {"id": "EDU_0466", "category": "EDUCATIONAL", "template": "Exposing the only (insert noun) you will ever need.", "exampleUrl": "https://www.instagram.com/reel/DBXc7jiofht/?igsh=MTIzMGllaHVhcW5xNg=="}, {"id": "EDU_0467", "category": "EDUCATIONAL", "template": "How to dress like a (insert person).", "exampleUrl": "https://www.instagram.com/reel/DCRJoGbo3oa/?igsh=d3Mzc3E4MWF2d3M="}, {"id": "EDU_0468", "category": "EDUCATIONAL", "template": "Every (insert store type) has a million (insert noun) with different (insert noun). But some of them are more special than others.", "exampleUrl": "https://www.instagram.com/reel/DEabsX3pRsJ/?igsh=ZmlkZ3draG16OXJq"}, {"id": "EDU_0469", "category": "EDUCATIONAL", "template": "This is exactly how you and your friends are going to get (insert result) before this (insert time).", "exampleUrl": "https://www.instagram.com/reel/DId6_M-AwGL/?igsh=bW8zc212eTR0Y3V5"}, {"id": "EDU_0470", "category": "EDUCATIONAL", "template": "If you\u2019re afraid to (insert action), then (insert action).", "exampleUrl": "https://www.instagram.com/reel/DHEL0_cRwNA/?igsh=MTRsY2phZ3d0MzFmag=="}, {"id": "EDU_0471", "category": "EDUCATIONAL", "template": "If you want to start a (insert noun) in (insert year) here are some things you are going to need.", "exampleUrl": "https://www.instagram.com/reel/DEdSzXhzTEH/?igsh=cXI2MDcyd2ZobHVy"}, {"id": "EDU_0472", "category": "EDUCATIONAL", "template": "Putting you on brands you may have never heard of.", "exampleUrl": "https://www.instagram.com/reel/DIOvPayMKgS/?igsh=bGlzMGJ2YXJkdG50"}, {"id": "COM_0001", "category": "COMPARISON", "template": "This is an (insert noun), and this is an (insert noun).", "exampleUrl": "https://www.instagram.com/p/DHiMzqvR_MQ/"}, {"id": "COM_0002", "category": "COMPARISON", "template": "This (insert noun) and this (insert noun) have the same amount of (insert noun).", "exampleUrl": "https://www.instagram.com/fitfoodieliving/reel/DBHpSdgRdvh/"}, {"id": "COM_0003", "category": "COMPARISON", "template": "A lot of people ask me what's better (insert option #1) or (insert option #2) for (insert dream result) I achieved (insert dream result) doing one of these and it's not even close.", "exampleUrl": "https://www.instagram.com/p/DHGn-H-xNeV/"}, {"id": "COM_0004", "category": "COMPARISON", "template": "For this (insert item) you could have all of these (insert item).", "exampleUrl": "https://www.instagram.com/reel/C27sCLIxGIu/"}, {"id": "COM_0005", "category": "COMPARISON", "template": "He/she always (insert action), and he/she does (insert action).", "exampleUrl": "https://www.instagram.com/reel/C9FQ-W1OJtc/"}, {"id": "COM_0006", "category": "COMPARISON", "template": "For this (insert noun), you could have all of (insert noun).", "exampleUrl": "https://www.instagram.com/alexgamblecoach/reel/C3r2FM5vhAH/"}, {"id": "COM_0007", "category": "COMPARISON", "template": "This (option #1) has (insert noun) in it, and (option #2) has (insert noun) in it.", "exampleUrl": "https://www.instagram.com/reel/DBTo-UctI9R/"}, {"id": "COM_0008", "category": "COMPARISON", "template": "This group didn't (insert action) and this group did.", "exampleUrl": "https://www.instagram.com/reel/C9wOIgSJZG1/?utm_source=ig_web_copy_link"}, {"id": "COM_0009", "category": "COMPARISON", "template": "For this (insert noun), you could have this whole (insert noun).", "exampleUrl": "https://www.instagram.com/noahperlofit/reel/C3dwIEGxeB0/"}, {"id": "COM_0010", "category": "COMPARISON", "template": "This is (insert metric) of (insert noun) for (insert price), and this is also (insert metric) of (insert noun) for (insert price).", "exampleUrl": "https://www.instagram.com/p/DCj8U4WJPmj/"}, {"id": "COM_0011", "category": "COMPARISON", "template": "How long would it take you to go from (insert before state) like this (with pain point) to (insert dream result) with (insert desire).", "exampleUrl": "https://www.instagram.com/share/BAFmRk0wS1"}, {"id": "COM_0012", "category": "COMPARISON", "template": "If you're between the ages # - # and you want to become (insert dream result) and I mean really (insert dream result). Then you have to do these # things.", "exampleUrl": "https://www.instagram.com/share/_o1hsHAQW"}, {"id": "COM_0013", "category": "COMPARISON", "template": "This (insert noun) has (insert metric) and will get you (insert dream result), and this (insert noun) has (insert metric) and will get you (insert dream result).", "exampleUrl": "https://www.instagram.com/p/DC2OpMNJMG2/"}, {"id": "COM_0014", "category": "COMPARISON", "template": "One (insert noun), and # of my (insert noun) have the same (insert metric).", "exampleUrl": "https://www.instagram.com/p/DHCafPPxo3w/"}, {"id": "COM_0015", "category": "COMPARISON", "template": "This is a (insert noun) from (insert restaurant/store/place) for (insert metric), and this is the same (insert noun) from (insert restaurant/store/place) for (insert metric).", "exampleUrl": "https://www.instagram.com/p/DDP3euvJPC4/"}, {"id": "COM_0016", "category": "COMPARISON", "template": "This is a (insert noun), this is also a (insert noun).", "exampleUrl": "https://www.instagram.com/p/DIYZKjtxK7Z/"}, {"id": "COM_0017", "category": "COMPARISON", "template": "This is (insert noun) before you (insert action), this is (insert noun) after you (insert action).", "exampleUrl": "https://www.instagram.com/p/DDfEcIyTncw/"}, {"id": "COM_0018", "category": "COMPARISON", "template": "These two groups (insert similar result) but this group (insert result).", "exampleUrl": "https://www.instagram.com/tombaileypt/reel/C9bg-usp89W/"}, {"id": "COM_0019", "category": "COMPARISON", "template": "The (insert noun) offers you a (option #1) and a (option #2) what do you choose?", "exampleUrl": "https://www.instagram.com/share/_-96Kqts3"}, {"id": "COM_0020", "category": "COMPARISON", "template": "(insert #) (insert noun) I would have this one if I was (insert verb), and I would have this one if I was (insert verb).", "exampleUrl": "https://www.instagram.com/p/DEyUjeIyn-w/"}, {"id": "COM_0021", "category": "COMPARISON", "template": "This is (insert noun) at (insert metric), and it's perfect for (insert verb). This is (insert noun) at (insert metric).", "exampleUrl": "https://www.instagram.com/p/DFckqW0T8cM/"}, {"id": "COM_0022", "category": "COMPARISON", "template": "This is (insert metric) of (insert noun), this is also (insert metric).", "exampleUrl": "https://www.instagram.com/p/DHGElSpPqeu/"}, {"id": "COM_0023", "category": "COMPARISON", "template": "(insert metric) and (insert metric) both sides are (insert adjective) and look the same. Let\u2019s see why.", "exampleUrl": "https://www.instagram.com/p/DIO0xJypZvT/"}, {"id": "COM_0024", "category": "COMPARISON", "template": "(insert result) (insert noun) vs. (insert result) (insert noun).", "exampleUrl": "https://www.instagram.com/p/DFOBiz0ptWc/"}, {"id": "COM_0025", "category": "COMPARISON", "template": "Both these (insert noun) are exactly the same. I have not changed a single (insert noun). But this one is (insert metic) and this one is (insert metric).", "exampleUrl": "https://www.instagram.com/p/DB67qDIih-2/"}, {"id": "COM_0026", "category": "COMPARISON", "template": "Would you feel more (insert trait) in this (insert noun) or this one?", "exampleUrl": "https://www.instagram.com/p/DGYr4vMKo3T/"}, {"id": "COM_0027", "category": "COMPARISON", "template": "Both groups gained the same amount of (insert noun). Expect this grouped (insert action) # days a week, and this group (insert action) #.", "exampleUrl": "https://www.instagram.com/reel/DCRDDUuC1YL/?igsh=eTA3eTV6OGt3dG5x"}, {"id": "COM_0028", "category": "COMPARISON", "template": "Cheap vs. Expensive (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DFXKXBaPyn0/?igsh=NDVuNG90bHNhOXY="}, {"id": "COM_0029", "category": "COMPARISON", "template": "You will (insert result) a week if you (insert action) on a (insert journey). But you will only (insert result) this much a week if you (insert action) on a (insert journey).", "exampleUrl": "https://www.instagram.com/reel/DG0qjQ7S-GD/?igsh=cndidHU3NXZwd282"}, {"id": "COM_0030", "category": "COMPARISON", "template": "This is what your (insert noun) looks like when you don\u2019t take (insert noun). And this is what your (insert noun) looks like when you take (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DIn291GI4Fa/?igsh=b294b3ZyMmx5bDJk"}, {"id": "COM_0031", "category": "COMPARISON", "template": "This is me after (insert action) in the (insert location) with (insert condition). And this is me just (insert action) in the middle of (insert location).", "exampleUrl": "https://www.instagram.com/reel/DDNgWJliAUR/?igsh=MW03ZndyNWo4bXlodA=="}, {"id": "MYT_0001", "category": "MYTH BUSTING", "template": "(insert item) (insert fact), (insert complete opposite item) (insert similar fact).", "exampleUrl": "https://www.instagram.com/reel/C_bBILMsNzh/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWFlZA=="}, {"id": "MYT_0002", "category": "MYTH BUSTING", "template": "This is why doing (insert action) makes you (insert pain point).", "exampleUrl": "https://www.instagram.com/p/C8BpxhQNKCj/"}, {"id": "MYT_0003", "category": "MYTH BUSTING", "template": "This is how you (insert dream result) while (insert guilty pleasure).", "exampleUrl": "https://www.instagram.com/p/C3spnM9IOKG/"}, {"id": "MYT_0004", "category": "MYTH BUSTING", "template": "(insert item) (insert fact), (insert item) (insert similar fact), (insert complete opposite item) (insert similar fact).", "exampleUrl": "https://www.instagram.com/p/DDmz346s6x2/"}, {"id": "MYT_0005", "category": "MYTH BUSTING", "template": "If you're really a (insert dream result), why aren\u2019t you doing (insert common belief)?", "exampleUrl": "https://www.instagram.com/reel/DEPpiQkobO7/"}, {"id": "MYT_0006", "category": "MYTH BUSTING", "template": "Just because you do (insert action) doesn't make you a good (insert label).", "exampleUrl": "https://www.instagram.com/reel/DHrRQ2uv22F/"}, {"id": "MYT_0007", "category": "MYTH BUSTING", "template": "This is what (insert number) of (insert item) looks like.", "exampleUrl": "https://www.instagram.com/p/C60q1FPPrLW/"}, {"id": "MYT_0008", "category": "MYTH BUSTING", "template": "If you are (insert action) just once per (month/day/year) than you are f*ucked.", "exampleUrl": "https://www.instagram.com/reel/DAvjqruooP3/?igsh=cXcwcnAyMmo1ZTFv"}, {"id": "MYT_0009", "category": "MYTH BUSTING", "template": "This is me when I (insert action) (insert frequency), and this is me still (insert action) (insert frequency).", "exampleUrl": "https://www.instagram.com/p/DAmA1Wnqh4X/"}, {"id": "MYT_0010", "category": "MYTH BUSTING", "template": "No your (insert noun) is not cause (insert result).", "exampleUrl": "https://www.instagram.com/p/DCeVnXro9Xd/"}, {"id": "MYT_0011", "category": "MYTH BUSTING", "template": "Let me de-influence you from (insert action).", "exampleUrl": "https://www.instagram.com/reel/DEXaRPkOSjV/?igsh=MXYxZm05YzRzdXVyMg%3D%3D"}, {"id": "MYT_0012", "category": "MYTH BUSTING", "template": "More (insert target audience) need to hear this, (insert common belief) will not (insert result).", "exampleUrl": "https://www.instagram.com/reel/C_oaRbkuJaG/"}, {"id": "MYT_0013", "category": "MYTH BUSTING", "template": "It's time to throw away your (insert item), you don\u2019t need it anymore.", "exampleUrl": "https://www.instagram.com/reel/C6qt2B4NKA1/"}, {"id": "MYT_0014", "category": "MYTH BUSTING", "template": "They said, \u201c(insert famous clich\u00e9 or quote)\u201d That's a lie.", "exampleUrl": "https://www.instagram.com/reel/DDmm7AXxKLa/"}, {"id": "MYT_0015", "category": "MYTH BUSTING", "template": "Don't (insert action) until you've done this one thing.", "exampleUrl": "https://www.instagram.com/p/DA0kc0DCM0h/"}, {"id": "MYT_0016", "category": "MYTH BUSTING", "template": "Stop using (insert item) for (insert result).", "exampleUrl": "https://www.instagram.com/p/DBe3QaNyQEi/"}, {"id": "MYT_0017", "category": "MYTH BUSTING", "template": "You cannot be (insert dream result) before you enter (insert age group).", "exampleUrl": "https://www.instagram.com/p/DBROBQTK9De/"}, {"id": "MYT_0018", "category": "MYTH BUSTING", "template": "I stopped acting like the (insert person/title) in my life and you shouldn't be the (insert person/title) either.", "exampleUrl": "https://www.instagram.com/p/C9pwV7rPMVo//www.instagram.com/p/C-3m2q5pkLq/"}, {"id": "MYT_0019", "category": "MYTH BUSTING", "template": "Your life is boring because you don\u2019t (insert action).", "exampleUrl": "https://www.instagram.com/reel/DFAr9dPA4F4/?igsh=eWVxamg2eDF2cTBt"}, {"id": "MYT_0020", "category": "MYTH BUSTING", "template": "This is (insert large number) worth of (insert noun).", "exampleUrl": "https://www.instagram.com/georgiaheins/reel/C-QS"}, {"id": "MYT_0021", "category": "MYTH BUSTING", "template": "Just because you have never (insert action) before, doesn't make you a (insert label) person.", "exampleUrl": "https://www.instagram.com/p/DGb8XGgtwN5/"}, {"id": "MYT_0022", "category": "MYTH BUSTING", "template": "This is how we think we (insert pain point), but you would have to (insert action) on top of (insert action) # of times for that to happen.", "exampleUrl": "https://www.instagram.com/alexgamblecoach/reel/C9Zb1ZOP-Tl/"}, {"id": "MYT_0023", "category": "MYTH BUSTING", "template": "(Insert noun) is actually a really good (Insert noun) for (insert result).", "exampleUrl": "https://www.instagram.com/reel/C5yQUs6LQMM/?utm_source=ig_web_copy_link"}, {"id": "MYT_0024", "category": "MYTH BUSTING", "template": "# things I would never (insert action) in my (insert age range) if I wanted to (insert dream result) by (insert age range).", "exampleUrl": "https://www.instagram.com/share/BAGNNxOLAP"}, {"id": "MYT_0025", "category": "MYTH BUSTING", "template": "If you look in the mirror and notice (insert observation) here's what you do to (insert dream result).", "exampleUrl": "https://www.instagram.com/share/BAPOeL5mmh"}, {"id": "MYT_0026", "category": "MYTH BUSTING", "template": "I haven't done (insert common action) in over # years, and it's healed (insert noun).", "exampleUrl": "https://www.instagram.com/p/DGTiPPMygzM/"}, {"id": "MYT_0027", "category": "MYTH BUSTING", "template": "(insert dream outcome) that don't taste/look like pure bootyhole.", "exampleUrl": "https://www.instagram.com/p/DG8lDUFoouT/"}, {"id": "MYT_0028", "category": "MYTH BUSTING", "template": "You are not (insert bad label), you are not (insert bad label), you just can't (insert adjective) .", "exampleUrl": "https://www.instagram.com/p/DBWFRQqO3Nt/"}, {"id": "MYT_0029", "category": "MYTH BUSTING", "template": "My biggest regret in (insert life event) was (insert accomplishment).", "exampleUrl": "https://www.instagram.com/p/C22y9caxGf6/"}, {"id": "MYT_0030", "category": "MYTH BUSTING", "template": "(insert action) I have never (insert action) before, to prove (insert action) is easy.", "exampleUrl": "https://www.instagram.com/p/DDh_Y0PzPi9/"}, {"id": "MYT_0031", "category": "MYTH BUSTING", "template": "For the price of this many (insert noun) at the (insert place/store/restaurant) you could make this many at home.", "exampleUrl": "https://www.instagram.com/p/DCKUo2tSsBe/"}, {"id": "MYT_0032", "category": "MYTH BUSTING", "template": "If you (insert action) this (insert noun) then yes i'm judging you.", "exampleUrl": "https://www.instagram.com/p/DIKYWrVpgp4/"}, {"id": "MYT_0033", "category": "MYTH BUSTING", "template": "You are (insert action) too many (insert noun) that you didn't know.", "exampleUrl": "https://www.instagram.com/p/DHzxZ28x4KX/"}, {"id": "MYT_0034", "category": "MYTH BUSTING", "template": "I have never met a single person that (insert action), (insert action), (insert action), (insert action), and still has time to (insert dream result).", "exampleUrl": "https://www.instagram.com/p/C84rOEixNKS/"}, {"id": "MYT_0035", "category": "MYTH BUSTING", "template": "(insert well known person or brand) is trying to get this video removed from the internet because he/she exposes their product for being (insert negative result). Watch this now before it's gone.", "exampleUrl": "https://www.instagram.com/p/DB7OnuqSYBr/"}, {"id": "MYT_0036", "category": "MYTH BUSTING", "template": "What if I told you making your own (insert noun) is actually super easy and only costs (insert price).", "exampleUrl": "https://www.instagram.com/p/DH1SDq_qBny/"}, {"id": "MYT_0037", "category": "MYTH BUSTING", "template": "I said it before and I am going to say it again (insert mind blowing fact).", "exampleUrl": "https://www.instagram.com/p/DDFJKmqozH6/"}, {"id": "MYT_0038", "category": "MYTH BUSTING", "template": "There is absolutely no reason for you to be (insert pain point) every single day just because you are trying to (insert dream result).", "exampleUrl": "https://www.instagram.com/p/DHaw56FzsOe/"}, {"id": "MYT_0039", "category": "MYTH BUSTING", "template": "Don\u2019t make the mistake of (insert action), (insert action), (insert action).", "exampleUrl": "https://www.instagram.com/p/DIFEWODyeM0/"}, {"id": "MYT_0040", "category": "MYTH BUSTING", "template": "You are not bad at (insert action), you probably were just never taught how to (insert action).", "exampleUrl": "https://www.instagram.com/p/DHYuMQYp0Kv/"}, {"id": "MYT_0041", "category": "MYTH BUSTING", "template": "If you\u2019re a young (insert person) and you are a (insert result) (insert title), let me tell you something you got a bright future buddy.", "exampleUrl": "https://www.instagram.com/p/DIfDhHqTlkW/"}, {"id": "MYT_0042", "category": "MYTH BUSTING", "template": "I can\u2019t (insert verb) (insert noun) anymore.", "exampleUrl": "https://www.instagram.com/p/DIyeda6xw9w/"}, {"id": "MYT_0043", "category": "MYTH BUSTING", "template": "Believe it or not this (insert noun) was not (insert verb) with a (insert noun).", "exampleUrl": "https://www.instagram.com/p/C2SNZy0gL-x/"}, {"id": "MYT_0044", "category": "MYTH BUSTING", "template": "(insert noun) are not (insert adjective) and they are not a cop-out. I think they can actually be made into something really really (insert adjective).", "exampleUrl": "https://www.instagram.com/p/DHRsoELBphP/"}, {"id": "MYT_0045", "category": "MYTH BUSTING", "template": "If your (insert noun) are not lasting you at least (insert time frame) you are probably doing them wrong.", "exampleUrl": "https://www.instagram.com/p/DETLyaexWaQ/"}, {"id": "MYT_0046", "category": "MYTH BUSTING", "template": "This is why you should always (insert verb) your (insert noun) before (insert verb).", "exampleUrl": "https://www.instagram.com/p/DHU2-6vxXxm/"}, {"id": "MYT_0047", "category": "MYTH BUSTING", "template": "You're using your (insert noun) wrong and I am going to show you how to use it the right way.", "exampleUrl": "https://www.instagram.com/p/DIOwnaJJ976/"}, {"id": "MYT_0048", "category": "MYTH BUSTING", "template": "Everyone on the internet is going to tell you making (insert noun) is impossible. But I am going to show you how to make them from home.", "exampleUrl": "https://www.instagram.com/p/DF6K0b0Rt9b/"}, {"id": "MYT_0049", "category": "MYTH BUSTING", "template": "I will let you in on a secret (insert verb) is the easiest thing in the world.", "exampleUrl": "https://www.instagram.com/p/DDHW7loz2jm/"}, {"id": "MYT_0050", "category": "MYTH BUSTING", "template": "Are you still (insert verb) (insert noun) like this? While I worked at (insert noun) and let me show you how to do it like a pro.", "exampleUrl": "https://www.instagram.com/p/DGdz4nPSXvz/"}, {"id": "MYT_0051", "category": "MYTH BUSTING", "template": "Instead of (insert verb) (insert noun) like this, try this method instead.", "exampleUrl": "https://www.instagram.com/p/DH9gry2heFS/"}, {"id": "MYT_0052", "category": "MYTH BUSTING", "template": "(insert verb) does not mean your (insert adjective), it means your just (insert adjective).", "exampleUrl": "https://www.instagram.com/p/DAw01riSVei/"}, {"id": "MYT_0053", "category": "MYTH BUSTING", "template": "If you (insert action) like this, then you're doing it wrong.", "exampleUrl": "https://www.instagram.com/p/DHcv_7uBv1p/"}, {"id": "MYT_0054", "category": "MYTH BUSTING", "template": "I am going to hold you hand while I tell you this. If you only have # of (insert noun) you are not doing it the right way.", "exampleUrl": "https://www.instagram.com/p/DCZ9dK9Jjlw/"}, {"id": "MYT_0055", "category": "MYTH BUSTING", "template": "# things you should never put in your (insert noun).", "exampleUrl": "https://www.instagram.com/p/DDxoAs_TciE/"}, {"id": "MYT_0056", "category": "MYTH BUSTING", "template": "(insert noun) are not as disgusting as you think.", "exampleUrl": "https://www.instagram.com/reel/DHBslKRvZ7_/?igsh=MW83azY5b2s2YTEzag=="}, {"id": "MYT_0057", "category": "MYTH BUSTING", "template": "(insert noun) is better for (insert result) than (insert noun). And yes I am going to back up my claim with studies.", "exampleUrl": "https://www.instagram.com/reel/DFYHUihoaFK/?igsh=MXF3ZDZ2dmRwZmZpeA=="}, {"id": "MYT_0058", "category": "MYTH BUSTING", "template": "Being (insert result) is not just based on (insert noun). You may not believe this but I could have been (insert adjective) then this guy/girl if I had just changed a few things.", "exampleUrl": "https://www.instagram.com/reel/DH2VMvQNFXc/?igsh=MTNrejltdnZ3YW94eg%3D%3D"}, {"id": "STO_0001", "category": "STORYTELLING", "template": "I started my (insert business) when I was (insert age) with (insert $).", "exampleUrl": "https://www.instagram.com/p/C9GHw6MO48j/"}, {"id": "STO_0002", "category": "STORYTELLING", "template": "X years ago my (insert person) told me (insert quote).", "exampleUrl": "https://www.instagram.com/p/C84meBcM9NB/"}, {"id": "STO_0003", "category": "STORYTELLING", "template": "I have (insert time) to get my sh*t together.", "exampleUrl": "https://www.instagram.com/reel/C79z4euRhlV/"}, {"id": "STO_0004", "category": "STORYTELLING", "template": "I don\u2019t have a backup plan so this kind of needs to work.", "exampleUrl": "https://www.instagram.com/p/C7XpT7tPwCP/"}, {"id": "STO_0005", "category": "STORYTELLING", "template": "This is how my (insert event/item/result) changed my life.", "exampleUrl": "https://www.instagram.com/p/C9t1s7myhI7/"}, {"id": "STO_0006", "category": "STORYTELLING", "template": "So about a month ago my (insert person) and I did (insert action).", "exampleUrl": "https://www.instagram.com/p/DImqKRqy4xr/"}, {"id": "STO_0007", "category": "STORYTELLING", "template": "I have (insert action) over (insert #) in my life.", "exampleUrl": "https://www.instagram.com/p/C9GM_SJpJ3k/"}, {"id": "STO_0008", "category": "STORYTELLING", "template": "This is a picture of my (insert what picture is).", "exampleUrl": "https://www.instagram.com/reel/C_njKwBOuLi/"}, {"id": "STO_0009", "category": "STORYTELLING", "template": "X years ago I decided to (insert decision).", "exampleUrl": "https://www.instagram.com/p/C-IOTqUtbth/"}, {"id": "STO_0010", "category": "STORYTELLING", "template": "Yesterday I was at (insert location) when I noticed something (insert adjective).", "exampleUrl": "https://www.instagram.com/reel/DFLw3SmSNti/"}, {"id": "STO_0011", "category": "STORYTELLING", "template": "X years ago I was (insert action) because I (insert pain", "exampleUrl": "https://www.instagram.com/reel/DEq8rUQyR92/"}, {"id": "STO_0012", "category": "STORYTELLING", "template": "Is it possible to (insert action) while (insert action) in X days.", "exampleUrl": "https://www.instagram.com/reel/DEgmPM_yqsz/"}, {"id": "STO_0013", "category": "STORYTELLING", "template": "When is it time to do (insert action).", "exampleUrl": "https://www.instagram.com/reel/DDrwl5ix3a0/?igsh=MW14dGUybG5rYnhxdQ=="}, {"id": "STO_0014", "category": "STORYTELLING", "template": "So I did (insert action) last week.", "exampleUrl": "https://www.instagram.com/share/BAIu4m7QIH"}, {"id": "STO_0015", "category": "STORYTELLING", "template": "When I was (insert description) I was always (insert bad habit).", "exampleUrl": "https://www.instagram.com/p/CzevtHvyxxX/"}, {"id": "STO_0016", "category": "STORYTELLING", "template": "If you are anything like me, you take your (insert event/item) very seriously.", "exampleUrl": "https://www.instagram.com/p/DBnbVTMSaJb/"}, {"id": "STO_0017", "category": "STORYTELLING", "template": "In (insert time), I went from (insert before state) to (insert after state).", "exampleUrl": "https://www.instagram.com/reel/DFfnKFWusVf/?igsh=MXE1d3ZybnJ6eXIwZg=="}, {"id": "STO_0018", "category": "STORYTELLING", "template": "X years ago we (insert action) to (insert result).", "exampleUrl": "https://www.instagram.com/p/C_ZVKRfSMm_/"}, {"id": "STO_0019", "category": "STORYTELLING", "template": "Hi I am (insert first name) and I am starting (insert business) from scratch.", "exampleUrl": "https://www.instagram.com/reel/DDEBm2jOYMG/?igsh=cXl6cjNwc3pnajF4"}, {"id": "STO_0020", "category": "STORYTELLING", "template": "This is the story of how I managed to do (insert achievement).", "exampleUrl": "https://www.instagram.com/reel/DCg1__Wsy7F/?igsh=ZGhrM3B5eTVrZzht"}, {"id": "STO_0021", "category": "STORYTELLING", "template": "I am (insert age) having an identity crisis.", "exampleUrl": "https://www.instagram.com/reel/DDJM-ivP9-v/?igsh=ZDh0bG51azdpMDc0"}, {"id": "STO_0022", "category": "STORYTELLING", "template": "(# days/months/years) ago I quit (insert thing).", "exampleUrl": "https://www.instagram.com/reel/C-5yJQmoPsM/?igsh=ejRheHR1ODg4NW83"}, {"id": "STO_0023", "category": "STORYTELLING", "template": "This is probably the scariest thing I have ever done.", "exampleUrl": "https://www.instagram.com/reel/DAYtnokvm-J/?igsh=dmN0ZTNudGtodGpr"}, {"id": "STO_0024", "category": "STORYTELLING", "template": "This girl/boy was in her/his flop era.", "exampleUrl": "https://www.instagram.com/reel/DAOowDot7OB/?igsh=MW9ibGhiNHhsZjRweg%3D%3D"}, {"id": "STO_0025", "category": "STORYTELLING", "template": "Is it possible for (insert description) to make (insert $) a month?", "exampleUrl": "https://www.instagram.com/reel/DFkNykWxPoe/?igsh=OXQ0ODJkcmlpeml0"}, {"id": "STO_0026", "category": "STORYTELLING", "template": "I did everything right.", "exampleUrl": "https://www.instagram.com/p/DDohj4MI-7U/"}, {"id": "STO_0027", "category": "STORYTELLING", "template": "So I recently started feeling \"the pressure\" everyone talks about.", "exampleUrl": "https://www.instagram.com/reel/C9KNzOkIk6m/?igsh=MTAzOGQ1Zm53OXNjaw%3D%3D"}, {"id": "STO_0028", "category": "STORYTELLING", "template": "Can you (insert dream result) after (insert shortcut).", "exampleUrl": "https://www.instagram.com/reel/C6uGU4xxKV_/"}, {"id": "STO_0029", "category": "STORYTELLING", "template": "After X years of I (insert action) because I realized one thing: (insert statement).", "exampleUrl": "https://www.instagram.com/reel/DEJiasASTVx/"}, {"id": "STO_0030", "category": "STORYTELLING", "template": "It all started when (insert person) (insert action).", "exampleUrl": "https://www.instagram.com/p/DC5ioSRMrnS/"}, {"id": "STO_0031", "category": "STORYTELLING", "template": "X years ago (insert people) (insert action).", "exampleUrl": "https://www.instagram.com/p/C_50kObxUwc/"}, {"id": "STO_0032", "category": "STORYTELLING", "template": "I'm (insert action) in (insert time) and I just (insert action).", "exampleUrl": "https://www.instagram.com/p/DFf7WpdREbp/"}, {"id": "STO_0033", "category": "STORYTELLING", "template": "1 Year Ago today, I ___.", "exampleUrl": "https://www.instagram.com/reel/DDvdqxIJcbe/?igsh=MWZxZDI1Z25vcnlibw%3D%3D"}, {"id": "STO_0034", "category": "STORYTELLING", "template": "I'm (insert age) and I'm not ashamed to admit that >>", "exampleUrl": "https://www.instagram.com/reel/DFOqo61NrJu/?igsh=MnIyNnFrczB0aDBx"}, {"id": "STO_0035", "category": "STORYTELLING", "template": "When I (insert action), people said (insert feedback).", "exampleUrl": "https://www.instagram.com/reel/DEj-ntbyxb_/?igsh=MW8xdjFpYWRtc2hmdQ=="}, {"id": "STO_0036", "category": "STORYTELLING", "template": "X days/weeks/months/years into my (insert action), my worst nightmare became my reality.", "exampleUrl": "https://www.instagram.com/p/DETO9Z0u5cN/"}, {"id": "STO_0037", "category": "STORYTELLING", "template": "It all started when this boy/girl, (insert action).", "exampleUrl": "https://www.instagram.com/p/DC5ioSRMrnS/"}, {"id": "STO_0038", "category": "STORYTELLING", "template": "X days/weeks/months ago my (insert person) and I (insert action), (insert action), and (insert action) this is how it's going.", "exampleUrl": "https://www.instagram.com/p/C_50kObxUwc/"}, {"id": "STO_0039", "category": "STORYTELLING", "template": "I started my (insert business) when I was (insert age) with (insert $)", "exampleUrl": "https://www.instagram.com/p/C9GHw6MO48j/"}, {"id": "STO_0040", "category": "STORYTELLING", "template": "X days/months/years ago my (insert person) told me (insert statement)", "exampleUrl": "https://www.instagram.com/p/C84meBcM9NB/"}, {"id": "STO_0041", "category": "STORYTELLING", "template": "When I (insert action), people said (insert feedback)", "exampleUrl": "https://www.instagram.com/reel/DEj-ntbyxb_/?igsh=MW8xdjFpYWRtc2hmdQ=="}, {"id": "STO_0042", "category": "STORYTELLING", "template": "I woke up this morning thinking about (insert thought)", "exampleUrl": "https://www.instagram.com/reel/DEtoEgJSVhy/"}, {"id": "STO_0043", "category": "STORYTELLING", "template": "X days/months/years I (insert life event) and decided to quit (insert bad habit)", "exampleUrl": "https://www.instagram.com/reel/DEd9AFGydqg/"}, {"id": "STO_0044", "category": "STORYTELLING", "template": "X days/months/years I started (insert action) again after being stuck at (insert pain point)", "exampleUrl": "https://www.instagram.com/reel/DEUEvFzyL_o/"}, {"id": "STO_0045", "category": "STORYTELLING", "template": "X days/months/years I started (insert action) thinking it would magically solve (insert pain point) but here is what ended up happening", "exampleUrl": "https://www.instagram.com/reel/DDY83YuSJ-9/"}, {"id": "STO_0046", "category": "STORYTELLING", "template": "I am an X year old (insert occupation) from (insert location) and I just (insert action)", "exampleUrl": "https://www.instagram.com/reel/DDWIHZESamL/"}, {"id": "STO_0047", "category": "STORYTELLING", "template": "I don\u2019t have a backup plan so this kind of needs to work\u2026", "exampleUrl": "https://www.instagram.com/p/C7XpT7tPwCP/"}, {"id": "STO_0048", "category": "STORYTELLING", "template": "This is how my X changed my life", "exampleUrl": "https://www.instagram.com/p/C9t1s7myhI7/"}, {"id": "STO_0049", "category": "STORYTELLING", "template": "I have (insert action) over (insert #) in my life", "exampleUrl": "https://www.instagram.com/p/C9GM_SJpJ3k/"}, {"id": "STO_0050", "category": "STORYTELLING", "template": "This is a picture of my (insert what picture is of)", "exampleUrl": "https://www.instagram.com/reel/C_njKwBOuLi/"}, {"id": "STO_0051", "category": "STORYTELLING", "template": "X days/months/years ago I decided to (insert decision)", "exampleUrl": "https://www.instagram.com/p/C-IOTqUtbth/"}, {"id": "STO_0052", "category": "STORYTELLING", "template": "Yesterday I was at (insert location) when I noticed something (insert adjective)", "exampleUrl": "https://www.instagram.com/reel/DFLw3SmSNti/"}, {"id": "STO_0053", "category": "STORYTELLING", "template": "X days/months/years ago I was (insert action) because I (insert pain point)", "exampleUrl": "https://www.instagram.com/reel/DEq8rUQyR92/"}, {"id": "STO_0054", "category": "STORYTELLING", "template": "Is it possible to (insert dream result) while (insert action) in X days", "exampleUrl": "https://www.instagram.com/reel/DEgmPM_yqsz/"}, {"id": "STO_0055", "category": "STORYTELLING", "template": "When is it time to do (insert action)", "exampleUrl": "https://www.instagram.com/reel/DDrwl5ix3a0/?igsh=MW14dGUybG5rYnhxdQ=="}, {"id": "STO_0056", "category": "STORYTELLING", "template": "So I did (insert action) last week", "exampleUrl": "https://www.instagram.com/share/BAIu4m7QIH"}, {"id": "STO_0057", "category": "STORYTELLING", "template": "When I was (insert description) I was always (insert bad habit)", "exampleUrl": "https://www.instagram.com/p/CzevtHvyxxX/"}, {"id": "STO_0058", "category": "STORYTELLING", "template": "If you are anything like me, you take your (insert action) very seriously", "exampleUrl": "https://www.instagram.com/p/DBnbVTMSaJb/"}, {"id": "STO_0059", "category": "STORYTELLING", "template": "In (insert time frame), I went from (insert before) to (insert dream result)", "exampleUrl": "https://www.instagram.com/reel/DFfnKFWusVf/?igsh=MXE1d3ZybnJ6eXIwZg=="}, {"id": "STO_0060", "category": "STORYTELLING", "template": "X days/months/years I (insert big risk)", "exampleUrl": "https://www.instagram.com/p/C_ZVKRfSMm_/"}, {"id": "STO_0061", "category": "STORYTELLING", "template": "I am starting/started a (insert business) from scratch", "exampleUrl": "https://www.instagram.com/reel/DDEBm2jOYMG/?igsh=cXl6cjNwc3pnajF4"}, {"id": "STO_0062", "category": "STORYTELLING", "template": "This is the story of how I managed to do (insert achievement)", "exampleUrl": "https://www.instagram.com/reel/DCg1__Wsy7F/?igsh=ZGhrM3B5eTVrZzht"}, {"id": "STO_0063", "category": "STORYTELLING", "template": "I am (insert age) having an identity crisis", "exampleUrl": "https://www.instagram.com/reel/DDJM-ivP9-v/?igsh=ZDh0bG51azdpMDc0"}, {"id": "STO_0064", "category": "STORYTELLING", "template": "X days/months/years ago I quit (insert habit)", "exampleUrl": "https://www.instagram.com/reel/C-5yJQmoPsM/?igsh=ejRheHR1ODg4NW83"}, {"id": "STO_0065", "category": "STORYTELLING", "template": "X days/months/years ago I stopped (insert action/or habit) and started (insert action/or habit)", "exampleUrl": "https://www.instagram.com/reel/DDvdqxIJcbe/"}, {"id": "STO_0066", "category": "STORYTELLING", "template": "This is probably the scariest thing I have ever done", "exampleUrl": "https://www.instagram.com/reel/DAYtnokvm-J/?igsh=dmN0ZTNudGtodGpr"}, {"id": "STO_0067", "category": "STORYTELLING", "template": "This girl/boy was in her/his flop era", "exampleUrl": "https://www.instagram.com/reel/DAOowDot7OB/?igsh=MW9ibGhiNHhsZjRweg%3D%3D"}, {"id": "STO_0068", "category": "STORYTELLING", "template": "Is it possible for (insert avatar) to (insert dream result)?", "exampleUrl": "https://www.instagram.com/reel/DFkNykWxPoe/?igsh=OXQ0ODJkcmlpeml0"}, {"id": "STO_0069", "category": "STORYTELLING", "template": "I did everything right/wrong", "exampleUrl": "https://www.instagram.com/p/DDohj4MI-7U/"}, {"id": "STO_0070", "category": "STORYTELLING", "template": "So I recently started feeling (insert feeling) everyone talks about", "exampleUrl": "https://www.instagram.com/reel/C9KNzOkIk6m/?igsh=MTAzOGQ1Zm53OXNjaw%3D%3D"}, {"id": "STO_0071", "category": "STORYTELLING", "template": "Can you (insert dream result) after (insert shortcut)", "exampleUrl": "https://www.instagram.com/reel/C6uGU4xxKV_/"}, {"id": "STO_0072", "category": "STORYTELLING", "template": "After X years of (insert action/or habit) I stopped/started (insert action/or habit)", "exampleUrl": "https://www.instagram.com/reel/DEJiasASTVx/"}, {"id": "STO_0073", "category": "STORYTELLING", "template": "It all started when (insert person) (insert action)", "exampleUrl": "https://www.instagram.com/p/DC5ioSRMrnS/"}, {"id": "STO_0074", "category": "STORYTELLING", "template": "X days/months/years ago (insert people) (insert action)", "exampleUrl": "https://www.instagram.com/p/C_50kObxUwc/"}, {"id": "STO_0075", "category": "STORYTELLING", "template": "X days/months/years, I ___", "exampleUrl": "https://www.instagram.com/reel/DDvdqxIJcbe/"}, {"id": "STO_0076", "category": "STORYTELLING", "template": "I'm (insert age) and I'm not ashamed to admit that", "exampleUrl": "https://www.instagram.com/reel/DFOqo61NrJu/?igsh=MnIyNnFrczB0aDBx"}, {"id": "STO_0077", "category": "STORYTELLING", "template": "The secret is out I am (insert action)", "exampleUrl": "https://www.instagram.com/p/C97orJ_J8vW/"}, {"id": "STO_0078", "category": "STORYTELLING", "template": "I got (insert dream result) without (pain point/points) here\u2019s how", "exampleUrl": "https://www.instagram.com/p/C6G56RQrf9N/"}, {"id": "STO_0079", "category": "STORYTELLING", "template": "So I (insert shocking action) for over (insert time frame)", "exampleUrl": "https://www.instagram.com/reel/C94_dh1JEeE/"}, {"id": "STO_0080", "category": "STORYTELLING", "template": "So I messed up", "exampleUrl": "https://www.instagram.com/reel/DD9yJvGRdoO/"}, {"id": "STO_0081", "category": "STORYTELLING", "template": "I developed an X addiction so strong I physically can not stop (insert action)", "exampleUrl": "https://www.instagram.com/reel/C-CPzwMReyb/?igsh=MXBiYmdmc3dudm5vcg%3D%3D"}, {"id": "STO_0082", "category": "STORYTELLING", "template": "X years it took me from (insert bad situation/result) to (insert good situation/result)", "exampleUrl": "https://www.instagram.com/p/C8Cpii4PB1u/"}, {"id": "STO_0083", "category": "STORYTELLING", "template": "X Months/Years ago I (insert action) to (insert action)", "exampleUrl": "https://www.instagram.com/reel/DFJCpPYTtxw"}, {"id": "STO_0084", "category": "STORYTELLING", "template": "I (insert action)", "exampleUrl": "https://www.instagram.com/reel/DEVd9n0SEG"}, {"id": "STO_0085", "category": "STORYTELLING", "template": "There is nothing more embarrassing than X", "exampleUrl": "https://www.instagram.com/reel/C_s9nCBvHTE"}, {"id": "STO_0086", "category": "STORYTELLING", "template": "I am a (insert title) by day and a (insert title) by night", "exampleUrl": "https://www.instagram.com/reel/DDxlpp3yLup/?igsh=MXZzNThxN2F2ZTUzcQ=="}, {"id": "STO_0087", "category": "STORYTELLING", "template": "Come with me to make (insert object)", "exampleUrl": "https://www.instagram.com/p/DA8icSZuuX7/"}, {"id": "STO_0088", "category": "STORYTELLING", "template": "Come with me to break up with (insert object/company/etc)", "exampleUrl": "https://www.instagram.com/reel/DGDiMQMvslT/?igsh=MXc0aTdxMXc2bjVmaA=="}, {"id": "STO_0089", "category": "STORYTELLING", "template": "I started (insert business) at (age/life event) and I had no idea I would (insert result/outcome)", "exampleUrl": "https://www.instagram.com/reel/C_oKE1BJZnw/?igsh=MTk4ZWJ0dnVycmNrbw%3D%3D"}, {"id": "STO_0090", "category": "STORYTELLING", "template": "You know the feminine urge to open (insert business)", "exampleUrl": "https://www.instagram.com/p/DChR0akynLv/"}, {"id": "STO_0091", "category": "STORYTELLING", "template": "It\u2019s been (insert time) since we (insert experience)", "exampleUrl": "https://www.instagram.com/reel/DFbFikLNj5c/?igsh=MTBjbnRla2Fsc25zcQ%3D%3D"}, {"id": "STO_0092", "category": "STORYTELLING", "template": "I think (insert belief/opinion) so I have been taking matters into my own hands", "exampleUrl": "https://www.instagram.com/reel/DFq4B3uSYSh/?igsh=ejd2bXM1bTFpZ2ll"}, {"id": "STO_0093", "category": "STORYTELLING", "template": "I was shocked when I found out (insert fact)", "exampleUrl": "https://www.instagram.com/reel/DCz5caZymCk/?igsh=MXVzeGkxc2U1YWl2dQ%3D%3D"}, {"id": "STO_0094", "category": "STORYTELLING", "template": "So I just turned (insert age)", "exampleUrl": "https://www.instagram.com/reel/DAfc0ZsRA_f/?igsh=MWFuZDRremIxN2VnOA=="}, {"id": "STO_0095", "category": "STORYTELLING", "template": "This is how I got to (insert cool opportunity) in my X week/month/year of doing/starting (insert business or job)", "exampleUrl": "https://www.instagram.com/reel/DD36juzzvlO/?igsh=MWt0a2FsdWdlbTNwcA%3D%3D"}, {"id": "STO_0096", "category": "STORYTELLING", "template": "What happens when you (insert action) then you end up (insert result) but you (insert challenge)", "exampleUrl": "https://www.instagram.com/reel/DEIty1ju6EF/?igsh=MWdqemN4bHFxeXFzcg%3D%3D"}, {"id": "STO_0097", "category": "STORYTELLING", "template": "What if I told you that (insert dream result) without (insert pain point)", "exampleUrl": "https://www.instagram.com/reel/DDpTqOovShl/?igsh=MjlxanprY2Z1NWsw"}, {"id": "STO_0098", "category": "STORYTELLING", "template": "I went on # of (insert noun) this year, and here is the one trait I learned that you need to have to (insert dream result).", "exampleUrl": "https://www.instagram.com/p/DG7b8SAMjNJ/"}, {"id": "STO_0099", "category": "STORYTELLING", "template": "X days/months/years ago I was (insert action), every waking hour because I was (insert trait) and I wanted (insert result).", "exampleUrl": "https://www.instagram.com/reel/DFUgKb4RGlI/"}, {"id": "STO_0100", "category": "STORYTELLING", "template": "X days/months/years ago I was (insert life event), because I was (insert action) instead of (insert action).", "exampleUrl": "https://www.instagram.com/reel/DFuMWtZSSEx/"}, {"id": "STO_0101", "category": "STORYTELLING", "template": "This is (insert person) we have known each other from X years, X days, X hours, X minutes.", "exampleUrl": "https://www.instagram.com/p/DHyp6wPiRgc/"}, {"id": "STO_0102", "category": "STORYTELLING", "template": "Put a finger down if you told the entire internet you were going to create a (insert noun) without having any idea how to (insert action) or any idea how to start?", "exampleUrl": "https://www.instagram.com/p/DGixMnEJ5l3/"}, {"id": "STO_0103", "category": "STORYTELLING", "template": "I think (insert noun) should be better than this, so i;ve been taking matters into my own hands.", "exampleUrl": "https://www.instagram.com/reel/DFq4B3uSYSh/"}, {"id": "STO_0104", "category": "STORYTELLING", "template": "This is me (insert life state), yes my (insert observation) all my (insert persons) were (insert action) but I couldn't because I had to (insert scenario)", "exampleUrl": "https://www.instagram.com/p/DAjykz5uqk3/"}, {"id": "STO_0105", "category": "STORYTELLING", "template": "I used to be in a super toxic relationship back in (insert time frame) so let me tell you about it.", "exampleUrl": "https://www.instagram.com/p/DDsiifAu14W/"}, {"id": "STO_0106", "category": "STORYTELLING", "template": "How I married my middle school/highschool/college girlfriend/boyfriend.", "exampleUrl": "https://www.instagram.com/p/DCcFOykRggl/"}, {"id": "STO_0107", "category": "STORYTELLING", "template": "(insert person) always expects you to have (insert result) but the problem is\u2026.", "exampleUrl": "https://www.instagram.com/p/C_0whsRP2Op/"}, {"id": "STO_0108", "category": "STORYTELLING", "template": "My (insert label) (insert name) and I, started (insert business) in (insert year).", "exampleUrl": "https://www.instagram.com/p/DFtp0PRuorw/"}, {"id": "STO_0109", "category": "STORYTELLING", "template": "X days/months/years ago my (insert label) (insert name) and I (insert action) to (insert result).", "exampleUrl": "https://www.instagram.com/p/DBkmeBPvd7b/"}, {"id": "STO_0110", "category": "STORYTELLING", "template": "You are not (insert label) is something I wish I could have told my younger self.", "exampleUrl": "https://www.instagram.com/p/DGQrQ7LvWlV/"}, {"id": "STO_0111", "category": "STORYTELLING", "template": "Is it possible to get (insert dream result) with only (insert action) for only 1 day.", "exampleUrl": "https://www.instagram.com/p/DDTjr8rxAjO/"}, {"id": "STO_0112", "category": "STORYTELLING", "template": "I have no idea what I am doing at (insert place).", "exampleUrl": "https://www.instagram.com/p/DF-ubrfxnVV/"}, {"id": "STO_0113", "category": "STORYTELLING", "template": "I got (insert result) at (insert age) and (insert result) by (insert age) if you are scared about (insert result) this is for you.", "exampleUrl": "https://www.instagram.com/p/DF9aqV_JPlA/"}, {"id": "STO_0114", "category": "STORYTELLING", "template": "Is it possible to (insert action) successful (insert noun) for (insert noun) in just 1 hour?", "exampleUrl": "https://www.instagram.com/p/C9ARkyWMR8C/"}, {"id": "STO_0115", "category": "STORYTELLING", "template": "(insert year) - I think I am going to (insert goal).", "exampleUrl": "https://www.instagram.com/p/DDP5UpoR9Sl/"}, {"id": "STO_0116", "category": "STORYTELLING", "template": "So I bought this (insert noun) last week and quickly realized I have no idea how to (insert action).", "exampleUrl": "https://www.instagram.com/share/BAE6C2ZZ78"}, {"id": "STO_0117", "category": "STORYTELLING", "template": "X days/months/years ago I bought a (insert noun) as a (insert age) with a full-time (insert job).", "exampleUrl": "https://www.instagram.com/share/_tH1dbAEq"}, {"id": "STO_0118", "category": "STORYTELLING", "template": "We (insert action) over # of the most (insert adjective) (insert profession) and # responded.", "exampleUrl": "https://www.instagram.com/reel/DEOUKcLPUZe/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWF"}, {"id": "STO_0119", "category": "STORYTELLING", "template": "I hate to say this but my wake up call wasn't as (insert scenario) no my first wake up call was (insert scenario).", "exampleUrl": "https://www.instagram.com/share/BAJjwss1-k"}, {"id": "STO_0120", "category": "STORYTELLING", "template": "Is it possible to get (insert dream result) without your daddy being the CEO of apple.", "exampleUrl": "https://www.instagram.com/share/_58N3lM2x"}, {"id": "STO_0121", "category": "STORYTELLING", "template": "If you're new to this channel let me catch you up.", "exampleUrl": "https://www.instagram.com/p/DFsxrUWI7EY/"}, {"id": "STO_0122", "category": "STORYTELLING", "template": "The worst part about being a (insert title) is I literally do not\u2026", "exampleUrl": "https://www.instagram.com/p/DDV2GYxpnmu/"}, {"id": "STO_0123", "category": "STORYTELLING", "template": "Living in a (insert adjective) household has led me to literally having (insert bad result).", "exampleUrl": "https://www.instagram.com/p/DFqJbiIqCCH/"}, {"id": "STO_0124", "category": "STORYTELLING", "template": "Nothing could have prepared me for how it feels being in your (insert age group) and (insert situation).", "exampleUrl": "https://www.instagram.com/p/DCPdQiGoOoz/"}, {"id": "STO_0125", "category": "STORYTELLING", "template": "So apparently your frontal lobe does not develop fully until your age 25, so here are some things I have realized since it came in.", "exampleUrl": "https://www.instagram.com/p/DGllUMjIMY3/"}, {"id": "STO_0126", "category": "STORYTELLING", "template": "I tried a # hour (insert noun) routine, which is much harder than you think.", "exampleUrl": "https://www.instagram.com/p/DH8wOG0Ke0a/"}, {"id": "STO_0127", "category": "STORYTELLING", "template": "You think you're a (insert label)? Well let me introduce you to my life.", "exampleUrl": "https://www.instagram.com/p/DHoAC5HtwCn/"}, {"id": "STO_0128", "category": "STORYTELLING", "template": "My (insert person) and I tried a whole (insert time frame) without (insert action).", "exampleUrl": "https://www.instagram.com/p/DBwOrvcoKvI/"}, {"id": "STO_0129", "category": "STORYTELLING", "template": "(insert quote) the first time I heard this I was (insert action), and my (insert person) just dropped that line out of nowhere.", "exampleUrl": "https://www.instagram.com/p/DDAcNRXy2KD/"}, {"id": "STO_0130", "category": "STORYTELLING", "template": "Build a (insert noun) with me while I (insert action).", "exampleUrl": "https://www.instagram.com/p/DFESQ5bMLUy/"}, {"id": "STO_0131", "category": "STORYTELLING", "template": "I have had 0 (insert noun) in (insert time frame).", "exampleUrl": "https://www.instagram.com/p/DBuQULzybXD/"}, {"id": "STO_0132", "category": "STORYTELLING", "template": "It was until I build # of (insert noun) and completed over # of (insert noun) that I realized (insert action) is not really that complicated.", "exampleUrl": "https://www.instagram.com/p/DEd-dLWvcem/"}, {"id": "STO_0133", "category": "STORYTELLING", "template": "X days/months/years ago me and my (insert person)", "exampleUrl": "https://www.instagram.com/p/DICw6TgsuSk/"}, {"id": "STO_0134", "category": "STORYTELLING", "template": "I am (insert life event) in (insert time frame) and I just wrote a letter that I wish my (insert age) self would have read.", "exampleUrl": "https://www.instagram.com/p/DFf7WpdREbp/"}, {"id": "STO_0135", "category": "STORYTELLING", "template": "I am leaving my (insert salary) dream job at (insert company) to (insert action).", "exampleUrl": "https://www.instagram.com/p/DH542doMca8/"}, {"id": "STO_0136", "category": "STORYTELLING", "template": "This is day # of making fake (insert noun) for our dream clients until one of them starts working with us.", "exampleUrl": "https://www.instagram.com/p/DB587F_NYOD/"}, {"id": "STO_0137", "category": "STORYTELLING", "template": "X days/months/years ago I went extremely viral for (insert action).", "exampleUrl": "https://www.instagram.com/p/DDYV5gNJ9iq/"}, {"id": "STO_0138", "category": "STORYTELLING", "template": "Have you ever wondered why (insert noun) (insert adjective) is much better than (insert noun).", "exampleUrl": "https://www.instagram.com/p/DH2JoeSRvJq/"}, {"id": "STO_0139", "category": "STORYTELLING", "template": "For those of you who don't know I have been bootstrapping a (insert business type) to see how big I can scale it.", "exampleUrl": "https://www.instagram.com/p/C40yJ7BpdJD/"}, {"id": "STO_0140", "category": "STORYTELLING", "template": "When I told my (insert person) I was going to start doing this he/she thought it was the worst idea ever.", "exampleUrl": "https://www.instagram.com/p/DGhD18oBVds/"}, {"id": "STO_0141", "category": "STORYTELLING", "template": "These are dumb things I have done in (insert stage) of (insert action) for my (insert noun).", "exampleUrl": "https://www.instagram.com/p/DGwUdIEy0u_/"}, {"id": "STO_0142", "category": "STORYTELLING", "template": "This (insert noun) single handedly changed my career.", "exampleUrl": "https://www.instagram.com/p/DC9zT1dx5yT/"}, {"id": "STO_0143", "category": "STORYTELLING", "template": "Have you ever tried to (insert action) something that was supposed to look like this but ended up looking like this.", "exampleUrl": "https://www.instagram.com/p/DHo4Lj7sXlc/"}, {"id": "STO_0144", "category": "STORYTELLING", "template": "Hi my name is (insert name) and this was me (insert time frame) ago a (insert label) in (insert noun).", "exampleUrl": "https://www.instagram.com/p/DIO1bNruotJ/"}, {"id": "STO_0145", "category": "STORYTELLING", "template": "Day # of (insert action) until I (insert dream result).", "exampleUrl": "https://www.instagram.com/p/DG3uAhCPeDB/"}, {"id": "STO_0146", "category": "STORYTELLING", "template": "I just (insert action) to make (insert noun).", "exampleUrl": "https://www.instagram.com/p/DHrtql8y1Mv/"}, {"id": "STO_0147", "category": "STORYTELLING", "template": "I (insert action) to every (insert person) in the world. Here is how many people responded.", "exampleUrl": "https://www.instagram.com/p/DCC-6Y7CZVm/"}, {"id": "STO_0148", "category": "STORYTELLING", "template": "What happens when you (insert action), (insert action), (insert action), etc.", "exampleUrl": "https://www.instagram.com/p/DCo8e3Xi-di/"}, {"id": "STO_0149", "category": "STORYTELLING", "template": "Ever since I was (insert adjective) my (insert person) made it very clear to me that he/she was (insert adjective) about certain aspects of (insert noun).", "exampleUrl": "https://www.instagram.com/p/CRZU6CDBcuY/"}, {"id": "STO_0150", "category": "STORYTELLING", "template": "One day you're gonna get dumped. Not by your girlfriend, not by your boyfriend, not by your fiance, not by your spouse. But by your (insert noun).", "exampleUrl": "https://www.instagram.com/p/DD3BkA3vaI9/"}, {"id": "STO_0151", "category": "STORYTELLING", "template": "I am (insert name) (insert age) you might know me from my (insert accomplishment), (insert accomplishment), or (insert accomplishment).", "exampleUrl": "https://www.instagram.com/p/DCN08rLTux3/"}, {"id": "STO_0152", "category": "STORYTELLING", "template": "I was today years old when I found out that if you have (insert trait), (insert noun) will look really (insert adjective) on you.", "exampleUrl": "https://www.instagram.com/p/DDu_J9ZytmA/"}, {"id": "STO_0153", "category": "STORYTELLING", "template": "People are shocked to hear that these are my natural (insert noun).", "exampleUrl": "https://www.instagram.com/p/DEvMF5Kzqz7/"}, {"id": "STO_0154", "category": "STORYTELLING", "template": "Have you ever noticed that some (insert noun) feel (insert description) while others feel (insert description).", "exampleUrl": "https://www.instagram.com/p/DIOy5C2A8sb/"}, {"id": "STO_0155", "category": "STORYTELLING", "template": "This video got # of views, with a lot of (insert adjective) feedback. Let's try it out and see if it makes a difference to my (insert noun).", "exampleUrl": "https://www.instagram.com/p/DFDQ99NuwNF/"}, {"id": "STO_0156", "category": "STORYTELLING", "template": "If you've ever come across one of my reels and thought (insert adjective) that woman/man has (insert adjective) (insert noun). But here's a little secret: my (insert noun) was not always like this.", "exampleUrl": "https://www.instagram.com/p/DFYqX_gz5iD/"}, {"id": "STO_0157", "category": "STORYTELLING", "template": "Welcome back to my (insert noun) series where I will be teaching you everything I know, no gatekeeping here.", "exampleUrl": "https://www.instagram.com/p/DGTx0R1zU1v/"}, {"id": "STO_0158", "category": "STORYTELLING", "template": "After (insert time period) of having (insert bad result) come get my (insert noun) done with me.", "exampleUrl": "https://www.instagram.com/p/DDf3qgvP54t/"}, {"id": "STO_0159", "category": "STORYTELLING", "template": "Hi I am (insert name) and I am a (insert negative label).", "exampleUrl": "https://www.instagram.com/p/DGCMTIdpcvQ/"}, {"id": "STO_0160", "category": "STORYTELLING", "template": "Here is how I lost a (insert time frame) of my life.", "exampleUrl": "https://www.instagram.com/p/DAQog1uPOrX/"}, {"id": "STO_0161", "category": "STORYTELLING", "template": "I feel really bad for saying this but sometimes you just need to (insert harsh truth).", "exampleUrl": "https://www.instagram.com/p/DE-3lwtPE1v/"}, {"id": "STO_0162", "category": "STORYTELLING", "template": "As you may know I have been (insert action) to (insert dream result).", "exampleUrl": "https://www.instagram.com/p/DF-_e2MNx8u/"}, {"id": "STO_0163", "category": "STORYTELLING", "template": "I (insert action) almost everyday for a week and here is what happened.", "exampleUrl": "https://www.instagram.com/p/DCAJiSMPRyj/"}, {"id": "STO_0164", "category": "STORYTELLING", "template": "(insert action) everyday has literally changed my life. In", "exampleUrl": "https://www.instagram.com/p/DBuHW1Io1H2/"}, {"id": "STO_0165", "category": "STORYTELLING", "template": "I had this weird idea that if I added some (insert action), (insert action), (insert action), etc\u2026", "exampleUrl": "https://www.instagram.com/p/C-lMnQ4pCIs/"}, {"id": "STO_0166", "category": "STORYTELLING", "template": "Did you know that if you combined (insert noun), (insert noun), (insert noun), etc\u2026", "exampleUrl": "https://www.instagram.com/p/C_tMbf_p4-Q/"}, {"id": "STO_0167", "category": "STORYTELLING", "template": "When you're sad but then you remember you have (insert noun).", "exampleUrl": "https://www.instagram.com/p/DA1P8ANJxjv/"}, {"id": "STO_0168", "category": "STORYTELLING", "template": "I spent (insert price) on a (insert noun) here's all the (insert noun) I got.", "exampleUrl": "https://www.instagram.com/p/DHHHlXnpG-a/"}, {"id": "STO_0169", "category": "STORYTELLING", "template": "You know those days where it feels like (insert scenario) well today was that day for me.", "exampleUrl": "https://www.instagram.com/p/DHgZAkCRzQ7/"}, {"id": "STO_0170", "category": "STORYTELLING", "template": "I have (inset amount of thing), (insert amount of time), and a pipe dream to get ready for (insert event).", "exampleUrl": "https://www.instagram.com/p/DGLxdjvR3Se/"}, {"id": "STO_0171", "category": "STORYTELLING", "template": "So I was just (insert action) to do my (insert action) of the day when I saw that\u2026", "exampleUrl": "https://www.instagram.com/p/DIbTyiMyVek/"}, {"id": "STO_0172", "category": "STORYTELLING", "template": "Welcome back to another episode of (insert series name) where I (insert action).", "exampleUrl": "https://www.instagram.com/p/DHrfrLyyevs/"}, {"id": "STO_0173", "category": "STORYTELLING", "template": "We are not even (insert time frame) into (insert year) and have gone from being a (insert before state) to (insert after state).", "exampleUrl": "https://www.instagram.com/p/DFzAPKqsRip/"}, {"id": "STO_0174", "category": "STORYTELLING", "template": "I (insert action) but I don't have (insert noun).", "exampleUrl": "https://www.instagram.com/p/DG3qeUpv--T/"}, {"id": "STO_0175", "category": "STORYTELLING", "template": "I worked (insert hours) in just (insert days) making all of this (insert noun) for my (insert noun).", "exampleUrl": "https://www.instagram.com/p/DGMTIk2s5Bq/"}, {"id": "STO_0176", "category": "STORYTELLING", "template": "If you told (insert age) me that I wouldn't be a (insert title) I would probably tell you to go screw yourself.", "exampleUrl": "https://www.instagram.com/p/DGPLfdUv5Zd/"}, {"id": "STO_0177", "category": "STORYTELLING", "template": "I (insert action) all of the (insert noun) you want with all the (insert adjective) that you need.", "exampleUrl": "https://www.instagram.com/p/DGd_iXpxGxe/"}, {"id": "STO_0178", "category": "STORYTELLING", "template": "Someone just (insert negative result) my business.", "exampleUrl": "https://www.instagram.com/p/DG3EbrsReCj/"}, {"id": "STO_0179", "category": "STORYTELLING", "template": "Can you please pack my (insert price) (insert noun) with me? Of course!", "exampleUrl": "https://www.instagram.com/p/DFM4apJSCnJ/"}, {"id": "STO_0180", "category": "STORYTELLING", "template": "The ultimate assembly video of my (insert huge metric) (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DG6zBv9xjKN/?igsh=MWJ3YW04aG5idDc3NQ=="}, {"id": "STO_0181", "category": "STORYTELLING", "template": "I am on a journey to find the best (insert noun) for (insert target audience) and today we went to (insert", "exampleUrl": "https://www.instagram.com/reel/DF0gUSRPywO/?igsh=dzYxc2I0amw2OHhr"}, {"id": "STO_0182", "category": "STORYTELLING", "template": "Here's how I made a wireless (insert noun) that is valued at (insert price).", "exampleUrl": "https://www.instagram.com/p/DHgznKnCq0U/"}, {"id": "STO_0183", "category": "STORYTELLING", "template": "We pretty much (insert action) our entire (insert noun) into (insert noun).", "exampleUrl": "https://www.instagram.com/p/DC-CO9QTF3R/"}, {"id": "STO_0184", "category": "STORYTELLING", "template": "X days/weeks/months/years ago I purchased (insert price) (insert noun) as a (insert label) with only a (insert price) deposit.", "exampleUrl": "https://www.instagram.com/p/DHatudoNK8S/"}, {"id": "STO_0185", "category": "STORYTELLING", "template": "For our entire # year relationship my (insert person) has been hiding something pretty important from me.", "exampleUrl": "https://www.instagram.com/p/DHsfGj6TGeA/"}, {"id": "STO_0186", "category": "STORYTELLING", "template": "I always had the biggest dream of (insert dream).", "exampleUrl": "https://www.instagram.com/kelseypoulter/reel/DHoe6OgRf6-/"}, {"id": "STO_0187", "category": "STORYTELLING", "template": "(Insert noun) is cringe right now but let me tell you what a game changer it was for me.", "exampleUrl": "https://www.instagram.com/p/DCmBEffyaPC/"}, {"id": "STO_0188", "category": "STORYTELLING", "template": "Hey everyone I am (insert name) I am (insert age) and I am starting a (insert business) from scratch.", "exampleUrl": "https://www.instagram.com/p/DDEBm2jOYMG/"}, {"id": "STO_0189", "category": "STORYTELLING", "template": "I didn't realize how bad I lost myself.", "exampleUrl": "https://www.instagram.com/p/DIU81u_pdBM/"}, {"id": "STO_0190", "category": "STORYTELLING", "template": "I just left my (insert salary) a year new grad job, and now I am just a disappointment.", "exampleUrl": "https://www.instagram.com/p/DIWt7j-O40r/"}, {"id": "STO_0191", "category": "STORYTELLING", "template": "Me and my (insert person) are supposed to be (insert action), but instead we (insert action).", "exampleUrl": "https://www.instagram.com/p/DHjhY8Vx2bw/"}, {"id": "STO_0192", "category": "STORYTELLING", "template": "(insert year) (insert occurrence).", "exampleUrl": "https://www.instagram.com/ultimateivyleagueguide/reel/DBv1NuKOF7u/"}, {"id": "STO_0193", "category": "STORYTELLING", "template": "I think I got (insert verb).", "exampleUrl": "https://www.instagram.com/p/DGN51kGIU51/"}, {"id": "STO_0194", "category": "STORYTELLING", "template": "My (insert person) wanted a (insert noun) for (insert event) so I said thanks for the suggestion but that\u2019s not my vibe and made them (insert noun) instead.", "exampleUrl": "https://www.instagram.com/p/DCmRfypJw93/"}, {"id": "STO_0195", "category": "STORYTELLING", "template": "I\u2019ve (insert verb) this almost every single day of my entire life.", "exampleUrl": "https://www.instagram.com/p/DGygqjJSIXS/"}, {"id": "STO_0196", "category": "STORYTELLING", "template": "Buying things I don\u2019t need because I have adult money.", "exampleUrl": "https://www.instagram.com/p/DFJZaQsS7f6/"}, {"id": "STO_0197", "category": "STORYTELLING", "template": "A fun fact about my (insert person) (insert name) is.", "exampleUrl": "https://www.instagram.com/p/DIXslTXRPiZ/"}, {"id": "STO_0198", "category": "STORYTELLING", "template": "My entire life I grew up (insert adjective) and (insert adjective) it was just my (insert person) raising the # of", "exampleUrl": "https://www.instagram.com/p/DI68Z2axGjl/"}, {"id": "STO_0199", "category": "STORYTELLING", "template": "I spent an entire (insert time) (insert verb) but was it a waste of time?", "exampleUrl": "https://www.instagram.com/p/DExfsiBu1mI/"}, {"id": "STO_0200", "category": "STORYTELLING", "template": "I am about to go on the biggest bender of my entire life!", "exampleUrl": "https://www.instagram.com/p/DI4JR8TOMdS/"}, {"id": "STO_0201", "category": "STORYTELLING", "template": "I think I am getting (insert verb) today.", "exampleUrl": "https://www.instagram.com/p/DIyy31iILqd/"}, {"id": "STO_0202", "category": "STORYTELLING", "template": "Welcome back to me (insert verb) my (insert person) (insert noun).", "exampleUrl": "https://www.instagram.com/p/DIwpRgJJQPs/"}, {"id": "STO_0203", "category": "STORYTELLING", "template": "I always wondered what it was like to (insert action).", "exampleUrl": "https://www.instagram.com/p/DI1FPNwOoAk/"}, {"id": "STO_0204", "category": "STORYTELLING", "template": "So (insert time frame) ago me and my (insert person) had a little too much fun.", "exampleUrl": "https://www.instagram.com/p/DGg5Lz2SN0T/"}, {"id": "STO_0205", "category": "STORYTELLING", "template": "Selling (insert noun) at (insert location) has made me more money than my (insert person/title) and today I am going to be investing that money into (insert noun).", "exampleUrl": "https://www.instagram.com/p/DINf-krxetg/"}, {"id": "STO_0206", "category": "STORYTELLING", "template": "Welcome back to day #, where I (insert verb) a (insert noun) everyday until I am (insert adjective)", "exampleUrl": "https://www.instagram.com/p/DFGbEQTziGB/"}, {"id": "STO_0207", "category": "STORYTELLING", "template": "(Insert person), (Insert person), or that one (Insert person) we just don\u2019t have (insert title) like we did back then.", "exampleUrl": "https://www.instagram.com/p/DG24V2LOxBj/"}, {"id": "STO_0208", "category": "STORYTELLING", "template": "Day # of trying to (insert action) all year.", "exampleUrl": "https://www.instagram.com/p/DEOoZX_xFLz/"}, {"id": "STO_0209", "category": "STORYTELLING", "template": "This was the (insert noun) that changed my life forever.", "exampleUrl": "https://www.instagram.com/p/DHm-oK2sa90/"}, {"id": "STO_0210", "category": "STORYTELLING", "template": "Over # of you saw this video.", "exampleUrl": "https://www.instagram.com/p/DF8rBLCP4SG/"}, {"id": "STO_0211", "category": "STORYTELLING", "template": "Today I woke up and realized (insert realization).", "exampleUrl": "https://www.instagram.com/p/DH-K4dER2wd/"}, {"id": "STO_0212", "category": "STORYTELLING", "template": "I am (insert verb) a (insert noun), on my (insert noun).", "exampleUrl": "https://www.instagram.com/p/DIz0whmxWk5/"}, {"id": "STO_0213", "category": "STORYTELLING", "template": "Remember that time you were (insert adjective) so you (insert action) but the moment (insert person) (insert verb) you (insert action).", "exampleUrl": "https://www.instagram.com/p/DImOQx6TGCo/"}, {"id": "STO_0214", "category": "STORYTELLING", "template": "Okay real talk, I wasn't always this (insert adjective).", "exampleUrl": "https://www.instagram.com/p/DIgzMCWuK1l/"}, {"id": "STO_0215", "category": "STORYTELLING", "template": "Is it possible to stop (insert pain point) and (insert dream result) in (insert time frame) even if you\u2019re in", "exampleUrl": "https://www.instagram.com/p/DIH7JjItEK0/"}, {"id": "STO_0216", "category": "STORYTELLING", "template": "(insert question) I hate this question.", "exampleUrl": "https://www.instagram.com/p/DIwy5TCT0SN/"}, {"id": "STO_0217", "category": "STORYTELLING", "template": "Last year I (insert verb) (insert noun) for (insert $).", "exampleUrl": "https://www.instagram.com/p/DICMQXWOize/"}, {"id": "STO_0218", "category": "STORYTELLING", "template": "Let\u2019s make (insert #) (insert noun).", "exampleUrl": "https://www.instagram.com/p/DFRdOhxMQ9H/"}, {"id": "STO_0219", "category": "STORYTELLING", "template": "I had just (insert time) to (insert verb) (insert #) of (insert noun) for a (insert person). And you have until the end of the video to guess who they are for.", "exampleUrl": "https://www.instagram.com/p/C6O91GDLbUc/"}, {"id": "STO_0220", "category": "STORYTELLING", "template": "I only have (insert time) to finish over (insert number) of (insert noun) orders, including (insert number) of (insert noun), (insert number) of (insert noun), (insert number) of (insert noun), and (insert noun).", "exampleUrl": "https://www.instagram.com/p/C7CMet3rNJG/"}, {"id": "STO_0221", "category": "STORYTELLING", "template": "I (insert verb) (insert number) (insert noun) and I had to throw (insert number) of them away.", "exampleUrl": "https://www.instagram.com/p/DGGicrYRhyi/"}, {"id": "STO_0222", "category": "STORYTELLING", "template": "Have you ever seen (insert #) (insert noun) in one place?", "exampleUrl": "https://www.instagram.com/p/DH2RXm7RTGT/"}, {"id": "STO_0223", "category": "STORYTELLING", "template": "I have a confession. I have no problem (insert verb) for my (insert noun) but it\u2019s the process of actually (insert noun) that feels so (insert adjective).", "exampleUrl": "https://www.instagram.com/p/DBrEouTxlUk/"}, {"id": "STO_0224", "category": "STORYTELLING", "template": "I am (insert age) and I have an identity crisis.", "exampleUrl": "https://www.instagram.com/p/DBtZYwby3Nx/"}, {"id": "STO_0225", "category": "STORYTELLING", "template": "I have been a (insert title) for # years of my life I started when I was # years old working at (insert location/place) in (insert location).", "exampleUrl": "https://www.instagram.com/p/DIo_nLOz7p1/"}, {"id": "STO_0226", "category": "STORYTELLING", "template": "When I was growing up one (insert noun) I always (insert verb) with my (insert person) was (insert noun).", "exampleUrl": "https://www.instagram.com/p/DIv7DnJRg42/"}, {"id": "STO_0227", "category": "STORYTELLING", "template": "Once upon a time we bought a (insert noun) on (insert noun)", "exampleUrl": "https://www.instagram.com/p/DIgryegxxsB/"}, {"id": "STO_0228", "category": "STORYTELLING", "template": "If I want my (insert person) to be (insert dream result one day) that means I got to (insert action) now.", "exampleUrl": "https://www.instagram.com/p/DIW2ZlcvlaG/"}, {"id": "STO_0229", "category": "STORYTELLING", "template": "Hi I am (insert name) and I have been secretly (insert action) for # years.", "exampleUrl": "https://www.instagram.com/p/DIz_U_1NY5J/"}, {"id": "STO_0230", "category": "STORYTELLING", "template": "Can you name something more terrifying than a (insert person) with a (insert noun).", "exampleUrl": "https://www.instagram.com/p/DH8UvF7NWHN/"}, {"id": "STO_0231", "category": "STORYTELLING", "template": "# months/years ago my friends and I started a (insert business). And it turned out to be the biggest (insert result).", "exampleUrl": "https://www.instagram.com/p/DHHB_GOy09_/"}, {"id": "STO_0232", "category": "STORYTELLING", "template": "This is the ultimate assembly video of my (insert noun).", "exampleUrl": "https://www.instagram.com/p/DG6zBv9xjKN/"}, {"id": "STO_0233", "category": "STORYTELLING", "template": "So (insert time) ago my (insert person) and I bought a (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DImqKRqy4xr/?utm_source=ig_web_copy_link&igsh=MzRlODBiNWFlZA=="}, {"id": "STO_0234", "category": "STORYTELLING", "template": "I am on a journey to find the best (insert noun) for (insert person) and today we (insert action).", "exampleUrl": "https://www.instagram.com/p/DF0gUSRPywO/"}, {"id": "STO_0235", "category": "STORYTELLING", "template": "This week I tried to see if I could (insert result) for all of my (insert noun) just by (insert action) the night before.", "exampleUrl": "https://www.instagram.com/reel/DEIFRU_vg3e/?igsh=MXh6amc4enR3NGY3MA=="}, {"id": "STO_0236", "category": "STORYTELLING", "template": "In (insert year) I started (insert action) and I gave my life to (insert person).", "exampleUrl": "https://www.instagram.com/reel/DEgeFb_Oj9J/?igsh=bjRnZWxjcTVzcm84"}, {"id": "STO_0237", "category": "STORYTELLING", "template": "I lied to the (insert person) who (insert action).", "exampleUrl": "https://www.instagram.com/p/DExR-xeiVfp/"}, {"id": "STO_0238", "category": "STORYTELLING", "template": "Something I never thought I would have on my bingo card as a (insert title) was\u2026", "exampleUrl": "https://www.instagram.com/p/DIaBg2ySrJP/"}, {"id": "STO_0239", "category": "STORYTELLING", "template": "I had to spend (insert &) on this free (insert noun) before it even started.", "exampleUrl": "https://www.instagram.com/p/DI_btRGiv_A/"}, {"id": "STO_0240", "category": "STORYTELLING", "template": "I just left my 9-5 corporate job to start my (insert business.", "exampleUrl": "https://www.instagram.com/p/DFVkgfAPimi/"}, {"id": "STO_0241", "category": "STORYTELLING", "template": "I feel like # years ago I had my life together as a (insert title) but just slowly over time things have shifted.", "exampleUrl": "https://www.instagram.com/p/DF8XdbERfjy/"}, {"id": "STO_0242", "category": "STORYTELLING", "template": "(insert year) I met my (insert person) when working at (insert job).", "exampleUrl": "https://www.instagram.com/p/DHrK16iM1-B/"}, {"id": "STO_0243", "category": "STORYTELLING", "template": "My house has this weird (insert trait) and it\u2019s haunted me ever since I first toured.", "exampleUrl": "https://www.instagram.com/p/DI38P5ANOa1/"}, {"id": "STO_0244", "category": "STORYTELLING", "template": "My (insert person) and I moved in together and ended up losing (insert $).", "exampleUrl": "https://www.instagram.com/reel/DG-uLBeuoQR/?igsh=MWwzNjBxbjJyNmthbg=="}, {"id": "STO_0245", "category": "STORYTELLING", "template": "X years ago we decided we wanted to know exactly where our (insert noun) was coming from.", "exampleUrl": "https://www.instagram.com/reel/DGly7tKRY0I/?igsh=MXF0NWp1Y3Rhbnk3NQ=="}, {"id": "STO_0246", "category": "STORYTELLING", "template": "I made (insert $) doing (insert side hustle) as a side hustle.", "exampleUrl": "https://www.instagram.com/reel/DI1s4r7pwHv/?igsh=MXN6dGU0aTRnNTZt"}, {"id": "STO_0247", "category": "STORYTELLING", "template": "I have no intention of\u2026", "exampleUrl": "https://www.instagram.com/reel/DImh0cbigz"}, {"id": "STO_0248", "category": "STORYTELLING", "template": "Growing up my parents used to get upset when I (insert action), (insert action), or (insert action) they would get frustrated.", "exampleUrl": "https://www.instagram.com/reel/DD25g3ayYbg/?igsh=MWV1NTZ5YnplZDRtcw=="}, {"id": "STO_0249", "category": "STORYTELLING", "template": "Hi my name is (insert name) and this is my home.", "exampleUrl": "https://www.instagram.com/reel/DDDvhNoOKLU/?igsh=OHVvMjFxeXM0eTQy"}, {"id": "STO_0250", "category": "STORYTELLING", "template": "This is how much (insert adjective) (insert noun) cost me in (insert location) and a (insert age) (insert occupation).", "exampleUrl": "https://www.instagram.com/reel/DHYDpXxzF1U/?igsh=MTVkMTdiNDA4ZTZ5ZA=="}, {"id": "STO_0251", "category": "STORYTELLING", "template": "Nearly # years/months ago today I packed my bags and left for (insert location), thinking I would only be gone for (insert time).", "exampleUrl": "https://www.instagram.com/reel/DEadcffulgR/?igsh=NmxmNGdteWZ1M3Fz"}, {"id": "STO_0252", "category": "STORYTELLING", "template": "I am attempting to be the first person to (insert goal), day #.", "exampleUrl": "https://www.instagram.com/reel/DB0ogikvRjL/?igsh=MW16d2lyOWd6OXNjeg=="}, {"id": "STO_0253", "category": "STORYTELLING", "template": "When we first moved to the (insert location), my (insert person) bought a (insert noun) in (insert location).", "exampleUrl": "https://www.instagram.com/reel/DINcg69x3zC/?igsh=NzdpZzI0eW02YTNq"}, {"id": "STO_0254", "category": "STORYTELLING", "template": "My (insert person) told me he/she wanted a (insert noun) and instead of waiting around I decided to build it right now.", "exampleUrl": "https://www.instagram.com/reel/DD5GjKvx7d_/?igsh=dHh2bjJiczJ5b3pp"}, {"id": "STO_0255", "category": "STORYTELLING", "template": "My parents had # sons/daughters/kids thiers me, my (insert person), and (insert person).", "exampleUrl": "https://www.instagram.com/reel/DHIm7I7TAOU/?igsh=cnZlaGtkZWI3MXRk"}, {"id": "STO_0256", "category": "STORYTELLING", "template": "(insert time) I bought a (insert adjective) (insert noun) because it\u2019s cheaper than a (insert adjective) (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DFA-_6rSp7Q/?igsh=OTFmZWR0N3pxeW8w"}, {"id": "STO_0257", "category": "STORYTELLING", "template": "Did you know that if you wake up at (insert time), and (insert action)...", "exampleUrl": "https://www.instagram.com/reel/DHCAe7lTiGn/?igsh=c2Z0ZXJxN2w0emFt"}, {"id": "STO_0258", "category": "STORYTELLING", "template": "I already know I am going to get a bunch of hate for this but the (insert noun) is getting taken out today.", "exampleUrl": "https://www.instagram.com/reel/DGErAlDujW_/?igsh=ejJkNzY3Z3hxaTl4"}, {"id": "STO_0259", "category": "STORYTELLING", "template": "People know me for nearly losing (insert noun) and dying in (insert location).", "exampleUrl": "https://www.instagram.com/reel/DCvyp8lqoSU/?igsh=a3psNnJvcWtrcnly"}, {"id": "STO_0260", "category": "STORYTELLING", "template": "I am going to do it, i\u2019m going to flip this\u2026 house.", "exampleUrl": "https://www.instagram.com/reel/DGidAKiuEpN/?igsh=dWVkeDZkZmJ6dGEz"}, {"id": "STO_0261", "category": "STORYTELLING", "template": "Dude, it\u2019s day #. And I almost went (insert result).", "exampleUrl": "https://www.instagram.com/reel/DDfST-vi3Vj/?igsh=N2V1ZmdpeDVpZ3Fl"}, {"id": "STO_0262", "category": "STORYTELLING", "template": "My (insert person) lives (insert exact number of miles) away from my house.", "exampleUrl": "https://www.instagram.com/reel/DJAO6ULRkvZ/?igsh=MTN6eW1naTRyOGppbQ=="}, {"id": "STO_0263", "category": "STORYTELLING", "template": "Why am I (insert action) at # months pregnant?", "exampleUrl": "https://www.instagram.com/reel/DCU89MNOr9z/?igsh=MThnZ2dhdTNpYXBmcw=="}, {"id": "STO_0264", "category": "STORYTELLING", "template": "Last year for (insert holiday) we (insert action).", "exampleUrl": "https://www.instagram.com/reel/DDN6gx5NDIH/?igsh=MXJ1b2ZmMzhnd3R0aw=="}, {"id": "STO_0265", "category": "STORYTELLING", "template": "We spent all day (insert action), burning through (insert metric) of (insert noun), and now I am having a fully blown (insert noun) choice crisis.", "exampleUrl": "https://www.instagram.com/reel/DIN67zVzrrX/?igsh=MWpzYnluMmNranJhMQ=="}, {"id": "STO_0266", "category": "STORYTELLING", "template": "Day # of my (insert persons) room makeover. Which I kind of took to the extreme but let\u2019s start from the beginning.", "exampleUrl": "https://www.instagram.com/reel/DCuMERyPVD4/?igsh=Ynk1NndwZXA4aDdy"}, {"id": "STO_0267", "category": "STORYTELLING", "template": "Every year we make the questionable decision of (insert decision).", "exampleUrl": "https://www.instagram.com/reel/DD1w5dTqaWa/?igsh=MWMyc3huc21kaHR3bg=="}, {"id": "STO_0268", "category": "STORYTELLING", "template": "This is what I (insert action) in a day as someone who is trying to (insert action) less and (insert action) more.", "exampleUrl": "https://www.instagram.com/reel/DEqcQsap3cm/?igsh=OXRkcHN3Y3p5dGVx"}, {"id": "STO_0269", "category": "STORYTELLING", "template": "I have been (insert title) for (insert time) now, and I have gained (insert #) of followers just by sharing (insert content type).", "exampleUrl": "https://www.instagram.com/reel/DESlFyRSaeC/?igsh=MWxyNHowa2R2OTY0Mg=="}, {"id": "STO_0270", "category": "STORYTELLING", "template": "My (insert person) hasn't (insert action) in over # years.", "exampleUrl": "https://www.instagram.com/reel/DItpYikupRg/?igsh=b2tnenZid2pnN21j"}, {"id": "STO_0271", "category": "STORYTELLING", "template": "# years ago my (insert person) and I started (insert action).", "exampleUrl": "https://www.instagram.com/reel/DI5lkjpPfMn/?igsh=eXNzaWZmb3VjcGFw"}, {"id": "STO_0272", "category": "STORYTELLING", "template": "I have a problem. Which is that my (insert noun) it (insert pain point) and (insert pain point). So i\u2019m going to build my own (insert noun) that has (insert benefit).", "exampleUrl": "https://www.instagram.com/reel/DI6qlyqJ9WP/?igsh=N2szbnhja2o0ZWtu"}, {"id": "STO_0273", "category": "STORYTELLING", "template": "This week in fatherhood/motherhood I am please to report that I (insert result).", "exampleUrl": "https://www.instagram.com/reel/DF3nqffSL7r/?igsh=MXdzMTk3bnQxOWwyeA=="}, {"id": "STO_0274", "category": "STORYTELLING", "template": "Some say the strongest bond is between (insert person) and his/her (insert person).", "exampleUrl": "https://www.instagram.com/reel/DF9uy9DzyJW/?igsh=MTMwc2EzeWk2YmdudQ=="}, {"id": "STO_0275", "category": "STORYTELLING", "template": "Hi i\u2019m (insert name) and I am a (insert title), this is my (insert person) and he/she loves (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DGO2HGtOu-C/?igsh=MXAyZ2tzbWJyMW12Mw=="}, {"id": "STO_0276", "category": "STORYTELLING", "template": "What is this massive stack of (insert noun) that I am holding in my hand, well it is the (insert noun) for the (insert number) of (insert noun) I have done this year.", "exampleUrl": "https://www.instagram.com/reel/DDiXCKmurWf/?igsh=MTJiN2N1MGtvbnd0NQ=="}, {"id": "STO_0277", "category": "STORYTELLING", "template": "I (insert traumatic event) at (insert age) but it\u2019s what happened after that, that actually changed my life.", "exampleUrl": "https://www.instagram.com/reel/DFGfX6NP6Pn/?igsh=bGlrYTZmNXhqenAy"}, {"id": "STO_0278", "category": "STORYTELLING", "template": "I was walking past this (insert store) when I say they had (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DGwAia_yWQT/?igsh=MWZjaXcxcXFlczZ3aA=="}, {"id": "STO_0279", "category": "STORYTELLING", "template": "Fourtnely my (insert person) and I have a tendency to be a little bit impulsive.", "exampleUrl": "https://www.instagram.com/reel/DGNL0Buyid_/?igsh=ZGl5YmZ4bTJjdXNy"}, {"id": "STO_0280", "category": "STORYTELLING", "template": "Yesterday I (insert action) in (insert hours) and (insert minutes).", "exampleUrl": "https://www.instagram.com/p/DJAIpU1N7b0/"}, {"id": "STO_0281", "category": "STORYTELLING", "template": "Would you buy a house with no (insert noun), well my (insert person) did!", "exampleUrl": "https://www.instagram.com/p/DDxL49LJwSV/"}, {"id": "STO_0282", "category": "STORYTELLING", "template": "How long does it take to catch (insert high number) of (insert noun)?", "exampleUrl": "https://www.instagram.com/p/DIIU8EuRq_H/"}, {"id": "STO_0283", "category": "STORYTELLING", "template": "We got an insane deal on our (insert noun) a year ago because it needed to be (insert action).", "exampleUrl": "https://www.instagram.com/reel/DHO0BEavIkr/?igsh=MWRhem4yYzA1Y2ExNw=="}, {"id": "STO_0284", "category": "STORYTELLING", "template": "There is a man/woman that comments on every single video I upload.", "exampleUrl": "https://www.instagram.com/reel/DGc_8U7i-yF/?igsh=eDhpcG9rbGtrbzg4"}, {"id": "STO_0285", "category": "STORYTELLING", "template": "Buying (insert noun) that need a lot of work, can work out in your favor.", "exampleUrl": "https://www.instagram.com/reel/DCtwyViukxT/?igsh=emQxcTF1NGx5b2Zi"}, {"id": "STO_0286", "category": "STORYTELLING", "template": "In # days I am selling my (insert noun) and moving out of the country.", "exampleUrl": "https://www.instagram.com/reel/DCimp5XxA7o/?igsh=MW9qc2hjZHRnMmZyZQ=="}, {"id": "STO_0287", "category": "STORYTELLING", "template": "I think of my (insert noun) as my own personal (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DHWAUjrROF4/?igsh=MWthZzBuMnVsZ3FzbA=="}, {"id": "STO_0288", "category": "STORYTELLING", "template": "It\u2019s been (insert time) since I bought my dream (insert noun), and I want to take you through what the last (insert time) has been like.", "exampleUrl": "https://www.instagram.com/reel/DFlD6AYyyHm/?igsh=em1hbXI2enF1MTBm"}, {"id": "STO_0289", "category": "STORYTELLING", "template": "(insert $) home (insert bad result) in just # time/months.", "exampleUrl": "https://www.instagram.com/reel/DGKGa06O7a_/?igsh=bHdsa2lobXNxMmth"}, {"id": "STO_0290", "category": "STORYTELLING", "template": "Come with me to (insert action) the (insert title) didn't (insert action).", "exampleUrl": "https://www.instagram.com/reel/DEydm_GP0B8/?igsh=MWY1OTBpMmd0MXk2dg=="}, {"id": "STO_0291", "category": "STORYTELLING", "template": "I am revmong all my (insert noun) friendly upgrades before we (insert action). Today we are removing (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DAXBKELOkLP/?igsh=MmloOHc1bXM5cHhh"}, {"id": "STO_0292", "category": "STORYTELLING", "template": "Let\u2019s try to unclog a (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DGUOKrcRFKT/?igsh=MXBjZWFrZGs3Mzl6dA=="}, {"id": "STO_0293", "category": "STORYTELLING", "template": "This is what my morning looks like while (insert situation).", "exampleUrl": "https://www.instagram.com/reel/DExrL91JUcS/?igsh=MWN6anA2dnhhamoyZg=="}, {"id": "STO_0294", "category": "STORYTELLING", "template": "Last night at around (insert time) (insert person) began textbook stage one (insert scenario).", "exampleUrl": "https://www.instagram.com/reel/DGludzMRqVt/?igsh=MWRpMmNqY21xYmtpOA=="}, {"id": "STO_0295", "category": "STORYTELLING", "template": "After many years of total neglect my basement is finally getting much needed TLC.", "exampleUrl": "https://www.instagram.com/reel/DFTWF7opT4B/?igsh=MTc1eG54cHkzdzhlNw=="}, {"id": "STO_0296", "category": "STORYTELLING", "template": "How (insert action) ended with a (insert person) at my house telling me how lucky we are that (insert accident) didn't happen.", "exampleUrl": "https://www.instagram.com/reel/DG6_U-JxKtt/?igsh=am9wbnJ4b2JjMjcx"}, {"id": "STO_0297", "category": "STORYTELLING", "template": "Customer called me up because they had (insert situation) and wanted it (insert result) immediately.", "exampleUrl": "https://www.instagram.com/reel/DEOTavZx5TX/?igsh=MTRkN3AyaDNlaTB0eg=="}, {"id": "STO_0298", "category": "STORYTELLING", "template": "While my kids were taking a nap I went to (insert action) when I realized (insert realization).", "exampleUrl": "https://www.instagram.com/reel/DE3A6-up1Nd/?igsh=cHRuZWs4eW9qbmw0"}, {"id": "STO_0299", "category": "STORYTELLING", "template": "My one goal this year was to showcase just how interesting (insert noun) is.", "exampleUrl": "https://www.instagram.com/reel/DEDVhdrSfbP/?igsh=NDVha25oZ2V2M2c2"}, {"id": "STO_0300", "category": "STORYTELLING", "template": "I don\u2019t usually cry, but yesterday I did. And it wasn\u2019t because of (insert reason).", "exampleUrl": "https://www.instagram.com/reel/DBWgXXAvUh3/?igsh=MXdpcHgxdGlodXVrZw=="}, {"id": "STO_0301", "category": "STORYTELLING", "template": "You know when I started making (insert noun) I should have known this day would come.", "exampleUrl": "https://www.instagram.com/reel/DJANvPCTbH_/?igsh=MTJrYnFsZWVuY2w4eg=="}, {"id": "STO_0302", "category": "STORYTELLING", "template": "I got a (insert noun) and it did not turn out to be what I expected.", "exampleUrl": "https://www.instagram.com/reel/DHCVNTcy1NM/?igsh=ajFvdjNodHhwNDZ5"}, {"id": "STO_0303", "category": "STORYTELLING", "template": "About a (insert time) ago I got in trouble for having too many (insert nouns).", "exampleUrl": "https://www.instagram.com/reel/DB9kycqyic8/?igsh=b3EyYWY3bHFnenp2"}, {"id": "STO_0304", "category": "STORYTELLING", "template": "I baited this (insert google rating) (insert title) with this (insert noun) in excellent condition to see if they would rip me off.", "exampleUrl": "https://www.instagram.com/reel/DDLA77-SKTM/?igsh=NGg4aGJmZmU5ODJ2"}, {"id": "STO_0305", "category": "STORYTELLING", "template": "I took my (insert person) to (insert location) to try this (insert noun) and it actually caught something.", "exampleUrl": "https://www.instagram.com/reel/DFG8vSONo9f/?igsh=MWUxdWx5eXJpeThmbA=="}, {"id": "STO_0306", "category": "STORYTELLING", "template": "I opened up a (insert business/store) in the middle of (insert location) and I can\u2019t believe how much money I made.", "exampleUrl": "https://www.instagram.com/reel/DDr63MGOLsK/?igsh=MTZxanR2MjdobzJvNw=="}, {"id": "STO_0307", "category": "STORYTELLING", "template": "I took a (insert hour) and (insert minute) (insert noun) to (insert location) and here\u2019s how it went.", "exampleUrl": "https://www.instagram.com/reel/DCke9dGx-7G/?igsh=MXZqMmZkMTJ4dG1ydQ=="}, {"id": "STO_0308", "category": "STORYTELLING", "template": "(insert verb) (insert noun), (insert action), and don\u2019t", "exampleUrl": "https://www.instagram.com/reel/DGOH0THO"}, {"id": "STO_0309", "category": "STORYTELLING", "template": "This is life as a (insert noun) addict part (insert #).", "exampleUrl": "https://www.instagram.com/reel/DCno0FUObFN/?igsh=Mm1seHZxMWpnMm5o"}, {"id": "STO_0310", "category": "STORYTELLING", "template": "Welcome back to the journey of how I got (insert result).", "exampleUrl": "https://www.instagram.com/reel/DFvWgldxb80/?igsh=enZpOWhjaWpicjRm"}, {"id": "STO_0311", "category": "STORYTELLING", "template": "Come take a (insert noun) with me that I did not (insert action) for at all.", "exampleUrl": "https://www.instagram.com/reel/DEArdkWRoI3/?igsh=MThiaXZ2dnBhdjR0cQ=="}, {"id": "STO_0312", "category": "STORYTELLING", "template": "It\u2019s been (insert time) since I have seen myself with (insert feature) and that\u2019s all about to change.", "exampleUrl": "https://www.instagram.com/reel/C48sQQpI5aS/?igsh=MTIzNGduZmEzYzRudA=="}, {"id": "STO_0313", "category": "STORYTELLING", "template": "This was me when I was (insert pain point), (insert pain point), and (insert pain point).", "exampleUrl": "https://www.instagram.com/reel/C5TmBcrrTxF/?igsh=MTlveW5uOWU5aW9wbg=="}, {"id": "STO_0314", "category": "STORYTELLING", "template": "From being (insert state), to (insert state), back to (insert state), to (insert state), to now being (insert current state) in (insert time) I have built tons of knowledge when it comes to (insert result).", "exampleUrl": "https://www.instagram.com/reel/C8Zs6wqx2bi/?igsh=ZzU5MHI2NGFzeGxj"}, {"id": "STO_0315", "category": "STORYTELLING", "template": "I have (insert event) in (insert time) and I have not started (insert action). And if I don\u2019t do well I have to (insert consequence).", "exampleUrl": "https://www.instagram.com/reel/DDubxvxpHc1/?igsh=OWc0cXpuZmx6NG1h"}, {"id": "STO_0316", "category": "STORYTELLING", "template": "Today I am eating like (insert person) for the full day and I am going to see how much weight I gain by the end of the day.", "exampleUrl": "https://www.instagram.com/reel/DIohXabuCQd/?igsh=MTlsNWhhcjhrZzl4cg=="}, {"id": "STO_0317", "category": "STORYTELLING", "template": "(insert time ago) my (insert person) (insert action) when my (insert person) passed away.", "exampleUrl": "https://www.instagram.com/reel/DEpFrpHRKBN/?igsh=eDhxa2hibWllMGE4"}, {"id": "STO_0318", "category": "STORYTELLING", "template": "(insert time) I started accepting the choice to (insert drastic change).", "exampleUrl": "https://www.instagram.com/reel/DHrVRsRyA1t/?igsh=MXU0MTF6dXRpNndsbA=="}, {"id": "STO_0319", "category": "STORYTELLING", "template": "2 years, no (insert noun), and today\u2019s the first time I get to use (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DHlvQJEpYK1/?igsh=MTgxcXRpNWlrc2Qzcg=="}, {"id": "STO_0320", "category": "STORYTELLING", "template": "Does this stuff actually work?", "exampleUrl": "https://www.instagram.com/reel/DHrP6IqyOPT/?igsh=MW5iMWQ1NWRjN3lvbA=="}, {"id": "STO_0321", "category": "STORYTELLING", "template": "I gained (insert pounds/kilos) during (insert life event).", "exampleUrl": "https://www.instagram.com/reel/DG1ZicxMEJo/?igsh=aHZpN2kzamxibXI1"}, {"id": "STO_0322", "category": "STORYTELLING", "template": "I am letting (insert business type) companies, control my (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DBUGNe5Pn5g/?igsh=aWNqYnEzYnphcHBx"}, {"id": "STO_0323", "category": "STORYTELLING", "template": "So I am (insert age) and I work nights at (insert store)", "exampleUrl": "https://www.instagram.com/reel/DIW6N1gto6"}, {"id": "STO_0324", "category": "STORYTELLING", "template": "So it\u2019s been a week and I am already on (insert number) of followers.", "exampleUrl": "https://www.instagram.com/reel/DI6pGLUN66W/?igsh=eWJmMTU4eW9jZ21j"}, {"id": "STO_0325", "category": "STORYTELLING", "template": "So when I was (insert age) I started taking (insert noun) and at (insert age) I had to (insert action).", "exampleUrl": "https://www.instagram.com/reel/DC2Mg4ON1m0/?igsh=N2R6aW10MHo5NTA4"}, {"id": "STO_0326", "category": "STORYTELLING", "template": "I used to always be the guy that had a (insert condition), (insert condition), and always struggled with (insert condition).", "exampleUrl": "https://www.instagram.com/reel/DHtlcflN9uQ/?igsh=MXRweTBia2tnZG1vMg=="}, {"id": "STO_0327", "category": "STORYTELLING", "template": "My (insert person) takes me to the doctor, because I am (insert age) and already (insert action).", "exampleUrl": "https://www.instagram.com/reel/DF-i8pixfba/?igsh=MWtpcTh4eXBwc2Z1Nw=="}, {"id": "STO_0328", "category": "STORYTELLING", "template": "It has come to my attention that some of you guys think I am actually (insert result) when I do (insert content type).", "exampleUrl": "https://www.instagram.com/reel/DGrDjgDuxt0/?igsh=Yzkxb3U5ODBjaWM3"}, {"id": "STO_0329", "category": "STORYTELLING", "template": "A little over (insert time) ago I posted a video about the benefits of (insert action).", "exampleUrl": "https://www.instagram.com/reel/DG8iDwOuA6R/?igsh=MXhiM3IyYXRycHZyYw=="}, {"id": "STO_0330", "category": "STORYTELLING", "template": "I did (insert action) everyday for one year, and here\u2019s what's different.", "exampleUrl": "https://www.instagram.com/reel/DAMm_LMsAxL/?igsh=MTgyZWpwNG05ZHV1dA=="}, {"id": "STO_0331", "category": "STORYTELLING", "template": "I can confidently say the only reason I can (insert verb) (insert metric) is simply because of the way I choose to (insert verb).", "exampleUrl": "https://www.instagram.com/reel/C_rB-Ntuhe8/?igsh=MWhsazBneHVldG1hcA=="}, {"id": "STO_0332", "category": "STORYTELLING", "template": "# days ago I quit (insert noun) as a (insert age) (insert title), and started (insert noun) for literally one reason.", "exampleUrl": "https://www.instagram.com/reel/DIfR8HKN1S-/?igsh=MXpnd2llaDN3aGE2"}, {"id": "STO_0333", "category": "STORYTELLING", "template": "A competitor showed up at my job trying to get me fired.", "exampleUrl": "https://www.instagram.com/reel/DCAp43wtIxP/?igsh=MWZpYzJiaGxnNTFodw=="}, {"id": "STO_0334", "category": "STORYTELLING", "template": "I damaged a customer's property and here\u2019s how I handled it.", "exampleUrl": "https://www.instagram.com/reel/DI8xeTdOCGp/?igsh=d3NoMjRtcmxndmh2"}, {"id": "STO_0335", "category": "STORYTELLING", "template": "A customer (insert result) and tried to avoid paying.", "exampleUrl": "https://www.instagram.com/reel/DHorGhlyi3x/?igsh=MXRjbnhxODgxcmF6aw=="}, {"id": "STO_0336", "category": "STORYTELLING", "template": "I was harassed by (insert noun) so I had to do this.", "exampleUrl": "https://www.instagram.com/reel/DHZvMput7H8/?igsh=OXlxMmZmcmZzZnc3"}, {"id": "STO_0337", "category": "STORYTELLING", "template": "Alright this is officially day #1, trying to make (insert $) a month with (insert business).", "exampleUrl": "https://www.instagram.com/reel/DGYg6fDxohE/?igsh=ajIyZzE1ZnBmZWJn"}, {"id": "STO_0338", "category": "STORYTELLING", "template": "I am a retired (insert title) who now owns a (insert business). So come with me to collect the quarters.", "exampleUrl": "https://www.instagram.com/reel/DEz4JQYvuSr/?igsh=M2Z1c3Jpd3lrMjJz"}, {"id": "STO_0339", "category": "STORYTELLING", "template": "Did you know you can start your own (insert business ) from home without (insert pain point), (insert pain point), and (insert pain point).", "exampleUrl": "https://www.instagram.com/reel/DGv9SwVysky/?igsh=emp3bnJ6c3c2aWQx"}, {"id": "STO_0340", "category": "STORYTELLING", "template": "I would like to welcome you to my (insert location).", "exampleUrl": "https://www.instagram.com/reel/DDqPDWny-9a/?igsh=aDczYzE0M200NGRx"}, {"id": "STO_0341", "category": "STORYTELLING", "template": "Let me show yall how to make (insert $) per day, but installing a simple (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DCZnnxFx-IX/?igsh=MWdxdml5MXQxb3FzYw=="}, {"id": "STO_0342", "category": "STORYTELLING", "template": "Have you ever thought about starting your own (insert business)?", "exampleUrl": "https://www.instagram.com/reel/DG4fj2xxD5n/?igsh=OGR0ajlhNnBhbnF6"}, {"id": "STO_0343", "category": "STORYTELLING", "template": "Day # of trying a new hobby to recover from burnout.", "exampleUrl": "https://www.instagram.com/p/DJDLxItzPJV/"}, {"id": "STO_0344", "category": "STORYTELLING", "template": "My (insert noun) made me (insert $) last month, and what's crazy about this is I used no money to start this business.", "exampleUrl": "https://www.instagram.com/reel/DIotrpKRU6x/?igsh=MTJxaHp1c3lzcjEzMA=="}, {"id": "STO_0345", "category": "STORYTELLING", "template": "Make (insert noun) and (insert noun) with me from my online (insert business) and a (insert label).", "exampleUrl": "https://www.instagram.com/reel/DGW779fM0nD/?igsh=OTJxZnA0dXBobW4="}, {"id": "STO_0346", "category": "STORYTELLING", "template": "Hi i'm (insert name) a (insert #) generation (insert title) who shares tips about (insert niche) and (insert result).", "exampleUrl": "https://www.instagram.com/reel/DFdu6ZHxg5i/?igsh=MWU2dmJ2OWw1MHppNw=="}, {"id": "STO_0347", "category": "STORYTELLING", "template": "Starting a (insert business) at (insert age).", "exampleUrl": "https://www.instagram.com/reel/DEBDyQLTOyO/?igsh=Mmd3NG1wbHVneDdz"}, {"id": "STO_0348", "category": "STORYTELLING", "template": "Welcome to day # of starting my life over at (insert age).", "exampleUrl": "https://www.instagram.com/reel/DHOxtt0NE6o/?igsh=MWxjMXJpZW8wazl5dA=="}, {"id": "STO_0349", "category": "STORYTELLING", "template": "I have something to address, over the last week I have gained (insert #) of followers.", "exampleUrl": "https://www.instagram.com/reel/DEz23JVpGgE/?igsh=MXdtdzVwa216cTZicA=="}, {"id": "STO_0350", "category": "STORYTELLING", "template": "This is how I ended up taking the biggest risk of my life.", "exampleUrl": "https://www.instagram.com/reel/DHdesfVCuKx/?igsh=MTVqZ2ZubWQyZmdkMA=="}, {"id": "STO_0351", "category": "STORYTELLING", "template": "In 1 year I (insert verb) over (insert pounds) of (insert noun) in my extremely small (insert location).", "exampleUrl": "https://www.instagram.com/reel/DFX2ud_OwT4/?igsh=MW1ldmtqMmh6Yjd2cA=="}, {"id": "STO_0352", "category": "STORYTELLING", "template": "I f*cked up. I bought literally a (insert metric) of (insert noun). And for the last (insert time) I have been turning them into (insert results).", "exampleUrl": "https://www.instagram.com/reel/DIhivhvtN3q/?igsh=ZmRuOGthenpjN2I="}, {"id": "STO_0353", "category": "STORYTELLING", "template": "I finally built it. For the last # years I've been turning (insert noun) into (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DIxSSv5KcRv/?igsh=MXRxYTRrc240Mm1wbA=="}, {"id": "STO_0354", "category": "STORYTELLING", "template": "Is it possible to go from (insert before state) to (insert after state) just by (insert action).", "exampleUrl": "https://www.instagram.com/reel/DIoMIenNube/?igsh=MWZ0NG90Z2hubTJ5dw=="}, {"id": "STO_0355", "category": "STORYTELLING", "template": "We are now at day #, since starting my (insert project).", "exampleUrl": "https://www.instagram.com/reel/DCpBtQ8uz1R/?igsh=NXBqM3gwams3dWQw"}, {"id": "STO_0356", "category": "STORYTELLING", "template": "Proof that a (insert noun) can totally transform a space.", "exampleUrl": "https://www.instagram.com/reel/DIRVPZNpr9M/?igsh=MWtmaXh6eWk5cHNnaw=="}, {"id": "STO_0357", "category": "STORYTELLING", "template": "Alright today we are building this (insert $) (insert adjective) (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DEsqSd9SFfS/?igsh=ZXhlcDVnemUwcm9m"}, {"id": "STO_0358", "category": "STORYTELLING", "template": "Here is how we transformed my (insert persons) (insert location) from this to this using (insert noun).", "exampleUrl": "https://www.instagram.com/reel/DCufP51puBN/?igsh=cjdreHNxeTlwbXE2"}, {"id": "STO_0359", "category": "STORYTELLING", "template": "There;s probably a reason why most people don't (insert action).", "exampleUrl": "https://www.instagram.com/reel/DHbjAxavLKw/?igsh=MWoyb3kzd2UwN2JpYw=="}, {"id": "STO_0360", "category": "STORYTELLING", "template": "I bought this (insert noun) for (insert $). And today my (insert person) and I will find out if it (insert result).", "exampleUrl": "https://www.instagram.com/reel/DGgxdZ4SRgm/?igsh=cDRtaW03bDNwNGhy"}, {"id": "STO_0361", "category": "STORYTELLING", "template": "I can't stand this (insert noun), let's transform it.", "exampleUrl": "https://www.instagram.com/reel/DEDx84Zy4Fi/?igsh=cHdmNnFxbnNvd2xk"}, {"id": "STO_0362", "category": "STORYTELLING", "template": "Over the past # days I (insert action) on # of (insert nouns). In doing that I have gained over (insert #) of followers. So here's the thing.", "exampleUrl": "https://www.instagram.com/reel/DH64QI0uzgl/?igsh=MTNzamdyMHY1bzhqMw=="}, {"id": "STO_0363", "category": "STORYTELLING", "template": "Over the last (insert time) I have been finding a lot of cool things over (insert location). And today I am finally finishing my (insert project).", "exampleUrl": "https://www.instagram.com/reel/DDc9OJlvOMl/?igsh=czZyZ2picXR6eWlw"}, {"id": "STO_0364", "category": "STORYTELLING", "template": "Do you ever (insert situation), yeah well that's my job.", "exampleUrl": "https://www.instagram.com/reel/DDVHvRjsz9k/?igsh=cThzb3VrNHp3ZWh3"}, {"id": "STO_0365", "category": "STORYTELLING", "template": "I bought this (insert noun) for (insert $), and I am going to make it worth over (insert $) without changing the product in any way.", "exampleUrl": "https://www.instagram.com/reel/DHtn8PPo5_r/?igsh=MTZtNGc0aXFxaG9mMA=="}, {"id": "STO_0366", "category": "STORYTELLING", "template": "This might be the coolest DIY I have ever made.", "exampleUrl": "https://www.instagram.com/reel/DGJDrxePydv/?igsh=Mml6dXljeWF5dGZp"}, {"id": "STO_0367", "category": "STORYTELLING", "template": "Some people call it a problem but I call it (insert noun) genius.", "exampleUrl": "https://www.instagram.com/reel/DGQvN_dJ5cK/?igsh=MThiN2V2eGRqenJ4cA=="}, {"id": "STO_0368", "category": "STORYTELLING", "template": "With the (insert life event) coming, it\u2019s time to (insert action).", "exampleUrl": "https://www.instagram.com/reel/DC2fx6XOD5c/?igsh=MXVyY2lsajhqcDJyYw=="}, {"id": "RAN_0001", "category": "RANDOM", "template": "This is (insert large number) of (insert item).", "exampleUrl": "https://www.instagram.com/p/C84vUYRMEtm/"}, {"id": "RAN_0002", "category": "RANDOM", "template": "This is my (insert item) and this is (insert random action) if I were (insert random action).", "exampleUrl": "https://www.instagram.com/p/DCswF7jx5e8/"}, {"id": "RAN_0003", "category": "RANDOM", "template": "You're losing your boyfriend/girlfriend this week to (insert event/hobby).", "exampleUrl": "https://www.instagram.com/p/C_d78KaSl4e/"}, {"id": "RAN_0004", "category": "RANDOM", "template": "What (insert title) says vs what they mean.", "exampleUrl": "https://www.instagram.com/p/C9pwV7rPMVo/"}, {"id": "RAN_0005", "category": "RANDOM", "template": "(insert trend) is the most disgusting trend on social media.", "exampleUrl": "https://www.instagram.com/p/DAdgNiLSGrC/"}, {"id": "RAN_0006", "category": "RANDOM", "template": "I do not believe in (insert common belief), I believe in (insert your belief).", "exampleUrl": "https://www.instagram.com/reel/DFAu11XxvX-/"}, {"id": "RAN_0007", "category": "RANDOM", "template": "If you like these (insert job title), you'll probably like my (insert work).", "exampleUrl": "https://www.instagram.com/p/C-S-AL0tIoy/"}, {"id": "RAN_0008", "category": "RANDOM", "template": "(insert big brand) didn't want to sponsor this video, let me show you what they're missing out on.", "exampleUrl": "https://www.instagram.com/p/DAlofevvKBf/"}, {"id": "RAN_0009", "category": "RANDOM", "template": "I am trying a different (insert noun) for each letter of the alphabet.", "exampleUrl": "https://www.instagram.com/p/DFdgmSDx5h7/"}, {"id": "RAN_0010", "category": "RANDOM", "template": "My (insert person) has never been in the (insert place) before let's see if she can tell who is (insert adjective) or not.", "exampleUrl": "https://www.instagram.com/p/DHwLIKmuE9a/"}, {"id": "RAN_0011", "category": "RANDOM", "template": "If I get this in, then I have to (insert verb).", "exampleUrl": "https://www.instagram.com/p/DIIB3xdThFN/"}, {"id": "AUT_0001", "category": "AUTHORITY", "template": "My (insert before state) used to look like this and now they look like this.", "exampleUrl": "https://www.instagram.com/reel/DE7cjKBNcY4/?igsh=MTNyY2l3bzM5b2Q3"}, {"id": "AUT_0002", "category": "AUTHORITY", "template": "10 YEARS it took me from (insert before state) to (insert after state).", "exampleUrl": "https://www.instagram.com/p/C8Cpii4PB1u/"}, {"id": "AUT_0003", "category": "AUTHORITY", "template": "How to turn this into this in X simple steps.", "exampleUrl": "https://www.instagram.com/p/DDDbVpExlO7/"}, {"id": "AUT_0004", "category": "AUTHORITY", "template": "(insert big result) from (insert item/thing). Here's how you can do it in X steps.", "exampleUrl": "https://www.instagram.com/p/DBZtLTpv91b/"}, {"id": "AUT_0005", "category": "AUTHORITY", "template": "Over the past (insert time) I've grown my (insert thing) from (insert before) to (insert after).", "exampleUrl": "https://www.instagram.com/p/DCopsVERQ_N/"}, {"id": "AUT_0006", "category": "AUTHORITY", "template": "Just # (insert item/action) took my client from (insert before) to (insert after).", "exampleUrl": "https://www.instagram.com/p/C9XVmDQS2z-/"}, {"id": "AUT_0007", "category": "AUTHORITY", "template": "My customer/client got (insert dream result) without (insert pain point).", "exampleUrl": "https://www.instagram.com/reel/C4VceenL2Wq/"}, {"id": "AUT_0008", "category": "AUTHORITY", "template": "If I were to create a collab campaign for (insert big", "exampleUrl": "https://www.instagram.com/reel/DDWwZtZi4Jt/"}, {"id": "AUT_0009", "category": "AUTHORITY", "template": "How I got my (insert item/thing) from this to this.", "exampleUrl": "https://www.instagram.com/p/C89iASFu7GA/"}, {"id": "AUT_0010", "category": "AUTHORITY", "template": "I became a (insert achievement) at (insert age) and if I could give you X pieces of advice it would be\u2026", "exampleUrl": "https://www.tiktok.com/t/ZT2MLXA1Y/"}, {"id": "AUT_0011", "category": "AUTHORITY", "template": "Everyone is complimenting on my (insert noun) because of one (insert noun) routine that I do.", "exampleUrl": "https://www.instagram.com/p/C-NrgKvR4KS/"}, {"id": "AUT_0012", "category": "AUTHORITY", "template": "I lost over (insert metric) in (insert time frame) and here are the # of things I would do if I was to start all over.", "exampleUrl": "https://www.instagram.com/p/DGgs20kvL2r/"}, {"id": "AUT_0013", "category": "AUTHORITY", "template": "My customer/client got (insert dream result) with out (insert pain point) and here's how.", "exampleUrl": "https://www.instagram.com/reel/C4VceenL2Wq/"}, {"id": "AUT_0014", "category": "AUTHORITY", "template": "I am in a (insert noun) and these # habits dramatically transformed my (insert noun).", "exampleUrl": "https://www.instagram.com/reel/C79a1LjPGYa/"}, {"id": "AUT_0015", "category": "AUTHORITY", "template": "I got (insert dream result) on all of my (insert noun) with minimal (insert action) and here's how.", "exampleUrl": "https://www.instagram.com/p/C6G56RQrf9N/"}, {"id": "AUT_0016", "category": "AUTHORITY", "template": "If I were to create a (insert noun) today this is how I would do it.", "exampleUrl": "https://www.instagram.com/p/DCephvLiQuW/"}, {"id": "AUT_0017", "category": "AUTHORITY", "template": "If I ever made it to the news I thought it would at least be for something illegal, turns out it's for (insert dream result).", "exampleUrl": "https://www.instagram.com/p/DF2GJJ3vAQq/"}, {"id": "AUT_0018", "category": "AUTHORITY", "template": "(insert well known brand) commented that I am their new favorite (insert title).", "exampleUrl": "https://www.instagram.com/reel/DH4GEtKBzbo/"}, {"id": "AUT_0019", "category": "AUTHORITY", "template": "What I (insert action) in a day as someone who has achieved (insert dream result).", "exampleUrl": "https://www.instagram.com/p/C66_WyUvgha/"}, {"id": "AUT_0020", "category": "AUTHORITY", "template": "I literally used to have a (insert before state).", "exampleUrl": "https://www.instagram.com/share/_grFmUWDX"}, {"id": "AUT_0021", "category": "AUTHORITY", "template": "My (insert noun) went from this to this in the last (insert time frame) and this is what I done.", "exampleUrl": "https://www.instagram.com/share/BANskzjs_f"}, {"id": "AUT_0022", "category": "AUTHORITY", "template": "I have been pretty much doing the same (insert noun) for the past (insert time frame) and they have legit (insert dream result).", "exampleUrl": "https://www.instagram.com/share/BAdIQWMjhm"}, {"id": "AUT_0023", "category": "AUTHORITY", "template": "When I was (insert before state) I was constantly (insert pain point).", "exampleUrl": "https://www.instagram.com/p/CzevtHvyxxX/"}, {"id": "AUT_0024", "category": "AUTHORITY", "template": "In (insert year) my business made (insert dollar amount).", "exampleUrl": "https://www.instagram.com/p/DEhk6r4ydum/"}, {"id": "AUT_0025", "category": "AUTHORITY", "template": "As a (insert title) for several years whose (insert action) I often get asked (insert name) (insert question).", "exampleUrl": "https://www.instagram.com/reel/DGRSq17OLPV/"}, {"id": "AUT_0026", "category": "AUTHORITY", "template": "I have never ended (insert noun) with a (insert result) or below.", "exampleUrl": "https://www.instagram.com/reel/DFfNiKHOzpr/"}, {"id": "AUT_0027", "category": "AUTHORITY", "template": "He/she (insert action) for one day and got (insert dream result).", "exampleUrl": "https://www.instagram.com/p/DFp2byfojFu/"}, {"id": "AUT_0028", "category": "AUTHORITY", "template": "I jumped my (insert noun) from (insert before state) to (insert dream result).", "exampleUrl": "https://www.instagram.com/p/DFsVpDVOAGf/"}, {"id": "AUT_0029", "category": "AUTHORITY", "template": "This used to be my (insert noun) this is my (insert noun) now.", "exampleUrl": "https://www.instagram.com/p/DDV4VwitJPo/"}, {"id": "AUT_0030", "category": "AUTHORITY", "template": "I have been able to go from this, to this.", "exampleUrl": "https://www.instagram.com/p/DGekQ-6NXjQ/"}, {"id": "AUT_0031", "category": "AUTHORITY", "template": "Things I wish I knew before my (insert noun) that took me from this to this.", "exampleUrl": "https://www.instagram.com/p/DGsXCTeS69Z/"}, {"id": "AUT_0032", "category": "AUTHORITY", "template": "The (insert noun) I (insert action) everyday that took me from this, to this.", "exampleUrl": "https://www.instagram.com/p/DGxOv7Rp2UE/"}, {"id": "AUT_0033", "category": "AUTHORITY", "template": "I went from this to this.", "exampleUrl": "https://www.instagram.com/p/DFIU9b7OS2h/"}, {"id": "AUT_0034", "category": "AUTHORITY", "template": "No because my transformation from (insert age) to (insert age) ought to be studied.", "exampleUrl": "https://www.instagram.com/p/DEOVBs8ygXs/"}, {"id": "AUT_0035", "category": "AUTHORITY", "template": "After (insert dream result) here is one thing I learned the hard way so you don't have to.", "exampleUrl": "https://www.instagram.com/p/DFdP6ttxN-a/"}, {"id": "AUT_0036", "category": "AUTHORITY", "template": "Okay bish you don't need to (insert action) to (insert dream result) coming from someone who (insert dream result).", "exampleUrl": "https://www.instagram.com/p/C6uiWv3p4FC/"}, {"id": "AUT_0037", "category": "AUTHORITY", "template": "I (insert dream result) in the past (insert time frame), here's proof.", "exampleUrl": "https://www.instagram.com/p/DHtmwvQRSUX/"}, {"id": "AUT_0038", "category": "AUTHORITY", "template": "Here's how my student/client/customer went from (insert before result) to (insert after result) and (insert symptom due to result).", "exampleUrl": "https://www.instagram.com/p/DGA-YAxJXIs/"}, {"id": "AUT_0039", "category": "AUTHORITY", "template": "% of the time when I am in (insert situation) I get (insert result), and today I will be showing you my (insert noun) routine so I can help you achieve (insert dream result).", "exampleUrl": "https://www.instagram.com/p/DGg0dN5vAX1/"}, {"id": "AUT_0040", "category": "AUTHORITY", "template": "I (insert verb) for (insert time frame) and I got a (insert dream result).", "exampleUrl": "https://www.instagram.com/p/DFEFOlTRacT/"}, {"id": "AUT_0041", "category": "AUTHORITY", "template": "This is how I got my (insert noun) from this to this completely natural.", "exampleUrl": "https://www.instagram.com/p/DFJJImVx2VW/"}, {"id": "AUT_0042", "category": "AUTHORITY", "template": "Nobody believes me if I say I went from this to this.", "exampleUrl": "https://www.instagram.com/p/DIL_hAYIF-z/"}, {"id": "AUT_0043", "category": "AUTHORITY", "template": "These are the products I use to keep (insert noun) (insert noun) and (insert adjective) as a (insert title).", "exampleUrl": "https://www.instagram.com/p/DFZHR-Tvumy/"}, {"id": "AUT_0044", "category": "AUTHORITY", "template": "Same recipe but different (insert noun). For this (insert noun) I used my # tips to make (insert dream result) at home and you can really tell it makes a big difference.", "exampleUrl": "https://www.instagram.com/p/DHdWHu2sHJi/"}, {"id": "AUT_0045", "category": "AUTHORITY", "template": "(insert noun) is my second (insert noun) and here are the # (insert noun) I did over, and over, and over again to improve my (insert noun).", "exampleUrl": "https://www.instagram.com/p/DFSbi04zM8c/"}, {"id": "AUT_0046", "category": "AUTHORITY", "template": "How I took this (insert title) from 0 to (insert #) of (insert noun) in 1 week.", "exampleUrl": "https://www.instagram.com/p/DIMxxBuP23X/"}, {"id": "AUT_0047", "category": "AUTHORITY", "template": "I am only (insert metric) but I have became one of the best (insert title) in the world.", "exampleUrl": "https://www.instagram.com/reel/DGd3qJxS7el/?igsh=MXRuOHIydjVtOTUwZQ=="}, {"id": "DAY_0001", "category": "DAY IN THE LIFE", "template": "We all have the same 24 hours in a day so here I am putting my 24 hours to work.", "exampleUrl": "https://www.instagram.com/reel/DAq-UDcITU5/?igs"}, {"id": "DAY_0002", "category": "DAY IN THE LIFE", "template": "Day 1 of starting over my whole entire life.", "exampleUrl": "https://www.instagram.com/reel/DEc3jW6p1Ws/?igsh=M3draTd2OW11Ym80"}, {"id": "DAY_0003", "category": "DAY IN THE LIFE", "template": "So okay being an (insert target audience), my days vary quite a lot from one another.", "exampleUrl": "https://www.instagram.com/reel/DBiVM_Xxpwf/?igsh=MWc3ZTl1aGR1d250aQ%3D%3D"}, {"id": "DAY_0004", "category": "DAY IN THE LIFE", "template": "Day in the life of a (insert adjective) person.", "exampleUrl": "https://www.instagram.com/reel/DEiIMQxx8q3/?igsh=MXJwMW05cW5qYTVsbA=="}, {"id": "DAY_0005", "category": "DAY IN THE LIFE", "template": "Welcome back to the day in the life of two (insert label) trying to build the next (insert business).", "exampleUrl": "https://www.instagram.com/p/DEnSkHQJwIx/"}, {"id": "DAY_0006", "category": "DAY IN THE LIFE", "template": "(insert noun) day # (insert event about that day).", "exampleUrl": "https://www.instagram.com/reel/DICaRJ6BF2C/?igsh=eTZxamxwMTlsbjdx"}, {"id": "DAY_0007", "category": "DAY IN THE LIFE", "template": "I am a # year old (insert title), and I am heading to (insert event/location).", "exampleUrl": "https://www.instagram.com/p/DHmdSxESXUy/"}, {"id": "DAY_0008", "category": "DAY IN THE LIFE", "template": "This is a day in the life of a (insert title) (insert noun) edition.", "exampleUrl": "https://www.instagram.com/p/DFn2OKuzc7i/"}, {"id": "DAY_0009", "category": "DAY IN THE LIFE", "template": "Come to work with me as a (insert title).", "exampleUrl": "https://www.instagram.com/p/DEtaTDvsV6J/"}, {"id": "DAY_0010", "category": "DAY IN THE LIFE", "template": "(insert school) day #, my last (insert noun).", "exampleUrl": "https://www.instagram.com/p/DICaRJ6BF2C/"}, {"id": "DAY_0011", "category": "DAY IN THE LIFE", "template": "Day # of turning from (insert before state) to (insert after state) and suddenly I don't want to be (insert after state) anymore.", "exampleUrl": "https://www.instagram.com/p/DIfVFI6P_3Z/"}, {"id": "DAY_0012", "category": "DAY IN THE LIFE", "template": "Come with me to earn $ per day, with (insert avenue).", "exampleUrl": "https://www.instagram.com/reel/DHXVJGsRKa1/?igsh=MXd2Y2MyN2cybW1pcg=="}, {"id": "DAY_0013", "category": "DAY IN THE LIFE", "template": "Day # trying to make (insert $) by the end of the year, by (insert method).", "exampleUrl": "https://www.instagram.com/reel/DHSNzUypHDa/?igsh=MXZ6aTA1a283bHp0dw=="}, {"id": "DAY_0014", "category": "DAY IN THE LIFE", "template": "Day in the life of a future millionaire.", "exampleUrl": "https://www.instagram.com/reel/DF1Kq5CuULS/?igsh=YnBrcnpqbTVwcmsx"}, {"id": "DAY_0015", "category": "DAY IN THE LIFE", "template": "Day in the life as a (insert title) (insert noun) edition.", "exampleUrl": "https://www.instagram.com/reel/DGV-cE4v6Jy/?igsh=YWU2Zjk3MXpweGkw"}, {"id": "DAY_0016", "category": "DAY IN THE LIFE", "template": "This is what an average day of a (insert title) looks like a week out from (insert event).", "exampleUrl": "https://www.instagram.com/reel/DFdienFJMGK/?igsh=amZrMWdiZGxhd2g0"}];
-let VIRAL_HOOKS = VIRAL_HOOKS_DATA;
-const USED_HOOK_IDS = new Set();
-const MAX_USED_HISTORY = 100;
-function loadViralHooks() {
-  console.log(`✓ Viral hooks ready: ${VIRAL_HOOKS.length} hooks embedded`);
-}
+    if(r.sources && r.sources.length){
+      const srcs = document.createElement('div');
+      srcs.style.cssText='margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:6px';
+      srcs.innerHTML='<span style="font-size:10px;color:var(--muted);width:100%;font-weight:600;letter-spacing:.4px;text-transform:uppercase">Sources</span>' +
+        r.sources.map(s=>`<button onclick="openBlockDetail(${s.id});closeM('m-ask-library')" style="background:var(--surface-3);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;cursor:pointer;color:var(--text)">${esc(s.title)}</button>`).join('');
+      aiMsg.appendChild(srcs);
+    }
 
-function getRelevantHooks(funnelStage, count = 25) {
-  if (VIRAL_HOOKS.length === 0) return [];
-  
-  // Map funnel stages to hook categories
-  const categoryMap = {
-    'tof': ['EDUCATIONAL', 'MYTH BUSTING', 'DAY IN THE LIFE'],
-    'mof': ['EDUCATIONAL', 'AUTHORITY', 'COMPARISON'],
-    'bof': ['STORYTELLING', 'AUTHORITY', 'COMPARISON']
-  };
-  
-  const categories = categoryMap[funnelStage] || ['EDUCATIONAL', 'STORYTELLING'];
-  
-  // Filter hooks by categories
-  const filtered = VIRAL_HOOKS.filter(hook => 
-    categories.includes(hook.category)
-  );
-  
-  // Shuffle and return count
-  const shuffled = filtered.sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, count);
-}
+    const meta = document.createElement('div');
+    meta.style.cssText='font-size:10px;color:var(--muted);margin-top:6px';
+    meta.textContent=`↑ Based on ${r.block_count} blocks in your library`;
+    aiMsg.appendChild(meta);
 
-// Returns a formatted block of REAL hooks for Claude to choose from.
-// Claude picks from these — it does not invent hooks.
-// ── TWO-CALL HOOK SYSTEM ────────────────────────────────────────────────────
-// Call 1 (Haiku): reads all 1003 hooks + context.
-//   Returns JSON array of objects: [{id, filledHook}]
-//   Haiku selects the best IDs AND fills the template placeholders.
-//   Node validates every ID — if it's not in VIRAL_HOOKS it's rejected.
-//   Locks {id, template, filledHook} before Call 2 ever runs.
-//
-// Call 2 (Sonnet): receives pre-locked hook objects.
-//   Writes ONLY: script, caption, filmIt, cta, overlay, title, platform, length.
-//   Never asked to return hookId or hook text — those come from Node.
-//   Node merges at the end: hookId/hook from Node, content from Sonnet.
-//   EDU_004730 is structurally impossible.
-
-async function selectAndFillHooksViaHaiku(count, context) {
-  if (VIRAL_HOOKS.length === 0) return [];
-  const categories = ['EDUCATIONAL','STORYTELLING','MYTH BUSTING','AUTHORITY','COMPARISON','DAY IN THE LIFE','RANDOM'];
-  const PER_CAT = 20;
-  const usedIds = new Set(USED_HOOK_IDS);
-  let slice = [];
-  for (const cat of categories) {
-    const pool = VIRAL_HOOKS.filter(h => h.category === cat && !usedIds.has(h.id)).sort(() => Math.random() - 0.5).slice(0, PER_CAT);
-    slice.push(...pool);
+    history.appendChild(aiMsg);
+    history.scrollTop=history.scrollHeight;
+    status.style.display='none';
+  } catch(err){
+    toast(err.message,'err');
+    status.style.display='none';
   }
-  slice = slice.sort(() => Math.random() - 0.5);
-  const csvText = slice.map(h => `${h.id}|${h.category}|${h.template}`).join('\n');
-  const selectionPrompt = `You are selecting hooks for Ian Green, portrait photographer, West Island Montreal.
+  btn.disabled=false; btn.textContent='Ask →';
+}
+function closeM(id){document.getElementById(id).classList.add('off');}
+function openModal(id){document.getElementById(id).classList.remove('off');}
+function switchTab(group,tab,btn){
+  const modal=btn.closest('.modal,.mbg');
+  modal.querySelectorAll('.tc').forEach(c=>c.classList.remove('on'));
+  const tc=document.getElementById(group+'-'+tab);
+  if(tc)tc.classList.add('on');
+  btn.closest('.tabs').querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+  btn.classList.add('on');
+}
+document.querySelectorAll('.mbg').forEach(bg=>bg.addEventListener('click',e=>{if(e.target===bg)bg.classList.add('off');}));
 
-ABOUT IAN: ${context}
-
-TASK:
-1. Read all hooks below.
-2. Select exactly ${count} hooks that best fit Ian's content.
-3. Each selected hook MUST be from a DIFFERENT category. No two can share a category.
-4. For each hook, fill in all placeholder text (anything in parentheses) with portrait photography context.
-
-RULES:
-- Return ONLY a JSON array. No explanation, no markdown.
-- Every "id" MUST exist exactly in the database below.
-- Do not invent, modify, or combine IDs.
-- "filledHook" = template with ALL placeholders replaced. Keep sentence structure.
-- DIFFERENT CATEGORIES REQUIRED.
-
-RETURN FORMAT:
-[{"id": "EDU_0047", "filledHook": "If you just booked your first headshot session and don't want to look stiff, here are 3 things to do immediately."}]
-
-HOOK DATABASE (ID|Category|Template):
-${csvText}`;
-  let msg;
-  try {
-    msg = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1500,
-      temperature: 1.0,
-      messages: [{ role: 'user', content: selectionPrompt }]
+// ═══ PIPELINE ═══
+async function loadPipeline(){
+  const p=new URLSearchParams();
+  const s=document.getElementById('pl-search').value;
+  const st=document.getElementById('pl-status').value;
+  if(s)p.set('search',s);if(st)p.set('status',st);
+  const clients=await api('GET','/api/clients?'+p);
+  const grid=document.getElementById('pipeline-grid');
+  if(!clients.length){grid.innerHTML='<div class="empty"><div class="ei">👤</div><p>No clients yet</p></div>';return;}
+  grid.innerHTML=clients.map(c=>`
+    <div class="card" onclick="openClientFile(${c.id})">
+      <h3>${esc(c.name)}</h3>
+      <div class="meta">${esc(c.platform||'')}${c.session_type?` · ${esc(c.session_type)}`:''}${c.session_date?` · ${esc(c.session_date)}`:''}</div>
+      <div class="foot">
+        <span class="tag ${statusClass(c.status)}">${c.status}</span>
+        ${c.lead_temperature?`<span class="tag ${tempClass(c.lead_temperature)}">${esc(c.lead_temperature.split(' ')[0])}</span>`:''}
+        <span style="margin-left:auto;font-size:11px;color:var(--muted)">${new Date(c.updated_at).toLocaleDateString('en-CA')}</span>
+      </div>
+    </div>`).join('');
+}
+function openNewClient(){
+  ['mc-name','mc-date','mc-offer','mc-contact'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('mc-status').value='lead';
+  openModal('m-client');
+}
+async function saveClient(){
+  const name=document.getElementById('mc-name').value.trim();
+  if(!name){toast('Name required','err');return;}
+  try{
+    const c=await api('POST','/api/clients',{
+      name,platform:document.getElementById('mc-platform').value,
+      session_type:document.getElementById('mc-stype').value,
+      session_date:document.getElementById('mc-date').value,
+      offer:document.getElementById('mc-offer').value,
+      first_contact:document.getElementById('mc-contact').value,
+      status:document.getElementById('mc-status').value
     });
-  } catch (e) { console.error('Haiku hook error:', e.message); return []; }
-  const text = msg.content[0].text.trim();
-  let returned = [];
-  try {
-    const match = text.match(/\[.*\]/s);
-    if (match) returned = JSON.parse(match[0]);
-  } catch (e) { console.error('Haiku parse error:', e.message); return []; }
-  const hookMap = Object.fromEntries(VIRAL_HOOKS.map(h => [h.id, h]));
-  const validIdSet = new Set(VIRAL_HOOKS.map(h => h.id));
-  const validated = returned
-    .filter(item => item && typeof item.id === 'string' && validIdSet.has(item.id.trim()))
-    .map(item => ({
-      id: item.id.trim(),
-      category: hookMap[item.id.trim()].category,
-      template: hookMap[item.id.trim()].template,
-      exampleUrl: hookMap[item.id.trim()].exampleUrl,
-      filledHook: item.filledHook || hookMap[item.id.trim()].template
-    }));
-  console.log(`Hook selection: slice=${slice.length}, returned ${returned.length}, validated ${validated.length}`);
-  return validated;
+    closeM('m-client');toast('Client created','ok');openClientFile(c.id);
+  }catch(err){toast(err.message,'err');}
 }
 
-// Fallback: random sample when Haiku fails completely
-function randomHooks(count, funnelStage, pillar) {
-  const categoryMap = {
-    'Educate':   ['EDUCATIONAL', 'MYTH BUSTING', 'AUTHORITY'],
-    'Entertain': ['STORYTELLING', 'DAY IN THE LIFE', 'RANDOM', 'COMPARISON'],
-    'Tell':      ['STORYTELLING', 'DAY IN THE LIFE', 'AUTHORITY'],
-    'Promote':   ['STORYTELLING', 'AUTHORITY', 'COMPARISON'],
+// ═══ CLIENT FILE ═══
+async function openClientFile(id){
+  CID=id;
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.getElementById('v-client-file').classList.add('on');
+  const c=await api('GET','/api/clients/'+id);
+  renderClientFile(c);
+}
+function renderClientFile(c){
+  const metaParts=[c.platform,c.session_type,c.session_date].filter(Boolean);
+  const poses=(c.blocks||[]).filter(b=>b.type==='pose');
+  const otherBlocks=(c.blocks||[]).filter(b=>b.type!=='pose');
+  function row(label,key,val){
+    return `<div class="cf-row"><div class="cf-key">${label}</div><div>
+      ${val
+        ?`<span class="cf-val editable" onclick="editField('${key}','${esc(val)}','${label}','client')">${esc(val)}</span>`
+        :`<span class="cf-val editable empty" onclick="editField('${key}','','${label}','client')">— click to add</span>`
+      }</div></div>`;
+  }
+  document.getElementById('cf-body').innerHTML=`
+    <div class="cf-header">
+      <div class="cf-brand">Phixo — Client File</div>
+      <div class="cf-name">${esc(c.name)}</div>
+      <div class="cf-meta">${metaParts.map(esc).join('  |  ')}</div>
+    </div>
+    <div class="cf-actions">
+      <button class="btn btn-dark btn-sm" onclick="openAnalyze()">📋 Analyze Conversation</button>
+      <button class="btn btn-ghost btn-sm" onclick="openBlockPicker('client',${c.id},['pose'],'Add Poses')">🧍 Add Poses</button>
+      <button class="btn btn-ghost btn-sm" onclick="openBlockPicker('client',${c.id},null,'Attach Blocks')">＋ Attach</button>
+      <select onchange="updateClientStatus(this.value)" style="padding:5px 10px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--bg)">
+        <option value="lead" ${c.status==='lead'?'selected':''}>Lead</option>
+        <option value="booked" ${c.status==='booked'?'selected':''}>Booked</option>
+        <option value="shot" ${c.status==='shot'?'selected':''}>Shot</option>
+        <option value="delivered" ${c.status==='delivered'?'selected':''}>Delivered</option>
+      </select>
+      <button class="btn btn-danger btn-sm" onclick="deleteClient(${c.id})">Delete</button>
+    </div>
+    <div class="cf-sec">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Client Info</h3><span class="arr">▾</span></div>
+      <div class="cf-bd">${row('Name','name',c.name)}${row('Platform','platform',c.platform)}${row('Session Type','session_type',c.session_type)}${row('Session Date','session_date',c.session_date)}${row('Offer','offer',c.offer)}${row('First Contact','first_contact',c.first_contact)}</div>
+    </div>
+    <div class="cf-sec">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Message Analysis</h3><span class="arr">▾</span></div>
+      <div class="cf-bd">
+        <div class="cf-row"><div class="cf-key">Lead Temperature</div><div>
+          ${c.lead_temperature
+            ?`<span class="temp-badge ${tempClass(c.lead_temperature)}">${esc(c.lead_temperature)}</span>`
+            :`<span class="cf-val editable empty" onclick="editField('lead_temperature','','Lead Temperature','client')">— click to add</span>`}
+        </div></div>
+        ${row('What They Want','what_they_want',c.what_they_want)}
+        ${row('Emotional Read','emotional_read',c.emotional_read)}
+        ${row('Red Flags','red_flags',c.red_flags)}
+        ${row('Opportunity','opportunity',c.opportunity)}
+      </div>
+    </div>
+    <div class="cf-sec">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Session Briefing — How to Connect with ${esc(c.name)}</h3><span class="arr">▾</span></div>
+      <div class="cf-bd">
+        ${row('How to Open','how_to_open',c.how_to_open)}
+        ${row('Things to Avoid','things_to_avoid',c.things_to_avoid)}
+        ${row('Key Question','key_question',c.key_question)}
+        ${row('Talk About','things_to_talk_about',c.things_to_talk_about)}
+        ${row('What They Need','what_they_need',c.what_they_need)}
+        ${row('Watch For','moment_to_watch',c.moment_to_watch)}
+        ${row('How to Close','how_to_close',c.how_to_close)}
+        ${row('Lighting Setup','lighting_setup',c.lighting_setup)}
+      </div>
+    </div>
+    <div class="cf-sec">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Pose Selection</h3><span class="arr">▾</span></div>
+      <div class="cf-bd" style="padding-top:12px">
+        <div class="pose-grid">
+          ${poses.map(p=>`
+            <div class="pose-tile" onclick="openLightbox('${p.drive_file_id?`/api/drive/file/${p.drive_file_id}`:esc(p.thumbnail_url||'')}','${esc(p.file_name||p.title)}')" title="${esc(p.file_name||p.title)}">
+              <img src="${p.thumbnail_url?esc(p.thumbnail_url):`/api/drive/file/${p.drive_file_id}`}" loading="lazy" onerror="this.src='/api/drive/file/${p.drive_file_id}';this.onerror=null">
+              <button class="rm" onclick="event.stopPropagation();detachBlock(${p.attachment_id},'client')">✕</button>
+            </div>`).join('')}
+          <button class="pose-tile-add" onclick="openBlockPicker('client',${c.id},['pose'],'Add Poses')">
+            <span style="font-size:28px">＋</span><span>Add Pose</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="cf-sec">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Attached Blocks</h3><span class="arr">▾</span></div>
+      <div class="cf-bd" style="padding-top:12px">
+        <div class="block-strip">
+          ${otherBlocks.map(b=>`
+            <div class="strip-thumb" title="${esc(b.title)}" style="cursor:pointer" onclick="openBlockDetail(${b.id})">
+              ${b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('image/')
+                ?`<img src="/api/drive/file/${b.drive_file_id}" loading="lazy">`
+                :`<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:24px">${typeIcon(b.type)}</div>`}
+              <button class="rm" onclick="event.stopPropagation();detachBlock(${b.attachment_id},'client')">✕</button>
+            </div>`).join('')}
+          <button class="strip-add" onclick="openBlockPicker('client',${c.id},null,'Attach Blocks')">
+            <span class="ico">＋</span><span>Attach</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="cf-sec">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Conversation Log</h3><span class="arr">▾</span></div>
+      <div class="cf-bd" style="padding-top:12px">
+        ${c.conversation_log
+          ?`<div class="conv-block">${esc(c.conversation_log)}</div>`
+          :`<p style="font-size:13px;color:var(--muted)">No conversation yet — use Analyze Conversation above.</p>`}
+      </div>
+    </div>
+    <div class="cf-sec">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Draft Reply / Final Sent</h3><span class="arr">▾</span></div>
+      <div class="cf-bd" style="padding-top:12px">
+        ${c.draft_reply
+          ?`<div class="draft-block">${esc(c.draft_reply)}</div><div style="margin-top:8px">${row('Final Version Sent','final_reply',c.final_reply)}</div>`
+          :row('Draft / Final Reply','draft_reply',c.draft_reply)}
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);text-align:right;margin-top:12px">
+      Last updated: ${new Date(c.updated_at).toLocaleString('en-CA')} | Phixo Studio — West Island Montreal
+    </div>`;
+}
+function toggleSec(h){
+  const body=h.nextElementSibling;
+  body.classList.toggle('hide');
+  h.classList.toggle('open',!body.classList.contains('hide'));
+  h.querySelector('.arr').textContent=body.classList.contains('hide')?'▸':'▾';
+}
+function editField(key,current,label,entity){
+  ef_key=key;ef_entity=entity;
+  document.getElementById('ef-label').textContent='Edit: '+label;
+  document.getElementById('ef-val').value=current;
+  openModal('m-editfield');
+  setTimeout(()=>document.getElementById('ef-val').focus(),60);
+}
+async function confirmEditField(){
+  const val=document.getElementById('ef-val').value;
+  try{
+    if(ef_entity==='client'){const c=await api('PATCH','/api/clients/'+CID,{[ef_key]:val});closeM('m-editfield');toast('Saved','ok');renderClientFile(c);}
+    else if(ef_entity==='prospect'){const p=await api('PATCH','/api/prospects/'+PROID,{[ef_key]:val});closeM('m-editfield');toast('Saved','ok');renderProspectFile(p);}
+  }catch(err){toast(err.message,'err');}
+}
+async function updateClientStatus(s){
+  try{await api('PATCH','/api/clients/'+CID,{status:s});toast('Updated','ok');}
+  catch(err){toast(err.message,'err');}
+}
+async function deleteClient(id){
+  if(!confirm('Delete this client file?'))return;
+  try{await api('DELETE','/api/clients/'+id);toast('Deleted');showView('pipeline');}
+  catch(err){toast(err.message,'err');}
+}
+
+// ═══ ANALYZE ═══
+function openAnalyze(){
+  document.getElementById('az-conv').value='';az_file=null;
+  document.getElementById('az-preview').style.display='none';
+  openModal('m-analyze');
+}
+async function analyzeConversation(){
+  const conv=document.getElementById('az-conv').value.trim();
+  if(!conv){toast('Paste a conversation','err');return;}
+  const btn=document.getElementById('az-btn');
+  btn.disabled=true;btn.textContent='Analyzing...';
+  try{
+    const r=await api('POST','/api/clients/'+CID+'/analyze',{conversation:conv});
+    closeM('m-analyze');toast('Analysis complete','ok');renderClientFile(r.client);
+  }catch(err){toast(err.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Analyze with Claude →';}
+}
+function handleAzFile(input){
+  az_file=input.files[0];
+  if(az_file){const r=new FileReader();r.onload=e=>{document.getElementById('az-img-prev').src=e.target.result;document.getElementById('az-preview').style.display='block';};r.readAsDataURL(az_file);}
+}
+async function analyzeImage(){
+  if(!az_file){toast('Select a screenshot','err');return;}
+  const btn=document.getElementById('az-img-btn');
+  btn.disabled=true;btn.textContent='Analyzing...';
+  try{
+    const fd=new FormData();fd.append('screenshot',az_file);
+    const res=await fetch('/api/clients/'+CID+'/analyze-image',{method:'POST',body:fd});
+    if(!res.ok)throw new Error((await res.json()).error);
+    const r=await res.json();
+    closeM('m-analyze');toast('Screenshot analyzed','ok');renderClientFile(r.client);
+  }catch(err){toast(err.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Analyze Screenshot →';}
+}
+
+// ═══ DISCOVERY ═══
+async function loadDiscovery(){
+  const p=new URLSearchParams();
+  const s=document.getElementById('disc-search').value;
+  const st=document.getElementById('disc-status').value;
+  if(s)p.set('search',s);if(st)p.set('status',st);
+  const prospects=await api('GET','/api/prospects?'+p);
+  const grid=document.getElementById('discovery-grid');
+  if(!prospects.length){grid.innerHTML='<div class="empty"><div class="ei">🔭</div><p>No targets yet</p></div>';return;}
+  grid.innerHTML=prospects.map(p=>`
+    <div class="card" onclick="openProspectFile(${p.id})">
+      <h3>${esc(p.name)}${p.handle?` <span style="font-weight:400;color:var(--muted)">@${esc(p.handle)}</span>`:''}</h3>
+      <div class="meta">${esc(p.platform||'')}${p.category?` · ${esc(p.category)}`:''}</div>
+      <div class="foot">
+        <span class="tag ${statusClass(p.status)}">${p.status}</span>
+        <span style="margin-left:auto;font-size:11px;color:var(--muted)">${new Date(p.created_at).toLocaleDateString('en-CA')}</span>
+      </div>
+    </div>`).join('');
+}
+function openNewProspect(){
+  ['mp-name','mp-handle','mp-why'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('mp-category').value='';
+  openModal('m-prospect');
+}
+async function saveProspect(){
+  const name=document.getElementById('mp-name').value.trim();
+  if(!name){toast('Name required','err');return;}
+  try{
+    const p=await api('POST','/api/prospects',{
+      name,handle:document.getElementById('mp-handle').value,
+      platform:document.getElementById('mp-platform').value,
+      category:document.getElementById('mp-category').value,
+      why_them:document.getElementById('mp-why').value
+    });
+    closeM('m-prospect');toast('Added to Discovery','ok');openProspectFile(p.id);
+  }catch(err){toast(err.message,'err');}
+}
+async function openProspectFile(id){
+  PROID=id;
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.getElementById('v-prospect-file').classList.add('on');
+  const p=await api('GET','/api/prospects/'+id);
+  renderProspectFile(p);
+}
+function renderProspectFile(p){
+  function row(label,key,val){
+    return `<div class="cf-row"><div class="cf-key">${label}</div><div>
+      ${val?`<span class="cf-val editable" onclick="editField('${key}','${esc(val)}','${label}','prospect')">${esc(val)}</span>`
+           :`<span class="cf-val editable empty" onclick="editField('${key}','','${label}','prospect')">— click to add</span>`}
+    </div></div>`;
+  }
+  document.getElementById('pf-body').innerHTML=`
+    <div class="cf-header" style="background:#1a1a40">
+      <div class="cf-brand">Phixo — Discovery Target</div>
+      <div class="cf-name">${esc(p.name)}</div>
+      <div class="cf-meta">${[p.handle&&('@'+p.handle),p.platform,p.category].filter(Boolean).map(esc).join('  |  ')}</div>
+    </div>
+    <div class="cf-actions">
+      <button class="btn btn-ghost btn-sm" onclick="openBlockPicker('prospect',${p.id},null,'Attach Research')">＋ Attach Blocks</button>
+      <select onchange="updateProspectStatus(this.value)" style="padding:5px 10px;font-size:12px;border-radius:7px;border:1px solid var(--border);background:var(--bg)">
+        <option value="watching" ${p.status==='watching'?'selected':''}>Watching</option>
+        <option value="outreach-ready" ${p.status==='outreach-ready'?'selected':''}>Outreach Ready</option>
+        <option value="contacted" ${p.status==='contacted'?'selected':''}>Contacted</option>
+        <option value="not-a-fit" ${p.status==='not-a-fit'?'selected':''}>Not a Fit</option>
+      </select>
+      <button class="btn btn-accent btn-sm" onclick="convertProspect(${p.id})">→ Convert to Client</button>
+      <button class="btn btn-danger btn-sm" onclick="deleteProspect(${p.id})">Delete</button>
+    </div>
+    <div class="cf-sec">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Target Info</h3><span class="arr">▾</span></div>
+      <div class="cf-bd">${row('Name','name',p.name)}${row('Handle','handle',p.handle)}${row('Platform','platform',p.platform)}${row('Category','category',p.category)}${row('Why Them','why_them',p.why_them)}${row('Notes','notes',p.notes)}</div>
+    </div>
+    <div class="cf-sec">
+      <div class="cf-sh open" onclick="toggleSec(this)"><h3>Attached Blocks</h3><span class="arr">▾</span></div>
+      <div class="cf-bd" style="padding-top:12px">
+        <div class="block-strip">
+          ${(p.blocks||[]).map(b=>`
+            <div class="strip-thumb" onclick="openBlockDetail(${b.id})" style="cursor:pointer" title="${esc(b.title)}">
+              ${b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('image/')
+                ?`<img src="/api/drive/file/${b.drive_file_id}" loading="lazy">`
+                :`<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:24px">${typeIcon(b.type)}</div>`}
+              <button class="rm" onclick="event.stopPropagation();detachBlock(${b.attachment_id},'prospect')">✕</button>
+            </div>`).join('')}
+          <button class="strip-add" onclick="openBlockPicker('prospect',${p.id},null,'Attach Blocks')">
+            <span class="ico">＋</span><span>Attach</span>
+          </button>
+        </div>
+      </div>
+    </div>`;
+}
+async function updateProspectStatus(s){
+  try{await api('PATCH','/api/prospects/'+PROID,{status:s});toast('Updated','ok');}
+  catch(err){toast(err.message,'err');}
+}
+async function convertProspect(id){
+  if(!confirm('Convert to Client in Pipeline?'))return;
+  try{const r=await api('POST','/api/prospects/'+id+'/convert');toast('Converted','ok');openClientFile(r.client.id);}
+  catch(err){toast(err.message,'err');}
+}
+async function deleteProspect(id){
+  if(!confirm('Delete this target?'))return;
+  try{await api('DELETE','/api/prospects/'+id);toast('Deleted');showView('discovery');}
+  catch(err){toast(err.message,'err');}
+}
+
+// ═══ RESEARCH ═══
+async function loadResearch(){
+  const p=new URLSearchParams();
+  const s=document.getElementById('res-search').value;
+  const t=document.getElementById('res-type').value;
+  const f=document.getElementById('res-funnel').value;
+  if(s)p.set('search',s);if(t)p.set('type',t);if(f)p.set('funnel_stage',f);
+  const blocks=await api('GET','/api/blocks?'+p);
+  const grid=document.getElementById('research-grid');
+  if(!blocks.length){grid.innerHTML='<div class="empty" style="grid-column:1/-1"><div class="ei">📚</div><p>No blocks yet</p></div>';return;}
+  grid.innerHTML=blocks.map(b=>{
+    const hasImg=b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('image/');
+    const hasVideo=b.type==='video'||(b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('video/'));
+    // Images: always proxy (CDN links expire)
+    // Everything else: use stored thumbnail_url (proxy path or data: URL)
+    // Fallback for images with missing mime: check type name
+    let thumbSrc = null;
+    if (hasImg && b.drive_file_id) {
+      // Images always via file proxy
+      thumbSrc = `/api/drive/file/${b.drive_file_id}`;
+    } else if (['pose','image'].includes(b.type) && b.drive_file_id) {
+      thumbSrc = `/api/drive/file/${b.drive_file_id}`;
+    } else if (b.thumbnail_url) {
+      // Videos, PDFs, notes — use stored proxy URL (thumbnail or screenshot frame)
+      thumbSrc = b.thumbnail_url;
+    } else if (b.drive_file_id && !hasVideo) {
+      // Fallback: request Drive thumbnail on the fly
+      thumbSrc = `/api/drive/thumbnail/${b.drive_file_id}`;
+    }
+    const fallbackIcon = hasVideo ? '🎬' : typeIcon(b.type);
+    // If stored thumbnail fails and block has drive_file_id, try thumbnail proxy as fallback
+    const thumbFallbackSrc = b.drive_file_id ? `/api/drive/thumbnail/${b.drive_file_id}` : null;
+    const thumbHtml = thumbSrc
+      ? `<img src="${esc(thumbSrc)}" loading="lazy" style="width:100%;height:100%;object-fit:cover" onerror="${thumbFallbackSrc && thumbSrc !== thumbFallbackSrc ? `this.onerror=null;this.src='${thumbFallbackSrc}'` : `this.outerHTML='<span style=\'font-size:36px\'>${fallbackIcon}</span>'`}">`
+      : `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;gap:4px"><span style="font-size:36px">${fallbackIcon}</span>${hasVideo ? '<span style="font-size:10px;color:var(--muted)">tap to play</span>' : ''}</div>`;
+    return`<div class="block-card" onclick="openBlockDetail(${b.id})">
+      <div class="block-thumb">
+        ${thumbHtml}
+        <span class="type-badge">${b.type}</span>
+        ${hasVideo && b.is_reference ? `<span class="ref-badge" title="Used as reference for idea generation">✨ REF</span>` : ''}
+      </div>
+      <div class="block-body">
+        ${b.funnel_stage?`<div style="margin-bottom:4px">${funnelBadge(b.funnel_stage)}</div>`:''}
+        <div class="block-title">${esc(b.title)}</div>
+        ${b.content_payload?`<div class="block-meta">${esc(b.content_payload.substring(0,80))}${b.content_payload.length>80?'…':''}</div>`:''}
+        ${b.tags&&b.tags.length?`<div class="block-tags">${b.tags.slice(0,3).map(t=>`<span>${esc(t)}</span>`).join('')}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  // Auto-sync on first visit - runs after render
+  if(!window._syncedOnce){
+    window._syncedOnce=true;
+    api('POST','/api/drive/sync').then(r=>{
+      if(r.imported>0){toast(r.imported+' new block'+(r.imported!==1?'s':'')+' synced from Drive','ok');loadResearch();}
+    }).catch(e=>console.warn('Auto-sync:',e.message));
+  }
+}
+function openAddBlock(defaultTab){
+  ['ab-url','ab-url-cat','ab-url-tags','ab-up-title','ab-up-cat','ab-up-tags','ab-txt-title','ab-txt-content','ab-txt-cat','ab-txt-tags','ab-drive-cat','ab-drive-tags'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['ab-url-funnel','ab-up-funnel','ab-txt-funnel'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ab_driveSelIds.clear();ab_file=null;
+  document.getElementById('ab-file-info').style.display='none';
+  openModal('m-addblock');
+  // Auto-switch to Drive tab and load if specified
+  if(defaultTab){
+    const tabs=document.querySelectorAll('#m-addblock .tab');
+    tabs.forEach(t=>t.classList.remove('on'));
+    document.querySelectorAll('#m-addblock .tc').forEach(t=>t.classList.remove('on'));
+    const tabEl=document.querySelector(`#m-addblock .tab[onclick*="${defaultTab}"]`);
+    const tcEl=document.getElementById('abt-'+defaultTab);
+    if(tabEl)tabEl.classList.add('on');
+    if(tcEl)tcEl.classList.add('on');
+  }
+  // Always pre-load Drive folder (so it's ready when user switches to that tab)
+  loadDriveFolder();
+}
+async function ingestUrl(){
+  const url=document.getElementById('ab-url').value.trim();
+  if(!url){toast('URL required','err');return;}
+  const btn=document.getElementById('ab-url-btn');btn.disabled=true;btn.textContent='Saving...';
+  try{
+    await api('POST','/api/blocks/ingest-url',{url,type:document.getElementById('ab-url-type').value,category:document.getElementById('ab-url-cat').value,funnel_stage:document.getElementById('ab-url-funnel').value,tags:document.getElementById('ab-url-tags').value});
+    closeM('m-addblock');toast('Block saved','ok');loadResearch();
+  }catch(err){toast(err.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Save Block →';}
+}
+function handleAbFile(input){
+  ab_file=input.files[0];
+  if(ab_file){
+    document.getElementById('ab-up-title').value=ab_file.name.replace(/\.[^.]+$/,'');
+    document.getElementById('ab-file-info').textContent=ab_file.name+' ('+Math.round(ab_file.size/1024)+' KB)';
+    document.getElementById('ab-file-info').style.display='block';
+    // Auto-detect type
+    const ext = ab_file.name.split('.').pop().toLowerCase();
+    const mime = ab_file.type || '';
+    const typeEl = document.getElementById('ab-up-type');
+    if(mime.startsWith('video/') || ['mp4','mov','webm','mkv'].includes(ext)) typeEl.value='video';
+    else if(mime.startsWith('image/') || ['jpg','jpeg','png','gif','webp'].includes(ext)) typeEl.value='image';
+    else if(ext==='pdf') typeEl.value='pdf';
+  }
+}
+async function uploadBlock(){
+  if(!ab_file){toast('Select a file','err');return;}
+  const btn=document.getElementById('ab-up-btn');btn.disabled=true;btn.textContent='Uploading...';
+  try{
+    const fd=new FormData();fd.append('file',ab_file);fd.append('type',document.getElementById('ab-up-type').value);fd.append('title',document.getElementById('ab-up-title').value||ab_file.name);fd.append('category',document.getElementById('ab-up-cat').value);fd.append('funnel_stage',document.getElementById('ab-up-funnel').value);fd.append('tags',document.getElementById('ab-up-tags').value);
+    const res=await fetch('/api/blocks/upload',{method:'POST',body:fd});
+    if(!res.ok)throw new Error((await res.json()).error);
+    closeM('m-addblock');toast('Uploaded','ok');loadResearch();
+  }catch(err){toast(err.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Upload →';}
+}
+async function saveTextBlock(){
+  const content=document.getElementById('ab-txt-content').value.trim();
+  if(!content){toast('Content required','err');return;}
+  try{
+    const title=document.getElementById('ab-txt-title').value.trim()||content.substring(0,40);
+    await api('POST','/api/blocks',{type:document.getElementById('ab-txt-type').value,title,category:document.getElementById('ab-txt-cat').value,content_payload:content,funnel_stage:document.getElementById('ab-txt-funnel').value,tags:document.getElementById('ab-txt-tags').value.split(',').map(t=>t.trim()).filter(Boolean)});
+    closeM('m-addblock');toast('Block saved','ok');loadResearch();
+  }catch(err){toast(err.message,'err');}
+}
+function syncDriveType(){
+  // When user changes type, suggest matching category
+  const type=document.getElementById('ab-drive-type').value;
+  const catEl=document.getElementById('ab-drive-cat');
+  if(!catEl.value){
+    const cats={pose:'posing',meme:'memes',sfx:'audio',image:'inspiration',pdf:'knowledge'};
+    catEl.value=cats[type]||type;
+  }
+}
+async function loadDriveFolder(){
+  const folder=document.getElementById('ab-drive-folder').value;
+  // Auto-map folder → type and category
+  const folderMap={
+    'Pose':{type:'pose',cat:'posing'},
+    'Meme':{type:'meme',cat:'memes'},
+    'SFX':{type:'sfx',cat:'audio'},
+    'Music':{type:'sfx',cat:'music'},
+    'Phixo Knowledge':{type:'pdf',cat:'knowledge'},
+    'Tik Tok Scripts':{type:'note',cat:'scripts'}
   };
-  const stageFallback = {
-    'ToFu': ['EDUCATIONAL', 'MYTH BUSTING', 'DAY IN THE LIFE', 'STORYTELLING'],
-    'MoFu': ['EDUCATIONAL', 'AUTHORITY', 'COMPARISON', 'STORYTELLING'],
-    'BoFu': ['STORYTELLING', 'AUTHORITY', 'COMPARISON'],
-  };
-  const categories = categoryMap[pillar] || stageFallback[funnelStage] || ['EDUCATIONAL', 'STORYTELLING'];
-  const filtered = VIRAL_HOOKS.filter(h => categories.includes(h.category));
-  const sample = [...filtered].sort(() => Math.random() - 0.5).slice(0, count);
-  // For fallback hooks, filledHook = raw template (no fill — Sonnet will handle it)
-  return sample.map(h => ({ ...h, filledHook: h.template }));
+  const mapped=folderMap[folder];
+  if(mapped){
+    document.getElementById('ab-drive-type').value=mapped.type;
+    const catEl=document.getElementById('ab-drive-cat');
+    if(!catEl.value)catEl.value=mapped.cat;
+  }
+  const grid=document.getElementById('ab-drive-grid');
+  ab_driveSelIds.clear();updateDriveCount();
+  grid.innerHTML='<div style="font-size:12px;color:var(--muted);padding:8px;grid-column:1/-1">Loading...</div>';
+  try{
+    const data=await api('GET','/api/drive/browse?folder='+encodeURIComponent(folder));
+    if(!data.files.length){grid.innerHTML=`<div style="font-size:12px;color:var(--muted);padding:8px">${esc(data.message||'No files found.')}</div>`;return;}
+    driveFiles=data.files;
+    const typeIco=typeIcon(document.getElementById('ab-drive-type').value);
+    grid.innerHTML=data.files.map(f=>`
+      <div class="drive-card ${f.already_imported?'imported':''}" data-id="${f.id}" onclick="toggleDriveSel('${f.id}',this)">
+        ${f.thumbnailLink
+          ?`<img src="${esc(f.thumbnailLink)}" loading="lazy">`
+          :`<div class="drive-icon">${typeIco}</div>`}
+        <span class="drive-check">✓</span>
+        ${f.already_imported?'<span class="drive-imported">in library</span>':''} 
+        <div class="dname">${esc(f.name)}</div>
+      </div>`).join('');
+  }catch(err){grid.innerHTML=`<div style="font-size:12px;color:red;padding:8px">${esc(err.message)}</div>`;}
+}
+function toggleDriveSel(id,el){
+  if(ab_driveSelIds.has(id))ab_driveSelIds.delete(id);else ab_driveSelIds.add(id);
+  el.classList.toggle('sel',ab_driveSelIds.has(id));updateDriveCount();
+}
+function updateDriveCount(){
+  const c=ab_driveSelIds.size;
+  document.getElementById('ab-drive-count').textContent=c+' selected';
+  document.getElementById('ab-drive-btn').disabled=c===0;
+}
+async function saveBlocksFromDrive(){
+  if(!ab_driveSelIds.size)return;
+  const type=document.getElementById('ab-drive-type').value;
+  const category=document.getElementById('ab-drive-cat').value;
+  const tags=document.getElementById('ab-drive-tags').value.split(',').map(t=>t.trim()).filter(Boolean);
+  const btn=document.getElementById('ab-drive-btn');btn.disabled=true;btn.textContent='Saving...';
+  try{
+    for(const id of ab_driveSelIds){
+      const f=driveFiles.find(x=>x.id===id);
+      await api('POST','/api/blocks/from-drive',{drive_file_id:id,file_name:f?f.name:id,file_mime:f?f.mimeType:'',thumbnail_url:f?f.thumbnailLink:'',type,title:f?f.name:id,category,tags});
+    }
+    closeM('m-addblock');toast(ab_driveSelIds.size+' block(s) added','ok');loadResearch();
+  }catch(err){toast(err.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Add Selected →';}
+}
+// openBlockDetail → see video section below
+async function deleteBlock(id){
+  if(!confirm('Delete this block?'))return;
+  try{await api('DELETE','/api/blocks/'+id);closeM('m-block-detail');toast('Deleted','ok');loadResearch();}
+  catch(err){toast(err.message,'err');}
 }
 
-// Format locked hook objects for the Sonnet prompt.
-// Sonnet sees the pre-filled hook text and is told NOT to change it or return hookId.
-function formatLockedHooks(hooks) {
-  return hooks.map((h, i) => [
-    `--- IDEA ${i + 1} HOOK (LOCKED — do not change this) ---`,
-    `Hook text: "${h.filledHook}"`,
-    `Hook ID: ${h.id} (do not include this in your JSON — Node will attach it)`,
-  ].join('\n')).join('\n\n');
+// ═══ BLOCK PICKER ═══
+function openBlockPicker(entityType,entityId,typeFilter,title){
+  pickerEntity=entityType;pickerEntityId=entityId;picker_sel.clear();
+  document.getElementById('bkp-title').textContent=title||'Pick Blocks';
+  document.getElementById('bkp-search').value='';
+  document.getElementById('bkp-type').value=typeFilter&&typeFilter.length===1?typeFilter[0]:'';
+  document.getElementById('bkp-sel-count').textContent='0 selected';
+  document.getElementById('bkp-attach').disabled=true;
+  loadPickerBlocks();openModal('m-block-picker');
+}
+async function loadPickerBlocks(){
+  const p=new URLSearchParams();
+  const s=document.getElementById('bkp-search').value;
+  const t=document.getElementById('bkp-type').value;
+  if(s)p.set('search',s);if(t)p.set('type',t);
+  const blocks=await api('GET','/api/blocks?'+p);
+  const grid=document.getElementById('bkp-grid');
+  if(!blocks.length){grid.innerHTML='<div style="font-size:13px;color:var(--muted);padding:12px;text-align:center">No blocks found</div>';return;}
+  grid.innerHTML=blocks.map(b=>{
+    const hasImg=b.drive_file_id&&b.file_mime&&b.file_mime.startsWith('image/');
+    return`<div class="bpm-card ${picker_sel.has(b.id)?'sel':''}" onclick="togglePickerSel(${b.id},this)">
+      <div class="bpm-thumb">${
+        b.thumbnail_url
+          ? `<img src="${esc(b.thumbnail_url)}" loading="lazy" onerror="this.src='/api/drive/file/${b.drive_file_id}';this.onerror=null">`
+          : hasImg 
+            ? `<img src="/api/drive/file/${b.drive_file_id}" loading="lazy">`
+            : `<span>${typeIcon(b.type)}</span>`
+      }</div>
+      <div class="bpm-label">${esc(b.title)}</div>
+    </div>`;
+  }).join('');
+}
+function togglePickerSel(id,el){
+  if(picker_sel.has(id))picker_sel.delete(id);else picker_sel.add(id);
+  el.classList.toggle('sel',picker_sel.has(id));
+  const c=picker_sel.size;
+  document.getElementById('bkp-sel-count').textContent=c+' selected';
+  document.getElementById('bkp-attach').disabled=c===0;
+}
+async function confirmPickerAttach(){
+  const btn=document.getElementById('bkp-attach');btn.disabled=true;btn.textContent='Attaching...';
+  try{
+    for(const blockId of picker_sel){
+      await api('POST','/api/attachments',{block_id:blockId,entity_type:pickerEntity,entity_id:pickerEntityId});
+    }
+    closeM('m-block-picker');toast(picker_sel.size+' block(s) attached','ok');
+    if(pickerEntity==='client'){const c=await api('GET','/api/clients/'+pickerEntityId);renderClientFile(c);}
+    else if(pickerEntity==='prospect'){const p=await api('GET','/api/prospects/'+pickerEntityId);renderProspectFile(p);}
+    else if(pickerEntity==='post'){await refreshPostModules();}
+  }catch(err){toast(err.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Attach →';}
+}
+async function detachBlock(attachmentId,entity){
+  try{
+    await api('DELETE','/api/attachments/'+attachmentId);toast('Removed','ok');
+    if(entity==='client'){const c=await api('GET','/api/clients/'+CID);renderClientFile(c);}
+    else if(entity==='prospect'){const p=await api('GET','/api/prospects/'+PROID);renderProspectFile(p);}
+  }catch(err){toast(err.message,'err');}
 }
 
-// ═══════════════════════════════════════════════════
-// AUTH
-// ═══════════════════════════════════════════════════
-const oauth2Client = new google.auth.OAuth2(
-  process.env.GOOGLE_CLIENT_ID,
-  process.env.GOOGLE_CLIENT_SECRET,
-  process.env.GOOGLE_REDIRECT_URI || 'https://admin.phixo.ca/auth/callback'
-);
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+// ═══ CALENDAR ═══
+// Calendar state
+let calendarView = 'kanban'; // 'kanban' or 'month'
+let currentMonth = new Date().getMonth();
+let currentYear = new Date().getFullYear();
+let allPosts = [];
 
-// ── PHIXO STRATEGY SYSTEM PROMPT ─────────────────────────────────────────────
-const PHIXO_STRATEGY_SYSTEM = `
-You are a content ideation assistant for Phixo, a portrait photography studio in West Island Montreal run by Ian Green. You generate content ideas EXCLUSIVELY based on the strategy rules below. Nothing invented outside these rules.
-
-━━━ WHO IAN IS ━━━
-- Portrait photographer, West Island Montreal, basement studio
-- Full-time IT job, Phixo capped at 10-12 sessions/month side hustle
-- Studied digital photography at Algonquin College 10+ years ago, returned after a decade in IT
-- Ian is always the subject in all content. No clients can be filmed without consent.
-- New to Montreal — nobody knows his name yet. Content builds familiarity from scratch.
-
-━━━ THE ONE TRUE THING ━━━
-People want a photo that actually looks like them. Some need help getting there. Some just show up ready. Either way, the job is the same — create the conditions where that can happen. Every piece of content either connects back to that or it doesn't.
-
-━━━ THE VOICE — READ THIS CAREFULLY ━━━
-The voice is not a style. It is how Ian actually thinks out loud. Sentences move forward. Nothing stops to reflect on itself. The point arrives without being announced. Personal admissions land in one clause and are gone — they don't become a moment.
-
-Here is what WRONG looks like, followed by RIGHT. Study the difference. Write RIGHT every time.
-
----
-EDUCATE — WRONG:
-"Most people don't realize that the background in a portrait does more work than the subject. It's actually one of the most overlooked elements of a strong image — and understanding it can completely change how your photos feel."
-Why it's wrong: stops to admire its own insight. "It's actually one of the most overlooked" is performing. The ending explains the value instead of demonstrating it.
-
-EDUCATE — RIGHT:
-"The background in a portrait is doing more work than the subject. Cluttered background, cluttered photo. Doesn't matter how good the light is. Clean it up first, then worry about everything else."
-Why it works: moves forward the whole time. Makes the point and goes. No sentence wraps up the one before it.
-
----
-TELL — WRONG:
-"I had a client recently who came in really nervous — she almost cancelled three times. By the end of the session she was laughing and couldn't believe how the photos turned out. That's the moment I remember why I do this."
-Why it's wrong: "That's the moment I remember why I do this" is the ending performing emotion. It tells you how to feel about the story.
-
-TELL — RIGHT:
-"Had someone come in last week who almost cancelled twice. First ten minutes she wouldn't look directly at the camera. By the end she's turning to the screen saying 'wait, that's me?' That's the whole job right there."
-Why it works: ends at the real thing that happened. "That's the whole job right there" is observation, not emotion cue.
-
----
-ENTERTAIN — WRONG:
-"There's a certain irony in the fact that the people who are most nervous about having their photo taken are often the ones who end up with the best portraits. The camera has a way of catching something real when you stop performing for it."
-Why it's wrong: over-written. "A certain irony" and "when you stop performing for it" are trying to sound good.
-
-ENTERTAIN — RIGHT:
-"The people who tell me they're unphotogenic always end up with the best shots. Every time. I don't know what to tell you, that's just what happens."
-Why it works: short, landed, slightly absurd. Doesn't explain itself.
-
----
-PROMOTE — WRONG:
-"If you've been thinking about booking a session, I'd love to chat about what that could look like for you. My studio is a relaxed, comfortable space where we work together to create something you'll actually be proud of."
-Why it's wrong: selling sideways. "I'd love to chat" and "something you'll actually be proud of" are hedging and flattering at the same time.
-
-PROMOTE — RIGHT:
-"Session is 30 minutes. You see the photos on a screen as we go so you're not waiting a week wondering if they're any good. Pricing's on the site. If you've got questions just DM me."
-Why it works: direct. Answers the actual questions someone has before booking. No charm offensive.
-
----
-STRUCTURAL RULES that come from these examples:
-- Sentences move forward. Never use a sentence to recap what the previous sentence just said.
-- The point shows up without being announced. No "that's why," no "that's the thing," no "and that matters because."
-- Personal admissions are one clause, then the script moves on. Not a vulnerability moment.
-- End at the last real thing. Not a wrap-up, not a callback, not a lesson stated out loud.
-- "Now for the fun part" is fine. Conversational interjections that sound like Ian talking are fine.
-- Specific beats plain every time. "Crunchy, over-processed look" beats "artificial appearance."
-- Never use: stunning, perfect, gorgeous, transformative, journey, authentic, or any AI hype language.
-- "I" = Ian personally. "We" = studio experience with a client. Never reversed.
-- No emojis.
-
-━━━ CONTENT FORMAT ━━━
-Default: talking-head vertical video. Ian in a car, a chair, edge of a desk. No production. Window light works. 30-60 seconds. Start mid-thought — no "hey guys." One idea per video. Get in, get out.
-
-━━━ CONTENT PILLARS + FUNNEL MAPPING ━━━
-EDUCATE (ToFu + MoFu): Teach something useful. Moves forward, demonstrates knowledge, no padding.
-ENTERTAIN (ToFu): Stop the scroll. Short, landed, slightly unexpected. Doesn't over-explain.
-TELL (MoFu): A real moment, told simply. First person, specific. Ends at the thing that happened.
-PROMOTE (BoFu): Direct info — pricing, process, how to book. Answers the real question. No charm.
-
-━━━ FUNNEL STAGES ━━━
-ToFu — Strangers scrolling. Best: Educate, Entertain.
-MoFu — Warm audience looking around. Best: Educate, Tell.
-BoFu — Someone basically decided. Best: Promote.
-
-━━━ CLIENT LANES (ALL EQUAL) ━━━
-Lane 1 Career & Professional: Professionals, job seekers, leaders, founders. Want a photo that matches where they are headed. Efficient. Show up for: new job, promotion, rebrand.
-Lane 2 Personal & Milestone: Graduates, young women, creatives. Want a portrait that feels like them. Some camera-shy, some confident. Show up for: graduation, birthday, milestone, feeling good.
-Lane 3 Family & Legacy: Families, couples, multi-generational. Want to preserve a connection. Show up for: birthdays, anniversaries, reunions, holidays.
-
-━━━ PROOF PHRASES (evidence only, never taglines) ━━━
-Tethered Shooting — always followed by: "images appear on screen in real time so you can see and adjust as we go"
-Natural Retouching — cleans things up without replacing you
-`.trim();
-
-
-
-function requireAuth(req, res, next) {
-  if (req.session?.tokens) { oauth2Client.setCredentials(req.session.tokens); return next(); }
-  res.redirect('/auth/login');
+async function loadCalendar(){
+  const p=new URLSearchParams();
+  const plat=document.getElementById('cal-plat').value;
+  if(plat)p.set('platform',plat);
+  allPosts=await api('GET','/api/posts?'+p);
+  
+  if(calendarView === 'kanban'){
+    loadKanbanView();
+  } else {
+    renderMonthView();
+  }
 }
 
-function getDrive(req) {
-  const auth = new google.auth.OAuth2(
-    process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, process.env.GOOGLE_REDIRECT_URI
-  );
-  auth.setCredentials(req.session.tokens);
-  // Auto-save refreshed tokens back to session
-  auth.on('tokens', (tokens) => {
-    if (tokens.refresh_token) req.session.tokens.refresh_token = tokens.refresh_token;
-    req.session.tokens.access_token = tokens.access_token;
-    req.session.tokens.expiry_date = tokens.expiry_date;
+function loadKanbanView(){
+  ['idea','draft','ready','posted'].forEach(status=>{
+    const col=document.getElementById('k-'+status);
+    const items=allPosts.filter(p=>p.status===status);
+    col.innerHTML=items.length?items.map(p=>`
+      <div class="kcard" onclick="openPostBuilder(${p.id})">
+        <div class="plat">${p.platform||''}${p.funnel_stage?` · ${p.funnel_stage.toUpperCase()}`:''}</div>
+        <div class="goal">${esc(p.post_goal||'Untitled post')}</div>
+        ${p.post_date?`<div class="kdate">📅 ${esc(p.post_date)}</div>`:''}
+      </div>`).join('')
+      :'<div style="font-size:11px;color:var(--muted);text-align:center;padding:8px">—</div>';
   });
-  return google.drive({ version: 'v3', auth });
 }
 
-app.get('/auth/login', (req, res) => {
-  const url = oauth2Client.generateAuthUrl({
-    access_type: 'offline',
-    scope: ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/userinfo.email'],
-    prompt: 'consent'
-  });
-  res.redirect(url);
-});
-
-app.get('/auth/callback', async (req, res) => {
-  const { tokens } = await oauth2Client.getToken(req.query.code);
-  req.session.tokens = tokens;
-  res.redirect('/');
-});
-
-app.get('/auth/logout', (req, res) => { req.session = null; res.redirect('/auth/login'); });
-app.get('/', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
-
-// Health check
-app.get('/health', async (req, res) => {
-  const hasDb = !!process.env.DATABASE_URL;
-  let dbOk = false;
-  if (hasDb) { try { await pool.query('SELECT 1'); dbOk = true; } catch(e) {} }
-  res.json({ ok:true, db:dbOk, DATABASE_URL:hasDb?'set':'MISSING', GOOGLE_CLIENT_ID:process.env.GOOGLE_CLIENT_ID?'set':'MISSING', ANTHROPIC_API_KEY:process.env.ANTHROPIC_API_KEY?'set':'MISSING' });
-});
-
-// ═══════════════════════════════════════════════════
-// BLOCKS — Universal content unit
-// ═══════════════════════════════════════════════════
-app.get('/api/blocks', requireAuth, async (req, res) => {
-  try {
-    const { search, type, category, funnel_stage, tag } = req.query;
-    let q = 'SELECT * FROM blocks';
-    const p = []; const w = [];
-    if (search) { p.push('%'+search+'%'); w.push(`(title ILIKE $${p.length} OR content_payload ILIKE $${p.length})`); }
-    if (type) { p.push(type); w.push(`type = $${p.length}`); }
-    if (category) { p.push(category); w.push(`category = $${p.length}`); }
-    if (funnel_stage) { p.push(funnel_stage); w.push(`funnel_stage = $${p.length}`); }
-    if (tag) { p.push(tag); w.push(`$${p.length} = ANY(tags)`); }
-    if (w.length) q += ' WHERE ' + w.join(' AND ');
-    q += ' ORDER BY created_at DESC';
-    res.json((await pool.query(q, p)).rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/blocks/:id', requireAuth, async (req, res) => {
-  try {
-    const r = await pool.query('SELECT * FROM blocks WHERE id=$1', [req.params.id]);
-    if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
-    res.json(r.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/blocks', requireAuth, async (req, res) => {
-  try {
-    const { type, title, category, tags, funnel_stage, source, source_url, drive_file_id,
-            file_name, file_mime, content_payload, thumbnail_url } = req.body;
-    const r = await pool.query(
-      `INSERT INTO blocks (type,title,category,tags,funnel_stage,source,source_url,
-        drive_file_id,file_name,file_mime,content_payload,thumbnail_url)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
-      [type, title, category, tags||[], funnel_stage, source||'manual', source_url,
-       drive_file_id, file_name, file_mime, content_payload, thumbnail_url]
-    );
-    res.json(r.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.patch('/api/blocks/:id', requireAuth, async (req, res) => {
-  try {
-    const allowed = ['title','type','category','tags','funnel_stage','source_url',
-                     'content_payload','thumbnail_url','drive_file_id','is_reference'];
-    const sets = []; const vals = [];
-    for (const k of allowed) {
-      if (req.body[k] !== undefined) { vals.push(req.body[k]); sets.push(`${k}=$${vals.length}`); }
-    }
-    if (!sets.length) return res.json({ ok: true });
-    vals.push(req.params.id);
-    const r = await pool.query(
-      `UPDATE blocks SET ${sets.join(',')}, updated_at=NOW() WHERE id=$${vals.length} RETURNING *`, vals
-    );
-    res.json(r.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.delete('/api/blocks/:id', requireAuth, async (req, res) => {
-  try {
-    // Get block first to find Drive file
-    const b = await pool.query('SELECT drive_file_id, type FROM blocks WHERE id=$1', [req.params.id]);
-    if (b.rows.length && b.rows[0].drive_file_id) {
-      const fileId = b.rows[0].drive_file_id;
-      // Don't delete Drive thumbnails saved separately — only the actual block file
-      try {
-        const drive = getDrive(req);
-        await drive.files.delete({ fileId });
-        console.log(`Deleted Drive file: ${fileId}`);
-      } catch(e) {
-        console.warn(`Drive delete failed for ${fileId}: ${e.message}`);
-        // Continue — still delete from DB even if Drive fails
-      }
-    }
-    await pool.query('DELETE FROM blocks WHERE id=$1', [req.params.id]); res.json({ ok: true }); }
-  catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// RESEARCH LIBRARY - Generate ideas from reference videos
-// ═══════════════════════════════════════════════════
-
-app.post('/api/research/generate-ideas', requireAuth, async (req, res) => {
-  try {
-    const { funnel_stage, tags, count = 3 } = req.body;
-    
-    // Build query to find reference videos
-    let query = `
-      SELECT id, title, content_payload, metadata, tags, source_url, funnel_stage
-      FROM blocks
-      WHERE type = 'video'
-        AND is_reference = true
-    `;
-    const params = [];
-    
-    // Add funnel stage filter
-    if (funnel_stage) {
-      params.push(funnel_stage);
-      query += ` AND funnel_stage = $${params.length}`;
-    }
-    
-    // Add tags filter if provided
-    if (tags && tags.length > 0) {
-      const tagArray = Array.isArray(tags) ? tags : tags.split(',').map(t => t.trim());
-      params.push(tagArray);
-      query += ` AND tags && $${params.length}::text[]`;
-    }
-    
-    query += ` ORDER BY created_at DESC LIMIT 7`;
-    
-    const videosResult = await pool.query(query, params);
-    
-    if (videosResult.rows.length === 0) {
-      return res.status(404).json({
-        error: 'No reference videos found',
-        message: 'Mark some videos as "reference" first by checking the box in video block details',
-        suggestion: 'Open a video block and check "Use as reference for idea generation"'
-      });
-    }
-    
-    // Build smart summaries from video blocks
-    const videoSummaries = videosResult.rows.map((v, idx) => {
-      const transcript = v.content_payload || '';
-      const metadata = v.metadata || {};
-      const keyPoints = metadata.key_points || [];
-      const hook = transcript.split('\n')[0] || metadata.hook || '';
-      
-      return `
-VIDEO #${v.id}: ${v.title}
-Hook: "${hook}"
-Format: ${metadata.format || 'Standard video'}
-Key Points: ${keyPoints.slice(0, 3).join(' • ') || 'N/A'}
-Source: ${v.source_url || 'N/A'}
-`.trim();
-    });
-    
-    // Call 1: Haiku selects IDs from all 1003 hooks AND fills template placeholders
-    const hookContext = `Ian Green, portrait photographer, West Island Montreal. Side hustle, 10-12 sessions/month. Warm direct voice, no hype. Funnel stage: ${funnel_stage || 'ToFu'}. Content type: reference video adaptation.`;
-    let selectedHooks = [];
-    try {
-      selectedHooks = await selectAndFillHooksViaHaiku(count, hookContext);
-    } catch (e) {
-      console.error('Hook selection failed, using random fallback:', e.message);
-    }
-    if (selectedHooks.length < count) {
-      const fallback = randomHooks(count - selectedHooks.length, funnel_stage || 'ToFu', '');
-      selectedHooks = [...selectedHooks, ...fallback].slice(0, count);
-    }
-    const lockedHooks = formatLockedHooks(selectedHooks);
-
-    // Call 2: Sonnet writes content only — hook text already locked by Node
-    const claudePrompt = `
-REFERENCE VIDEOS (proven ${funnel_stage || 'content'} performers from Research Library):
-
-${videoSummaries.join('\n\n')}
-
-${lockedHooks}
-
-TASK:
-Generate ${count} content ideas for Phixo adapted from these reference videos.
-Timestamp: ${Date.now()}
-
-CRITICAL: Each idea's hook text is already written above and LOCKED. 
-Do NOT include hookId or hookTemplate in your JSON — Node will attach those.
-Do NOT rewrite or change the hook text.
-Your job: write everything else.
-
-For each idea return (JSON array, in order matching the IDEA numbers above):
-1. title — short, what the video is about
-2. script — what Ian says. 4-8 sentences. Moves forward, no wrap-up. Write like the RIGHT examples.
-3. overlay — text on screen, empty string if none
-4. caption — in Ian's voice, no emojis
-5. filmIt — numbered steps: where to sit, what to do, how long
-6. cta — call to action if any
-7. platform — TikTok, Instagram, etc.
-8. length — estimated seconds
-9. sourceInspiration — which video block inspired this
-
-Do NOT include a hook field — Node attaches it automatically.
-
-Format as JSON array only. No preamble, no markdown fences.`;
-
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4000,
-      temperature: 1.0,
-      system: PHIXO_STRATEGY_SYSTEM,
-      messages: [{ role: 'user', content: claudePrompt }]
-    });
-    
-    // Parse Claude's response
-    let ideas = [];
-    const responseText = message.content[0].text;
-    
-    // Try to extract JSON from response
-    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-    if (jsonMatch) {
-      try {
-        ideas = JSON.parse(jsonMatch[0]);
-      } catch (parseErr) {
-        console.error('JSON parse error:', parseErr);
-        return res.json({
-          raw: responseText,
-          error: 'Failed to parse JSON, returning raw response'
-        });
-      }
-    } else {
-      return res.json({
-        raw: responseText,
-        error: 'No JSON found in response'
-      });
-    }
-    
-    // Node merge: attach real hookId/hookTemplate from validated CSV
-    ideas = ideas.map((idea, i) => {
-      const hook = selectedHooks[i];
-      if (!hook) return idea;
-      return {
-        ...idea,
-        hook: hook.filledHook,
-        hookId: hook.id,
-        hookTemplate: hook.template,
-        exampleUrl: hook.exampleUrl
-      };
-    });
-
-    res.json({
-      ideas,
-      sourcesUsed: videosResult.rows.length,
-      funnelStage: funnel_stage || 'all',
-      tags: tags || []
-    });
-    
-  } catch (err) {
-    console.error('Generate ideas error:', err);
-    res.status(500).json({ error: err.message });
+function toggleCalendarView(view){
+  calendarView = view;
+  document.getElementById('view-toggle-kanban').classList.toggle('btn-dark', view === 'kanban');
+  document.getElementById('view-toggle-month').classList.toggle('btn-dark', view === 'month');
+  document.getElementById('kanban-view').style.display = view === 'kanban' ? 'grid' : 'none';
+  document.getElementById('month-view').style.display = view === 'month' ? 'block' : 'none';
+  
+  if(view === 'month'){
+    renderMonthView();
   }
-});
-
-// ── CONTENT IDEATION — Strategy Hub as the only data source ─────────────────
-// Three modes: scratch (pillar+funnel), riff (variations on seed), research (from block)
-app.post('/api/content/ideate', requireAuth, async (req, res) => {
-  try {
-    const { mode = 'scratch', funnel_stage, pillar, lane, seed_idea, block_ids, count = 3 } = req.body;
-    let userPrompt = '';
-
-    // ── CALL 1: Haiku selects IDs + fills template placeholders ─────────────────
-    // Node validates every ID. lockedHooks = [{id, template, filledHook}] from real CSV.
-    // Sonnet never touches hookId or hook text — those are set here and merged after Call 2.
-    const hookContext = `Ian Green, portrait photographer, West Island Montreal. Side hustle 10-12 sessions/month. Warm direct voice, no hype. Mode: ${mode}. Pillar: ${pillar || 'mixed'}. Funnel: ${funnel_stage || 'mixed'}. Lane: ${lane || 'any'}.`;
-    let selectedHooks = [];
-    try {
-      selectedHooks = await selectAndFillHooksViaHaiku(count, hookContext);
-    } catch (e) {
-      console.error('Hook selection failed, using random fallback:', e.message);
-    }
-    if (selectedHooks.length < count) {
-      const fallback = randomHooks(count - selectedHooks.length, funnel_stage || 'ToFu', pillar || '');
-      selectedHooks = [...selectedHooks, ...fallback].slice(0, count);
-    }
-    const lockedHooks = formatLockedHooks(selectedHooks);
-
-    // ── BUILD PROMPT per mode ─────────────────────────────────────────────────
-    if (mode === 'scratch') {
-      if (!funnel_stage || !pillar) return res.status(400).json({ error: 'funnel_stage and pillar required' });
-      userPrompt = `Generate ${count} original Phixo content ideas.
-
-PARAMETERS:
-- Funnel Stage: ${funnel_stage}
-- Content Pillar: ${pillar}
-- Client Lane Focus: ${lane || 'any - mix across all three lanes'}
-- Timestamp: ${Date.now()}
-
-${lockedHooks}
-
-CRITICAL: Each idea's hook text is already written above and LOCKED.
-Do NOT include hookId or hookTemplate in your JSON — Node attaches those automatically.
-Do NOT rewrite or modify the hook text. Copy it exactly as written for that idea number.
-
-For each idea return (in order matching IDEA numbers above):
-1. title
-2. pillar
-3. funnelStage
-4. lane
-5. script — what Ian actually says. 4-8 sentences. Write like the RIGHT examples. Moves forward, no wrap-up.
-6. overlay — optional on-screen text, empty string if none
-7. caption — in Ian's voice, no emojis
-8. filmIt — numbered steps: where to sit, what to do, how long
-9. cta — none for ToFu, soft trail for MoFu, direct for BoFu
-10. length — estimated seconds
-
-Do NOT include a hook field — Node attaches it automatically.
-
-Return as a JSON array only. No preamble, no markdown fences.`;
-
-    } else if (mode === 'riff') {
-      if (!seed_idea) return res.status(400).json({ error: 'seed_idea required' });
-      userPrompt = `Build ${count} variations from this existing Phixo content idea. Each must be meaningfully different — different angle, different lane, different funnel stage.
-
-SEED IDEA:
-${seed_idea}
-
-${lockedHooks}
-
-Rules:
-- At least one variation must shift the funnel stage from the seed
-- At least one variation must target a different client lane
-- Each variation's hook is already locked above. Do not change it.
-
-CRITICAL: Do NOT include hookId or hookTemplate in your JSON — Node attaches those.
-
-For each variation return (in order matching IDEA numbers above):
-1. title
-2. pillar
-3. funnelStage
-4. lane
-5. script — write like the RIGHT examples in the system prompt
-6. overlay
-7. caption
-8. filmIt
-9. cta
-10. length
-11. variationNote — one sentence: what is different about this angle
-
-Do NOT include a hook field — Node attaches it automatically.
-
-Return as a JSON array only. No preamble, no markdown fences.`;
-
-    } else if (mode === 'research') {
-      const ids = Array.isArray(block_ids) ? block_ids : [block_ids];
-      if (!ids.length || !ids[0]) return res.status(400).json({ error: 'block_ids required' });
-
-      const placeholders = ids.map((_, i) => `$${i + 1}`).join(',');
-      const blockResult = await pool.query(
-        `SELECT id, title, content_payload, metadata, tags, source_url, type FROM blocks WHERE id IN (${placeholders})`,
-        ids
-      );
-      if (blockResult.rows.length === 0) return res.status(404).json({ error: 'No blocks found' });
-
-      const blockSummaries = blockResult.rows.map(block => {
-        const meta = block.metadata || {};
-        const transcript = block.content_payload || '';
-        const keyPoints = (meta.key_points || []).slice(0, 5).join('\n- ');
-        const opening = transcript.split('\n')[0] || meta.hook || '';
-        return `BLOCK #${block.id}: ${block.title} (${block.type})
-Source: ${block.source_url || 'N/A'}
-Opening: "${opening}"
-Key points:\n- ${keyPoints || 'See transcript'}
-Transcript excerpt: ${transcript.slice(0, 600)}`;
-      }).join('\n\n---\n\n');
-
-      userPrompt = `Generate ${count} Phixo content ideas inspired by these research blocks. Ian is always the subject. The block inspires format or structure — the voice and content are Ian's.
-
-RESEARCH BLOCKS:
-${blockSummaries}
-
-${lockedHooks}
-
-CRITICAL: Each idea's hook is already locked above. Do NOT include hookId or hookTemplate in your JSON — Node attaches those.
-
-For each idea return (in order matching IDEA numbers above):
-1. title
-2. pillar
-3. funnelStage
-4. lane
-5. script — write like the RIGHT examples in the system prompt
-6. overlay
-7. caption
-8. filmIt
-9. cta
-10. length
-11. sourceAdaptation — one sentence: what format or concept came from the block
-
-Do NOT include a hook field — Node attaches it automatically.
-
-Return as a JSON array only. No preamble, no markdown fences.`;
-
-    } else {
-      return res.status(400).json({ error: 'mode must be scratch, riff, or research' });
-    }
-
-    // ── CALL 2: Sonnet ideates with pre-assigned real hooks ───────────────────
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4000,
-      temperature: 1.0,
-      system: PHIXO_STRATEGY_SYSTEM,
-      messages: [{ role: 'user', content: userPrompt }]
-    });
-
-    const responseText = message.content[0].text;
-    const jsonMatch = responseText.match(/\[[\s\S]*\]/);
-    if (!jsonMatch) return res.status(500).json({ error: 'No JSON in response', raw: responseText });
-
-    let ideas;
-    try { ideas = JSON.parse(jsonMatch[0]); }
-    catch (e) { return res.status(500).json({ error: 'Failed to parse ideas JSON', raw: responseText }); }
-
-    // ── NODE MERGE: attach real hookId, hookTemplate, exampleUrl from validated CSV ──
-    // Sonnet was never asked to return these — we set them here from selectedHooks.
-    // This is the structural guarantee that hookId is always real and always correct.
-    ideas = ideas.map((idea, i) => {
-      const hook = selectedHooks[i];
-      if (!hook) return idea;
-      return {
-        ...idea,
-        hook: hook.filledHook,
-        hookId: hook.id,                       // always from real CSV — never from Sonnet
-        hookTemplate: hook.template,           // always from real CSV — never from Sonnet
-        exampleUrl: hook.exampleUrl            // always from real CSV
-      };
-    });
-
-    selectedHooks.forEach(h => {
-      USED_HOOK_IDS.add(h.id);
-      if (USED_HOOK_IDS.size > MAX_USED_HISTORY) USED_HOOK_IDS.delete(USED_HOOK_IDS.values().next().value);
-    });
-    res.json({ ideas, mode, count: ideas.length });
-
-  } catch (err) {
-    console.error('Ideation error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-
-// Upload file → Drive → create block
-app.post('/api/blocks/upload', requireAuth, upload.single('file'), async (req, res) => {
-  const os = require('os');
-  const tmpFile = require('path').join(os.tmpdir(), `phixo-up-${Date.now()}-${req.file ? req.file.originalname : 'file'}`);
-  try {
-    if (!req.file) return res.status(400).json({ error: 'No file' });
-    const { type, title, category, tags, funnel_stage } = req.body;
-    const drive = getDrive(req);
-    const isVideo = req.file.mimetype.startsWith('video/');
-
-    console.log(`Upload: ${req.file.originalname} (${req.file.mimetype}, ${Math.round(req.file.size/1024)}KB)`);
-
-    // Write buffer to temp file (more reliable than Readable.from for large files)
-    require('fs').writeFileSync(tmpFile, req.file.buffer);
-
-    // Get/create folder based on type
-    const folderName = {
-      pose: 'Pose', meme: 'Meme', sfx: 'SFX', pdf: 'Phixo Knowledge', video: 'Videos'
-    }[type] || 'Phixo Research';
-
-    let folderId;
-    const fsRes = await drive.files.list({
-      q: `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-      fields: 'files(id)'
-    });
-    if (fsRes.data.files.length) {
-      folderId = fsRes.data.files[0].id;
-    } else {
-      const f = await drive.files.create({
-        requestBody: { name: folderName, mimeType: 'application/vnd.google-apps.folder' },
-        fields: 'id'
-      });
-      folderId = f.data.id;
-      console.log(`Created Drive folder: ${folderName}`);
-    }
-
-    // Upload to Drive using file stream
-    const { createReadStream } = require('fs');
-    const uploaded = await drive.files.create({
-      requestBody: { name: req.file.originalname, parents: [folderId] },
-      media: { mimeType: req.file.mimetype, body: createReadStream(tmpFile) },
-      fields: 'id, thumbnailLink, webViewLink'
-    });
-    console.log(`Uploaded to Drive: ${uploaded.data.id} in folder ${folderName}`);
-
-    // Generate PDF thumbnail using ffmpeg (render first page)
-    const isPdf = req.file.mimetype === 'application/pdf';
-    if (isPdf && global.FFMPEG_PATH) {
-      try {
-        const pdfThumbPath = tmpFile + '_thumb.jpg';
-        await require('util').promisify(require('child_process').exec)(
-          `"${global.FFMPEG_PATH}" -i "${tmpFile}" -vframes 1 -vf "scale=480:-2" "${pdfThumbPath}" -y`,
-          { timeout: 30000 }
-        );
-        if (require('fs').existsSync(pdfThumbPath)) {
-          const thumbBuf = require('fs').readFileSync(pdfThumbPath);
-          thumbnailUrl = 'data:image/jpeg;base64,' + thumbBuf.toString('base64');
-          require('fs').unlinkSync(pdfThumbPath);
-          console.log('PDF thumbnail generated');
-        }
-      } catch(e) {
-        console.warn('PDF thumbnail failed (ffmpeg may not support PDF):', e.message.substring(0,80));
-      }
-    }
-
-    // Extract video thumbnail frame using ffmpeg
-    let thumbnailUrl = null; // set below based on type
-    let thumbDriveId = null;
-    if (isVideo && global.FFMPEG_PATH) {
-      try {
-        const thumbPath = tmpFile + '_thumb.jpg';
-        await require('util').promisify(require('child_process').exec)(
-          `"${global.FFMPEG_PATH}" -i "${tmpFile}" -ss 00:00:02 -vframes 1 -vf "scale=480:-2" "${thumbPath}" -y`,
-          { timeout: 30000 }
-        );
-        if (require('fs').existsSync(thumbPath)) {
-          const isMeme = (type === 'meme');
-          if (isMeme) {
-            // Store as base64 data URL — no Drive upload needed
-            const thumbBuf = require('fs').readFileSync(thumbPath);
-            thumbnailUrl = 'data:image/jpeg;base64,' + thumbBuf.toString('base64');
-            console.log('Meme thumbnail stored as data URL (' + Math.round(thumbBuf.length/1024) + 'KB)');
-          } else {
-            const thumbUp = await drive.files.create({
-              requestBody: { name: req.file.originalname + '_thumb.jpg', parents: [folderId] },
-              media: { mimeType: 'image/jpeg', body: createReadStream(thumbPath) },
-              fields: 'id'
-            });
-            thumbDriveId = thumbUp.data.id;
-            thumbnailUrl = `/api/drive/file/${thumbDriveId}`;
-            console.log('Video thumbnail extracted and uploaded');
-          }
-          require('fs').unlinkSync(thumbPath);
-        }
-      } catch(e) {
-        console.warn('Video thumbnail extraction failed:', e.message);
-      }
-    }
-
-    const tagArr = tags ? tags.split(',').map(t=>t.trim()).filter(Boolean) : [];
-    const blockType = type || (isVideo ? 'video' : 'image');
-    const r = await pool.query(
-      `INSERT INTO blocks (type,title,category,tags,funnel_stage,source,drive_file_id,
-        file_name,file_mime,thumbnail_url) VALUES ($1,$2,$3,$4,$5,'upload',$6,$7,$8,$9) RETURNING *`,
-      [blockType, title||req.file.originalname, category, tagArr, funnel_stage,
-       uploaded.data.id, req.file.originalname, req.file.mimetype, thumbnailUrl]
-    );
-    res.json(r.rows[0]);
-  } catch (err) {
-    console.error('Upload error:', err.message, err.stack);
-    res.status(500).json({ error: err.message });
-  } finally {
-    try { if (require('fs').existsSync(tmpFile)) require('fs').unlinkSync(tmpFile); } catch(e) {}
-  }
-});
-
-// Ingest URL — fetch content, AI summary, create block
-app.post('/api/blocks/ingest-url', requireAuth, async (req, res) => {
-  try {
-    const { url, type, category, funnel_stage, tags } = req.body;
-    if (!url) return res.status(400).json({ error: 'URL required' });
-
-    // Fetch page content
-    let pageText = '';
-    try {
-      const response = await fetch(url, { headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(8000) });
-      const html = await response.text();
-      pageText = html.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s+/g, ' ').trim().substring(0, 4000);
-    } catch(e) { pageText = ''; }
-
-    // AI classify + summarize
-    let title = url; let summary = ''; let suggestedTags = [];
-    if (pageText.length > 100) {
-      try {
-        const resp = await anthropic.messages.create({
-          model: 'claude-haiku-4-5-20251001',
-          max_tokens: 300,
-          messages: [{ role: 'user', content: `Extract from this webpage: title (short), 2-sentence summary, and 3-5 relevant tags for a portrait photography business. Return JSON: {"title":"...","summary":"...","tags":["..."]}. Page content: ${pageText.substring(0,2000)}` }]
-        });
-        const parsed = JSON.parse(resp.content[0].text.replace(/```json|```/g,'').trim());
-        title = parsed.title || url; summary = parsed.summary || ''; suggestedTags = parsed.tags || [];
-      } catch(e) { title = url; }
-    }
-
-    const tagArr = tags ? tags.split(',').map(t=>t.trim()).filter(Boolean) : suggestedTags;
-    const r = await pool.query(
-      `INSERT INTO blocks (type,title,category,tags,funnel_stage,source,source_url,content_payload)
-       VALUES ($1,$2,$3,$4,$5,'url',$6,$7) RETURNING *`,
-      [type||'url', title, category, tagArr, funnel_stage, url, summary]
-    );
-    res.json(r.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Pick from Drive folder → create block
-app.post('/api/blocks/from-drive', requireAuth, async (req, res) => {
-  try {
-    const { drive_file_id, file_name, file_mime, thumbnail_url, type, title, category, tags, funnel_stage } = req.body;
-    const tagArr = tags ? (Array.isArray(tags) ? tags : tags.split(',').map(t=>t.trim()).filter(Boolean)) : [];
-    const r = await pool.query(
-      `INSERT INTO blocks (type,title,category,tags,funnel_stage,source,drive_file_id,file_name,file_mime,thumbnail_url)
-       VALUES ($1,$2,$3,$4,$5,'drive',$6,$7,$8,$9) RETURNING *`,
-      [type||'image', title||file_name, category, tagArr, funnel_stage,
-       drive_file_id, file_name, file_mime, thumbnail_url]
-    );
-    res.json(r.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-
-// ─── Debug endpoint ───────────────────────────────
-app.get('/api/debug', async (req, res) => {
-  const out = { env: {}, db: {}, blocks: null };
-  out.env.DATABASE_URL = process.env.DATABASE_URL ? 'set' : 'MISSING';
-  out.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID ? 'set' : 'MISSING';
-  out.env.ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY ? 'set' : 'MISSING';
-  out.env.OPENAI_API_KEY = process.env.OPENAI_API_KEY ? 'set' : 'MISSING (needed for Whisper)';
-  out.cwd = process.cwd();
-  out.ytdlp = global.YTDLP_PATH ? { found: true, path: global.YTDLP_PATH } : { found: false };
-  out.ffmpeg = global.FFMPEG_PATH ? { found: true, path: global.FFMPEG_PATH } : { found: false };
-  const fs3 = require('fs'), path3 = require('path');
-  const binDir3 = path3.join(process.cwd(), 'bin');
-  out.binContents = fs3.existsSync(binDir3) ? fs3.readdirSync(binDir3) : 'no bin dir';
-  try {
-    await pool.query('SELECT 1');
-    out.db.connected = true;
-    const tables = await pool.query(`SELECT table_name FROM information_schema.tables WHERE table_schema='public'`);
-    out.db.tables = tables.rows.map(r => r.table_name);
-    if (out.db.tables.includes('blocks')) {
-      const count = await pool.query('SELECT COUNT(*) as n FROM blocks');
-      out.db.block_count = parseInt(count.rows[0].n);
-      const sample = await pool.query('SELECT id,type,title,drive_file_id,file_mime,thumbnail_url FROM blocks ORDER BY id DESC LIMIT 10');
-      out.blocks = sample.rows;
-    } else {
-      out.db.note = 'blocks table does not exist yet - initDb may not have run';
-    }
-  } catch(e) {
-    out.db.connected = false;
-    out.db.error = e.message;
-  }
-  res.json(out);
-});
-
-// ─── Block Attachments ────────────────────────────
-app.get('/api/attachments/:entity_type/:entity_id', requireAuth, async (req, res) => {
-  try {
-    const r = await pool.query(
-      `SELECT b.*, ba.id as attachment_id, ba.position, ba.created_at as attached_at
-       FROM blocks b JOIN block_attachments ba ON ba.block_id = b.id
-       WHERE ba.entity_type=$1 AND ba.entity_id=$2
-       ORDER BY ba.position ASC, ba.created_at ASC`,
-      [req.params.entity_type, req.params.entity_id]
-    );
-    res.json(r.rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/attachments', requireAuth, async (req, res) => {
-  try {
-    const { block_id, entity_type, entity_id } = req.body;
-    await pool.query(
-      'INSERT INTO block_attachments (block_id,entity_type,entity_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
-      [block_id, entity_type, entity_id]
-    );
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.delete('/api/attachments/:id', requireAuth, async (req, res) => {
-  try {
-    await pool.query('DELETE FROM block_attachments WHERE id=$1', [req.params.id]);
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// CLIENTS — Pipeline
-// ═══════════════════════════════════════════════════
-app.get('/api/clients', requireAuth, async (req, res) => {
-  try {
-    const { search, status } = req.query;
-    let q = 'SELECT id,name,platform,session_type,session_date,status,lead_temperature,updated_at FROM clients';
-    const p = []; const w = [];
-    if (search) { p.push('%'+search+'%'); w.push(`name ILIKE $${p.length}`); }
-    if (status) { p.push(status); w.push(`status=$${p.length}`); }
-    if (w.length) q += ' WHERE '+w.join(' AND ');
-    q += ' ORDER BY updated_at DESC';
-    res.json((await pool.query(q, p)).rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/clients/:id', requireAuth, async (req, res) => {
-  try {
-    const r = await pool.query('SELECT * FROM clients WHERE id=$1', [req.params.id]);
-    if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
-    // Attach blocks
-    const blocks = await pool.query(
-      `SELECT b.*, ba.id as attachment_id, ba.position FROM blocks b
-       JOIN block_attachments ba ON ba.block_id=b.id
-       WHERE ba.entity_type='client' AND ba.entity_id=$1 ORDER BY ba.position, ba.created_at`,
-      [req.params.id]
-    );
-    const c = r.rows[0];
-    c.blocks = blocks.rows;
-    res.json(c);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/clients', requireAuth, async (req, res) => {
-  try {
-    const { name, platform, thread_id, session_type, session_date, offer, first_contact, status } = req.body;
-    const r = await pool.query(
-      `INSERT INTO clients (name,platform,thread_id,session_type,session_date,offer,first_contact,status)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [name, platform, thread_id, session_type, session_date, offer, first_contact, status||'lead']
-    );
-    r.rows[0].blocks = [];
-    res.json(r.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.patch('/api/clients/:id', requireAuth, async (req, res) => {
-  try {
-    const allowed = ['name','platform','thread_id','session_type','session_date','offer',
-      'first_contact','status','lead_temperature','what_they_want','emotional_read','red_flags',
-      'opportunity','how_to_open','things_to_avoid','key_question','things_to_talk_about',
-      'what_they_need','moment_to_watch','how_to_close','lighting_setup',
-      'conversation_log','draft_reply','final_reply','notes'];
-    const sets=[]; const vals=[];
-    for (const k of allowed) {
-      if (req.body[k]!==undefined) { vals.push(req.body[k]); sets.push(`${k}=$${vals.length}`); }
-    }
-    if (!sets.length) return res.json({ ok: true });
-    vals.push(req.params.id);
-    const r = await pool.query(
-      `UPDATE clients SET ${sets.join(',')},updated_at=NOW() WHERE id=$${vals.length} RETURNING *`, vals
-    );
-    const blocks = await pool.query(
-      `SELECT b.*,ba.id as attachment_id FROM blocks b JOIN block_attachments ba ON ba.block_id=b.id
-       WHERE ba.entity_type='client' AND ba.entity_id=$1`, [req.params.id]
-    );
-    r.rows[0].blocks = blocks.rows;
-    res.json(r.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.delete('/api/clients/:id', requireAuth, async (req, res) => {
-  try { await pool.query('DELETE FROM clients WHERE id=$1', [req.params.id]); res.json({ ok: true }); }
-  catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Analyze conversation with Claude
-app.post('/api/clients/:id/analyze', requireAuth, async (req, res) => {
-  try {
-    const { conversation } = req.body;
-    const cr = await pool.query('SELECT * FROM clients WHERE id=$1', [req.params.id]);
-    if (!cr.rows.length) return res.status(404).json({ error: 'Not found' });
-    const client = cr.rows[0];
-
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2000,
-      messages: [{ role: 'user', content: `Analyze this DM conversation for Ian Green, portrait photographer at Phixo in Montreal.
-Ian's style: collaborative sessions, tethered screen, reads nervous clients, warm and direct.
-CLIENT: ${client.name} | ${client.platform||'unknown'} | ${client.session_type||'unknown'}
-CONVERSATION:
-${conversation}
-Return ONLY valid JSON:
-{
-  "lead_temperature": "hot/warm/cold — one sentence why",
-  "what_they_want": "what they're actually asking for",
-  "emotional_read": "their tone and what's underneath the words",
-  "red_flags": "specific concerns to watch for, or null",
-  "opportunity": "the real opening here",
-  "how_to_open": "exact first move when they walk in — specific",
-  "things_to_avoid": "what NOT to do or say with this person",
-  "key_question": "one question that unlocks them",
-  "things_to_talk_about": "comfortable conversation topics",
-  "what_they_need": "what they need beyond the photos",
-  "moment_to_watch": "the signal to look for during the shoot",
-  "how_to_close": "how to end the session so they leave feeling great",
-  "lighting_setup": "suggested lighting for this client and session type",
-  "draft_reply": "a reply Ian can send right now — warm, direct, moves things forward"
-}` }]
-    });
-
-    const analysis = JSON.parse(response.content[0].text.replace(/```json|```/g,'').trim());
-    analysis.conversation_log = conversation;
-
-    const keys = Object.keys(analysis).filter(k =>
-      ['lead_temperature','what_they_want','emotional_read','red_flags','opportunity',
-       'how_to_open','things_to_avoid','key_question','things_to_talk_about','what_they_need',
-       'moment_to_watch','how_to_close','lighting_setup','draft_reply','conversation_log'].includes(k)
-    );
-    const setClause = keys.map((k,i) => `${k}=$${i+1}`).join(',');
-    const vals = keys.map(k => analysis[k]);
-    vals.push(req.params.id);
-    await pool.query(`UPDATE clients SET ${setClause},updated_at=NOW() WHERE id=$${vals.length}`, vals);
-
-    // Also save conversation as a Block attached to this client
-    const blockR = await pool.query(
-      `INSERT INTO blocks (type,title,content_payload,source,category)
-       VALUES ('conversation',$1,$2,'manual','clients') RETURNING *`,
-      [`Conversation — ${client.name}`, conversation]
-    );
-    await pool.query(
-      'INSERT INTO block_attachments (block_id,entity_type,entity_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
-      [blockR.rows[0].id, 'client', req.params.id]
-    );
-
-    const updated = await pool.query('SELECT * FROM clients WHERE id=$1', [req.params.id]);
-    const blocks = await pool.query(
-      `SELECT b.*,ba.id as attachment_id FROM blocks b JOIN block_attachments ba ON ba.block_id=b.id
-       WHERE ba.entity_type='client' AND ba.entity_id=$1`, [req.params.id]
-    );
-    updated.rows[0].blocks = blocks.rows;
-    res.json({ client: updated.rows[0] });
-  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
-});
-
-// Analyze screenshot
-app.post('/api/clients/:id/analyze-image', requireAuth, upload.single('screenshot'), async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'No file' });
-    const base64 = req.file.buffer.toString('base64');
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6', max_tokens: 2000,
-      messages: [{ role: 'user', content: [
-        { type: 'image', source: { type: 'base64', media_type: req.file.mimetype, data: base64 } },
-        { type: 'text', text: `This is a DM screenshot for Ian Green, portrait photographer at Phixo in Montreal.
-Extract the conversation and analyze it. Return ONLY valid JSON:
-{"conversation_log":"full conversation as plain text","lead_temperature":"hot/warm/cold — why",
-"what_they_want":"...","emotional_read":"...","red_flags":"... or null","opportunity":"...",
-"how_to_open":"...","things_to_avoid":"...","key_question":"...","things_to_talk_about":"...",
-"what_they_need":"...","moment_to_watch":"...","how_to_close":"...","lighting_setup":"...","draft_reply":"..."}` }
-      ]}]
-    });
-    const analysis = JSON.parse(response.content[0].text.replace(/```json|```/g,'').trim());
-    const keys = Object.keys(analysis).filter(k =>
-      ['conversation_log','lead_temperature','what_they_want','emotional_read','red_flags','opportunity',
-       'how_to_open','things_to_avoid','key_question','things_to_talk_about','what_they_need',
-       'moment_to_watch','how_to_close','lighting_setup','draft_reply'].includes(k)
-    );
-    const setClause = keys.map((k,i) => `${k}=$${i+1}`).join(',');
-    const vals = keys.map(k => analysis[k]);
-    vals.push(req.params.id);
-    await pool.query(`UPDATE clients SET ${setClause},updated_at=NOW() WHERE id=$${vals.length}`, vals);
-    const updated = await pool.query('SELECT * FROM clients WHERE id=$1', [req.params.id]);
-    const blocks = await pool.query(
-      `SELECT b.*,ba.id as attachment_id FROM blocks b JOIN block_attachments ba ON ba.block_id=b.id
-       WHERE ba.entity_type='client' AND ba.entity_id=$1`, [req.params.id]
-    );
-    updated.rows[0].blocks = blocks.rows;
-    res.json({ client: updated.rows[0] });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// PROSPECTS — Discovery
-// ═══════════════════════════════════════════════════
-app.get('/api/prospects', requireAuth, async (req, res) => {
-  try {
-    const { search, status, category } = req.query;
-    let q = 'SELECT * FROM prospects';
-    const p=[]; const w=[];
-    if (search) { p.push('%'+search+'%'); w.push(`(name ILIKE $${p.length} OR handle ILIKE $${p.length})`); }
-    if (status) { p.push(status); w.push(`status=$${p.length}`); }
-    if (category) { p.push(category); w.push(`category=$${p.length}`); }
-    if (w.length) q += ' WHERE '+w.join(' AND ');
-    q += ' ORDER BY created_at DESC';
-    res.json((await pool.query(q, p)).rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/prospects/:id', requireAuth, async (req, res) => {
-  try {
-    const r = await pool.query('SELECT * FROM prospects WHERE id=$1', [req.params.id]);
-    if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
-    const blocks = await pool.query(
-      `SELECT b.*,ba.id as attachment_id FROM blocks b JOIN block_attachments ba ON ba.block_id=b.id
-       WHERE ba.entity_type='prospect' AND ba.entity_id=$1`, [req.params.id]
-    );
-    r.rows[0].blocks = blocks.rows;
-    res.json(r.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/prospects', requireAuth, async (req, res) => {
-  try {
-    const { name, handle, platform, category, status, why_them, notes } = req.body;
-    const r = await pool.query(
-      `INSERT INTO prospects (name,handle,platform,category,status,why_them,notes)
-       VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
-      [name, handle, platform, category, status||'watching', why_them, notes]
-    );
-    r.rows[0].blocks = [];
-    res.json(r.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.patch('/api/prospects/:id', requireAuth, async (req, res) => {
-  try {
-    const allowed = ['name','handle','platform','category','status','why_them','notes'];
-    const sets=[]; const vals=[];
-    for (const k of allowed) { if (req.body[k]!==undefined) { vals.push(req.body[k]); sets.push(`${k}=$${vals.length}`); } }
-    if (!sets.length) return res.json({ ok:true });
-    vals.push(req.params.id);
-    const r = await pool.query(`UPDATE prospects SET ${sets.join(',')},updated_at=NOW() WHERE id=$${vals.length} RETURNING *`, vals);
-    const blocks = await pool.query(
-      `SELECT b.*,ba.id as attachment_id FROM blocks b JOIN block_attachments ba ON ba.block_id=b.id
-       WHERE ba.entity_type='prospect' AND ba.entity_id=$1`, [req.params.id]
-    );
-    r.rows[0].blocks = blocks.rows;
-    res.json(r.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.delete('/api/prospects/:id', requireAuth, async (req, res) => {
-  try { await pool.query('DELETE FROM prospects WHERE id=$1', [req.params.id]); res.json({ ok:true }); }
-  catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Convert prospect → client
-app.post('/api/prospects/:id/convert', requireAuth, async (req, res) => {
-  try {
-    const pr = await pool.query('SELECT * FROM prospects WHERE id=$1', [req.params.id]);
-    if (!pr.rows.length) return res.status(404).json({ error: 'Not found' });
-    const p = pr.rows[0];
-    const cr = await pool.query(
-      `INSERT INTO clients (name,platform,notes,status) VALUES ($1,$2,$3,'lead') RETURNING *`,
-      [p.name, p.platform, p.why_them || p.notes]
-    );
-    const client = cr.rows[0];
-    // Move attached blocks
-    await pool.query(
-      `UPDATE block_attachments SET entity_type='client', entity_id=$1
-       WHERE entity_type='prospect' AND entity_id=$2`,
-      [client.id, p.id]
-    );
-    await pool.query('DELETE FROM prospects WHERE id=$1', [p.id]);
-    client.blocks = [];
-    res.json({ client });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// POSTS + MODULES
-// ═══════════════════════════════════════════════════
-app.get('/api/posts', requireAuth, async (req, res) => {
-  try {
-    const { status, platform } = req.query;
-    let q = 'SELECT * FROM posts';
-    const p=[]; const w=[];
-    if (status) { p.push(status); w.push(`status=$${p.length}`); }
-    if (platform) { p.push(platform); w.push(`platform=$${p.length}`); }
-    if (w.length) q += ' WHERE '+w.join(' AND ');
-    q += ` ORDER BY CASE status WHEN 'idea' THEN 1 WHEN 'draft' THEN 2 WHEN 'ready' THEN 3 WHEN 'posted' THEN 4 ELSE 5 END, created_at DESC`;
-    res.json((await pool.query(q, p)).rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.get('/api/posts/:id', requireAuth, async (req, res) => {
-  try {
-    const r = await pool.query('SELECT * FROM posts WHERE id=$1', [req.params.id]);
-    if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
-    const modules = await pool.query(
-      `SELECT pm.*, b.type as block_type, b.title as block_title,
-        b.content_payload, b.drive_file_id, b.file_mime, b.thumbnail_url, b.source_url
-       FROM post_modules pm LEFT JOIN blocks b ON b.id=pm.block_id
-       WHERE pm.post_id=$1 ORDER BY pm.position ASC`, [req.params.id]
-    );
-    r.rows[0].modules = modules.rows;
-    res.json(r.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.post('/api/posts', requireAuth, async (req, res) => {
-  try {
-    const { platform, funnel_stage, post_goal, status, post_date, notes, post_type, content_structure } = req.body;
-    const r = await pool.query(
-      `INSERT INTO posts (platform,funnel_stage,post_goal,status,post_date,notes,post_type,content_structure)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [
-        platform, 
-        funnel_stage, 
-        post_goal, 
-        status||'idea', 
-        post_date, 
-        notes,
-        post_type || 'photo',
-        content_structure ? JSON.stringify(content_structure) : '{}'
-      ]
-    );
-    r.rows[0].modules = [];
-    res.json(r.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.patch('/api/posts/:id', requireAuth, async (req, res) => {
-  try {
-    const allowed = ['platform','funnel_stage','post_goal','status','post_date','notes','post_type','content_structure'];
-    const sets=[]; const vals=[];
-    for (const k of allowed) { 
-      if (req.body[k]!==undefined) { 
-        // Handle JSONB for content_structure
-        if (k === 'content_structure') {
-          vals.push(JSON.stringify(req.body[k]));
-        } else {
-          vals.push(req.body[k]);
-        }
-        sets.push(`${k}=$${vals.length}`); 
-      } 
-    }
-    if (!sets.length) return res.json({ ok:true });
-    vals.push(req.params.id);
-    const r = await pool.query(`UPDATE posts SET ${sets.join(',')},updated_at=NOW() WHERE id=$${vals.length} RETURNING *`, vals);
-    res.json(r.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Cleanup untitled/empty posts (MUST come before /api/posts/:id route)
-app.delete('/api/posts/cleanup-untitled', requireAuth, async (req, res) => {
-  try {
-    const result = await pool.query(`
-      DELETE FROM posts 
-      WHERE (post_goal IS NULL OR post_goal = '' OR post_goal = 'Untitled post')
-        AND (content_structure IS NULL OR content_structure = '{}' OR content_structure::text = '{}')
-      RETURNING id
-    `);
-    res.json({ ok: true, deleted: result.rowCount });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.delete('/api/posts/:id', requireAuth, async (req, res) => {
-  try { await pool.query('DELETE FROM posts WHERE id=$1', [req.params.id]); res.json({ ok:true }); }
-  catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Post modules
-app.post('/api/posts/:id/modules', requireAuth, async (req, res) => {
-  try {
-    const { module_type, block_id, content, position } = req.body;
-    const maxPos = await pool.query(
-      'SELECT COALESCE(MAX(position),0)+1 as next FROM post_modules WHERE post_id=$1', [req.params.id]
-    );
-    const r = await pool.query(
-      `INSERT INTO post_modules (post_id,module_type,block_id,content,position)
-       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-      [req.params.id, module_type, block_id||null, content||'', position ?? maxPos.rows[0].next]
-    );
-    res.json(r.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.patch('/api/posts/:postId/modules/:id', requireAuth, async (req, res) => {
-  try {
-    const allowed = ['content','position','collapsed','block_id','module_type'];
-    const sets=[]; const vals=[];
-    for (const k of allowed) { if (req.body[k]!==undefined) { vals.push(req.body[k]); sets.push(`${k}=$${vals.length}`); } }
-    if (!sets.length) return res.json({ ok:true });
-    vals.push(req.params.id);
-    const r = await pool.query(`UPDATE post_modules SET ${sets.join(',')} WHERE id=$${vals.length} RETURNING *`, vals);
-    res.json(r.rows[0]);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-app.delete('/api/posts/:postId/modules/:id', requireAuth, async (req, res) => {
-  try { await pool.query('DELETE FROM post_modules WHERE id=$1', [req.params.id]); res.json({ ok:true }); }
-  catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Reorder modules
-app.post('/api/posts/:id/modules/reorder', requireAuth, async (req, res) => {
-  try {
-    const { order } = req.body; // array of { id, position }
-    for (const item of order) {
-      await pool.query('UPDATE post_modules SET position=$1 WHERE id=$2', [item.position, item.id]);
-    }
-    res.json({ ok: true });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// HOOKS
-// ═══════════════════════════════════════════════════
-app.get('/api/hooks', requireAuth, async (req, res) => {
-  try {
-    const { search, category, limit, offset } = req.query;
-    let q = 'SELECT * FROM hooks';
-    const p=[]; const w=[];
-    if (search) { p.push('%'+search+'%'); w.push(`text ILIKE $${p.length}`); }
-    if (category) { p.push(category); w.push(`category=$${p.length}`); }
-    if (w.length) q += ' WHERE '+w.join(' AND ');
-    q += ' ORDER BY category, created_at DESC';
-    if (limit) q += ` LIMIT ${parseInt(limit)}`;
-    if (offset) q += ` OFFSET ${parseInt(offset)}`;
-    const r = await pool.query(q, p);
-    res.json(r.rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Get hooks count
-app.get('/api/hooks/count', requireAuth, async (req, res) => {
-  try {
-    const r = await pool.query('SELECT COUNT(*) as count FROM hooks');
-    res.json({ count: parseInt(r.rows[0].count) });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// Ingest hooks from viral_hooks.csv
-app.post('/api/hooks/ingest', requireAuth, async (req, res) => {
-  try {
-    const fs = require('fs');
-    const path = require('path');
-    const csvFile = path.join(__dirname, 'viral_hooks.csv');
-    
-    if (!fs.existsSync(csvFile)) {
-      return res.status(404).json({ error: 'viral_hooks.csv not found' });
-    }
-    
-    const content = fs.readFileSync(csvFile, 'utf-8');
-    const lines = content.split('\n');
-    
-    // Skip header row
-    const hooks = [];
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line) continue;
-      
-      // Parse CSV (handle quoted fields)
-      const fields = [];
-      let currentField = '';
-      let inQuotes = false;
-      
-      for (let j = 0; j < line.length; j++) {
-        const char = line[j];
-        
-        if (char === '"') {
-          inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-          fields.push(currentField.trim());
-          currentField = '';
-        } else {
-          currentField += char;
-        }
-      }
-      fields.push(currentField.trim()); // Push last field
-      
-      if (fields.length >= 3) {
-        const hookId = fields[0];
-        const category = fields[1].toLowerCase().replace('_', '-');
-        const hookText = fields[2];
-        
-        if (hookText && hookText.length > 10) {
-          hooks.push({
-            id: hookId,
-            text: hookText,
-            category: category
-          });
-        }
-      }
-    }
-    
-    console.log(`Extracted ${hooks.length} hooks from CSV`);
-    
-    // DELETE ALL HOOKS - start completely fresh
-    await pool.query("DELETE FROM hooks");
-    console.log('Cleared all existing hooks');
-    
-    let inserted = 0;
-    
-    for (const h of hooks) {
-      try {
-        await pool.query(
-          'INSERT INTO hooks (text,category,source) VALUES ($1,$2,$3)',
-          [h.text, h.category, 'csv']
-        );
-        inserted++;
-      } catch(e) {
-        console.error('Insert error:', e.message);
-      }
-    }
-    
-    console.log(`Imported ${inserted} hooks from viral_hooks.csv`);
-    res.json({ ok: true, count: inserted });
-  } catch (err) { 
-    console.error(err); 
-    res.status(500).json({ error: err.message }); 
-  }
-});
-
-// Ingest hooks PDF from Drive
-app.post('/api/hooks/ingest-pdf', requireAuth, async (req, res) => {
-  try {
-    const drive = getDrive(req);
-    // Find the hooks PDF
-    const search = await drive.files.list({
-      q: "name contains 'Hook' and mimeType='application/pdf' and trashed=false",
-      fields: 'files(id, name)',
-      pageSize: 10
-    });
-    if (!search.data.files.length) {
-      return res.status(404).json({ error: 'No PDF with "Hook" in name found in Drive' });
-    }
-    const file = search.data.files[0];
-
-    // Export/download as bytes
-    const dlResp = await drive.files.get(
-      { fileId: file.id, alt: 'media' },
-      { responseType: 'arraybuffer' }
-    );
-    const buffer = Buffer.from(dlResp.data);
-
-    // Extract text - use basic PDF text extraction
-    let pdfText = buffer.toString('latin1')
-      .replace(/[^\x20-\x7E\n]/g, ' ')
-      .replace(/\s+/g, ' ');
-
-    // Send to Claude to extract individual hooks
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 4000,
-      messages: [{ role: 'user', content: `This is raw text from a "1000 Viral Hooks" PDF. Extract as many individual hook templates as you can find. Each hook is a short sentence or phrase (usually under 15 words) designed to start a social media post.
-
-Classify each into one of: story, contrarian, mistake, educational, curiosity, if-then, before-after, question, number-list.
-
-Return ONLY a JSON array: [{"text":"hook text here","category":"category"},...]
-
-Extract at least 50 hooks if possible. Raw PDF text:
-${pdfText.substring(0, 8000)}` }]
-    });
-
-    const hooks = JSON.parse(response.content[0].text.replace(/```json|```/g,'').trim());
-    
-    // Clear existing PDF hooks and reinsert
-    await pool.query("DELETE FROM hooks WHERE source='pdf'");
-    let inserted = 0;
-    for (const h of hooks) {
-      if (h.text && h.text.length > 5) {
-        await pool.query(
-          'INSERT INTO hooks (text,category,source) VALUES ($1,$2,$3)',
-          [h.text.trim(), h.category||'general', 'pdf']
-        );
-        inserted++;
-      }
-    }
-    res.json({ ok: true, count: inserted, file: file.name });
-  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
-});
-
-// AI-generate hook variations
-app.post('/api/hooks/:id/variations', requireAuth, async (req, res) => {
-  try {
-    const r = await pool.query('SELECT * FROM hooks WHERE id=$1', [req.params.id]);
-    if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
-    const hook = r.rows[0];
-    const resp = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 300,
-      messages: [{ role: 'user', content: `Generate 3 variations of this social media hook for a portrait photographer named Ian in Montreal. Keep the same structure/pattern but make each variation distinct. Hook: "${hook.text}"
-Return ONLY a JSON array of 3 strings: ["variation 1","variation 2","variation 3"]` }]
-    });
-    const variations = JSON.parse(resp.content[0].text.replace(/```json|```/g,'').trim());
-    res.json({ variations });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// DRIVE
-// ═══════════════════════════════════════════════════
-app.get('/api/drive/browse', requireAuth, async (req, res) => {
-  try {
-    const { folder } = req.query;
-    if (!folder) return res.status(400).json({ error: 'folder required' });
-    const drive = getDrive(req);
-    const fr = await drive.files.list({
-      q: `name='${folder.replace(/'/g,"\\'")}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-      fields: 'files(id)'
-    });
-    if (!fr.data.files.length) return res.json({ files: [], message: `Folder "${folder}" not found in Drive. Create a folder called "${folder}" in My Drive.` });
-    const folderId = fr.data.files[0].id;
-    const files = await drive.files.list({
-      q: `'${folderId}' in parents and trashed=false`,
-      fields: 'files(id,name,thumbnailLink,mimeType,size)',
-      pageSize: 200, orderBy: 'name'
-    });
-    const driveFiles = files.data.files || [];
-    // Mark which ones are already imported as blocks
-    let alreadyImported = new Set();
-    try {
-      const ids = driveFiles.map(f => f.id);
-      if (ids.length) {
-        const r = await pool.query(
-          'SELECT drive_file_id FROM blocks WHERE drive_file_id = ANY($1)',
-          [ids]
-        );
-        r.rows.forEach(row => alreadyImported.add(row.drive_file_id));
-      }
-    } catch(e) { /* if DB not ready, skip */ }
-    const enriched = driveFiles.map(f => ({
-      ...f,
-      already_imported: alreadyImported.has(f.id)
-    }));
-    res.json({ files: enriched, folderId, folder });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-
-
-// ─── Video Ingest ─────────────────────────────────────────────────────────────
-// Downloads video via yt-dlp, extracts audio + screenshots, transcribes + summarizes
-app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
-  const { url, funnel_stage, category, tags } = req.body;
-  if (!url) return res.status(400).json({ error: 'URL required' });
-
-  const fs = require('fs');
-  const { execSync, exec } = require('child_process');
-  const { promisify } = require('util');
-  const execAsync = promisify(exec);
-  const path = require('path');
-  const os = require('os');
-
-  // Detect platform
-  const platform = url.includes('tiktok.com') ? 'TikTok'
-    : url.includes('instagram.com') ? 'Instagram'
-    : url.includes('youtube.com') || url.includes('youtu.be') ? 'YouTube'
-    : url.includes('twitter.com') || url.includes('x.com') ? 'Twitter/X'
-    : 'Video';
-
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'phixo-'));
-  const videoPath = path.join(tmpDir, 'video.mp4');
-  let audioPath = path.join(tmpDir, 'audio.mp3');
-  const screenshotsDir = path.join(tmpDir, 'screenshots');
-  fs.mkdirSync(screenshotsDir, { recursive: true });
-
-  let title = platform + ' Video';
-  let transcript = '';
-  let summary = '';
-  let summaryPoints = [];
-  let screenshotDriveIds = [];
-  let thumbnailUrl = '';
-  let duration = 0;
-
-  try {
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    const send = (step, msg) => {
-      res.write(`data: ${JSON.stringify({ step, msg })}\n\n`);
-    };
-
-    // ── Step 1: Download video ──────────────────────────────────────────────
-    send('download', 'Downloading video from ' + platform + '...');
-    // Find yt-dlp binary (may be in various locations depending on install method)
-    // Wait for yt-dlp to be ready (downloads on first boot)
-    await _toolSetup;
-    if (!global.YTDLP_PATH) throw new Error('yt-dlp is still downloading or failed to install. Wait 30 seconds and try again.');
-    const ytdlpCmd = `"${global.YTDLP_PATH}"`;
-    console.log('Using yt-dlp:', ytdlpCmd);
-
-    // Write Instagram cookies file if env var is set
-    let cookiesArg = '';
-    const isInstagram = url.includes('instagram.com');
-    if (isInstagram && process.env.INSTAGRAM_COOKIES) {
-      const cookiePath = path.join(tmpDir, 'ig_cookies.txt');
-      fs.writeFileSync(cookiePath, process.env.INSTAGRAM_COOKIES);
-      cookiesArg = `--cookies "${cookiePath}"`;
-    }
-
-    const buildCmd = (fmt) => `${ytdlpCmd} ${cookiesArg} -f "${fmt}" --no-playlist --no-check-certificate -o "${videoPath}" "${url}"`;
-
-    const checkIgError = (msg) => {
-      if (!isInstagram) return;
-      if (msg.includes('login required') || msg.includes('login page') || msg.includes('not available') || msg.includes('rate-limit')) {
-        if (!process.env.INSTAGRAM_COOKIES) {
-          throw new Error('Instagram requires authentication. Add your INSTAGRAM_COOKIES to Railway Variables — see the setup instructions in the app.');
-        } else {
-          throw new Error('Instagram cookies have expired. Re-export your cookies from Chrome and update the INSTAGRAM_COOKIES variable in Railway.');
-        }
-      }
-    };
-
-    try {
-      await execAsync(buildCmd('best[height<=720]/best'), { timeout: 180000 });
-    } catch(dlErr) {
-      const errMsg = (dlErr.stderr || '') + (dlErr.message || '');
-      checkIgError(errMsg);
-      try {
-        await execAsync(buildCmd('b'), { timeout: 180000 });
-      } catch(e2) {
-        const msg2 = (e2.stderr || '') + (e2.message || '');
-        checkIgError(msg2);
-        throw e2;
-      }
-    }
-
-    if (!fs.existsSync(videoPath)) throw new Error('Video download failed — yt-dlp could not retrieve this URL');
-
-    // Get title and duration from yt-dlp metadata
-    try {
-      const meta = await execAsync(`yt-dlp --get-title --get-duration "${url}" 2>/dev/null || true`);
-      const lines = meta.stdout.trim().split('\n').filter(Boolean);
-      if (lines[0]) title = lines[0].substring(0, 100);
-      if (lines[1]) {
-        const parts = lines[1].split(':').map(Number);
-        duration = parts.length === 2 ? parts[0]*60+parts[1] : parts.length === 3 ? parts[0]*3600+parts[1]*60+parts[2] : parseInt(parts[0])||0;
-      }
-    } catch(e) {}
-
-    // ── Step 2: Extract audio ────────────────────────────────────────────────
-    send('audio', 'Extracting audio...');
-    const ffBin = global.FFMPEG_PATH || 'ffmpeg';
-    // Try aac first, then copy stream, then fall back to using video directly
-    let audioExtracted = false;
-    for (const attempt of [
-      `"${ffBin}" -i "${videoPath}" -vn -acodec aac -b:a 128k "${audioPath.replace('.mp3','.m4a')}" -y`,
-      `"${ffBin}" -i "${videoPath}" -vn -acodec copy "${audioPath.replace('.mp3','.m4a')}" -y`,
-      `"${ffBin}" -i "${videoPath}" -vn -f adts "${audioPath.replace('.mp3','.aac')}" -y`,
-    ]) {
-      try {
-        await execAsync(attempt, { timeout: 60000 });
-        if (attempt.includes('.m4a')) audioPath = audioPath.replace('.mp3','.m4a');
-        if (attempt.includes('.aac')) audioPath = audioPath.replace('.mp3','.aac');
-        audioExtracted = true;
-        console.log('Audio extracted with:', attempt.split(' ').slice(0,3).join(' '));
-        break;
-      } catch(e) {
-        console.warn('Audio attempt failed:', e.message?.substring(0,100));
-      }
-    }
-    // Last resort: use the video file itself (Whisper accepts mp4)
-    if (!audioExtracted) {
-      console.warn('Audio extraction failed — sending video directly to Whisper');
-      audioPath = videoPath;
-    }
-
-    // ── Step 3: Screenshots ──────────────────────────────────────────────────
-    send('screenshots', 'Capturing frames...');
-    let frames = [];
-    const interval = Math.max(Math.floor((duration || 60) / 7), 3);
-    const ffmpegBin = global.FFMPEG_PATH || 'ffmpeg';
-    try {
-      await execAsync(
-        `"${ffmpegBin}" -i "${videoPath}" -vf "fps=1/${interval},scale=640:-2" -frames:v 8 "${screenshotsDir}/frame_%03d.jpg" -y 2>/dev/null`,
-        { timeout: 60000 }
-      );
-      frames = fs.readdirSync(screenshotsDir).filter(f => f.endsWith('.jpg')).sort();
-    } catch(ffErr) {
-      console.warn('ffmpeg screenshots failed, continuing without frames:', ffErr.message);
-    }
-
-    // ── Step 4: Upload screenshots to Drive ──────────────────────────────────
-    send('uploading', `Uploading ${frames.length} screenshots to Drive...`);
-    const drive = getDrive(req);
-
-    // Find/create "Video Screenshots" folder in Drive
-    let shotFolderId;
-    const folderSearch = await drive.files.list({
-      q: `name='Video Screenshots' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-      fields: 'files(id)'
-    });
-    if (folderSearch.data.files.length) {
-      shotFolderId = folderSearch.data.files[0].id;
-    } else {
-      const created = await drive.files.create({
-        requestBody: { name: 'Video Screenshots', mimeType: 'application/vnd.google-apps.folder' },
-        fields: 'id'
-      });
-      shotFolderId = created.data.id;
-    }
-
-    // Upload each frame
-    const { Readable } = require('stream');
-    for (let i = 0; i < frames.length; i++) {
-      const framePath = path.join(screenshotsDir, frames[i]);
-      const frameData = fs.readFileSync(framePath);
-      const uploaded = await drive.files.create({
-        requestBody: {
-          name: `${title.substring(0,40)}_frame_${i+1}.jpg`,
-          parents: [shotFolderId],
-          mimeType: 'image/jpeg'
-        },
-        media: { mimeType: 'image/jpeg', body: Readable.from(frameData) },
-        fields: 'id,thumbnailLink'
-      });
-      screenshotDriveIds.push({
-        id: uploaded.data.id,
-        thumb: `/api/drive/file/${uploaded.data.id}`,
-        label: `Frame ${i+1} (~${(i * interval)}s)`
-      });
-      if (i === 0) thumbnailUrl = `/api/drive/file/${uploaded.data.id}`;
-    }
-
-    // ── Step 5: Transcribe with Whisper ──────────────────────────────────────
-    send('transcribe', 'Transcribing audio with Whisper...');
-    const audioStat = fs.statSync(audioPath);
-    const maxWhisperBytes = 24 * 1024 * 1024; // 24MB limit
-
-    if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not set — add it in Railway Variables');
-
-    let audioBuffer = fs.readFileSync(audioPath);
-    if (audioBuffer.length > maxWhisperBytes) {
-      // Re-encode at lower quality to fit
-      let smallAudio = path.join(tmpDir, 'audio_small.mp3');
-      await execAsync(`"${global.FFMPEG_PATH || 'ffmpeg'}" -i "${audioPath}" -acodec aac -b:a 64k -ar 16000 "${smallAudio.replace('.mp3','.m4a')}" -y 2>/dev/null`); smallAudio = smallAudio.replace('.mp3','.m4a');
-      audioBuffer = fs.readFileSync(smallAudio);
-    }
-
-    const whisperForm = new FormData();
-    const audioMime = audioPath.endsWith('.mp4') ? 'video/mp4' : audioPath.endsWith('.aac') ? 'audio/aac' : 'audio/mp4';
-    const audioExt = audioPath.split('.').pop();
-    const audioBlob = new Blob([audioBuffer], { type: audioMime });
-    const audioFileName = 'audio.' + audioExt;
-    whisperForm.append('file', audioBlob, audioFileName);
-    whisperForm.append('model', 'whisper-1');
-    whisperForm.append('response_format', 'text');
-
-    const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}` },
-      body: whisperForm
-    });
-    if (!whisperRes.ok) throw new Error('Whisper API error: ' + await whisperRes.text());
-    transcript = (await whisperRes.text()).trim();
-
-    // ── Step 6: Summarize with Claude ────────────────────────────────────────
-    send('summarize', 'Extracting key points with Claude...');
-    const claudeRes = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 800,
-      messages: [{
-        role: 'user',
-        content: `You're analyzing a ${platform} video transcript for a portrait photographer named Ian. Extract the key content.
-
-TRANSCRIPT:
-${transcript.substring(0, 6000)}
-
-Return ONLY a JSON object with these fields (no markdown, no extra text):
-{
-  "title": "short descriptive title for this content (max 60 chars)",
-  "platform_category": "educational/behind-the-scenes/marketing/posing/lighting/client-work/gear/motivation",
-  "key_points": ["point 1", "point 2", "point 3", "point 4", "point 5"],
-  "one_liner": "one sentence summary of what this video is actually about",
-  "relevance": "why this is useful for Ian's photography business (1-2 sentences)"
-}`
-      }]
-    });
-
-    try {
-      const rawText = claudeRes.content[0].text.replace(/^```json\s*/,'').replace(/^```\s*/,'').replace(/\s*```$/,'').trim();
-      const parsed = JSON.parse(rawText);
-      title = parsed.title || title;
-      summaryPoints = parsed.key_points || [];
-      summary = parsed.one_liner || '';
-      // Store full structured metadata
-      summary = JSON.stringify({
-        one_liner: parsed.one_liner || '',
-        platform_category: parsed.platform_category || '',
-        key_points: parsed.key_points || [],
-        relevance: parsed.relevance || ''
-      });
-    } catch(e) {
-      summary = claudeRes.content[0].text;
-    }
-
-    // ── Step 7: Save block to DB ──────────────────────────────────────────────
-    send('saving', 'Saving to library...');
-    const metadata = {
-      platform,
-      platform_category: JSON.parse(summary).platform_category || '',
-      duration,
-      screenshot_frames: screenshotDriveIds,
-      one_liner: JSON.parse(summary).one_liner || '',
-      key_points: JSON.parse(summary).key_points || [],
-      relevance: JSON.parse(summary).relevance || ''
-    };
-
-    const result = await pool.query(
-      `INSERT INTO blocks (type, title, category, tags, funnel_stage, source, source_url, thumbnail_url, content_payload, metadata)
-       VALUES ($1, $2, $3, $4, $5, 'url', $6, $7, $8, $9) RETURNING *`,
-      [
-        'video',
-        title,
-        category || metadata.platform_category || platform.toLowerCase(),
-        tags ? tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-        funnel_stage || '',
-        url,
-        thumbnailUrl,
-        transcript,
-        JSON.stringify(metadata)
-      ]
-    );
-
-    send('done', 'Block created');
-    res.write(`data: ${JSON.stringify({ done: true, block: result.rows[0] })}\n\n`);
-    res.end();
-
-  } catch (err) {
-    console.error('Video ingest error:', err);
-    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-    res.end();
-  } finally {
-    // Cleanup temp files
-    try {
-      const { execSync } = require('child_process');
-      execSync(`rm -rf "${tmpDir}"`);
-    } catch(e) {}
-  }
-});
-
-// ─── Sync Drive folders → auto-import new blocks ─────
-// ── Repair thumbnail URLs ─────────────────────────────────────────────────────
-app.post('/api/blocks/repair-thumbnails', requireAuth, async (req, res) => {
-  try {
-    // 1. Image blocks with drive_file_id → always proxy
-    const imgFix = await pool.query(`
-      UPDATE blocks 
-      SET thumbnail_url = '/api/drive/file/' || drive_file_id
-      WHERE drive_file_id IS NOT NULL AND drive_file_id != ''
-        AND file_mime IS NOT NULL AND file_mime LIKE 'image/%'
-      RETURNING id
-    `);
-
-    // 2. Video ingest blocks — pull first frame from metadata
-    const videoBlocks = await pool.query(
-      "SELECT id, metadata FROM blocks WHERE type='video' AND metadata IS NOT NULL AND metadata::text LIKE '%screenshot_frames%'"
-    );
-    let videoFixed = 0;
-    for (const b of videoBlocks.rows) {
-      const frames = (b.metadata || {}).screenshot_frames || [];
-      if (frames.length && frames[0].id) {
-        await pool.query('UPDATE blocks SET thumbnail_url=$1 WHERE id=$2',
-          ['/api/drive/file/' + frames[0].id, b.id]);
-        videoFixed++;
-      }
-    }
-
-    // 3. Fix missing file_mime from file_name extension
-    const noMime = await pool.query(
-      "SELECT id, file_name FROM blocks WHERE drive_file_id IS NOT NULL AND (file_mime IS NULL OR file_mime = '')"
-    );
-    let mimeFixed = 0;
-    const extMap = {jpg:'image/jpeg',jpeg:'image/jpeg',png:'image/png',gif:'image/gif',
-      webp:'image/webp',mp4:'video/mp4',mov:'video/quicktime',pdf:'application/pdf'};
-    for (const b of noMime.rows) {
-      const ext = (b.file_name||'').split('.').pop().toLowerCase();
-      if (extMap[ext]) {
-        await pool.query('UPDATE blocks SET file_mime=$1 WHERE id=$2', [extMap[ext], b.id]);
-        mimeFixed++;
-      }
-    }
-
-    // 4. Fix all blocks with expired CDN URLs or missing thumbnails
-    // For image types: use file proxy. For everything else with drive_file_id: use thumbnail proxy
-    const forceAll = await pool.query(`
-      UPDATE blocks 
-      SET thumbnail_url = CASE
-            WHEN type IN ('pose','image') AND drive_file_id IS NOT NULL 
-              THEN '/api/drive/file/' || drive_file_id
-            WHEN drive_file_id IS NOT NULL AND drive_file_id NOT LIKE '%vnd.google%'
-              THEN '/api/drive/thumbnail/' || drive_file_id
-            ELSE NULL
-          END
-      WHERE drive_file_id IS NOT NULL
-        AND drive_file_id != ''
-        AND (
-          thumbnail_url IS NULL 
-          OR thumbnail_url = ''
-          OR thumbnail_url LIKE 'https://lh3.google%'
-          OR thumbnail_url LIKE 'https://drive.google%'
-        )
-      RETURNING id, type, thumbnail_url
-    `);
-
-    res.json({ ok:true, images_fixed:imgFix.rows.length, videos_fixed:videoFixed, mime_fixed:mimeFixed, fixed:forceAll.rows.length, details:forceAll.rows });
-  } catch(err) {
-    console.error('Repair error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-
-// ── Drive Thumbnail Proxy ─────────────────────────────────────────────────────
-// Fetches a fresh thumbnail from Drive API for any file type (video, PDF, doc, etc.)
-// Drive generates previews for all types — we just can't store the links (they expire)
-app.get('/api/drive/thumbnail/:fileId', requireAuth, async (req, res) => {
-  try {
-    const drive = getDrive(req);
-    const meta = await drive.files.get({
-      fileId: req.params.fileId,
-      fields: 'thumbnailLink,mimeType'
-    });
-    const link = meta.data.thumbnailLink;
-    if (!link) return res.status(404).send('No thumbnail');
-    // Use larger size
-    const bigLink = link.replace(/=s\d+$/, '=s400').replace(/=s\d+&/, '=s400&');
-    // Fetch and proxy so auth isn't needed client-side
-    const https = require('https');
-    const imgRes = await new Promise((resolve, reject) => {
-      https.get(bigLink, resolve).on('error', reject);
-    });
-    res.setHeader('Content-Type', 'image/jpeg');
-    res.setHeader('Cache-Control', 'private, max-age=1800');
-    imgRes.pipe(res);
-  } catch(err) {
-    console.error('Thumbnail proxy error:', req.params.fileId, err.message);
-    res.status(404).send('No thumbnail');
-  }
-});
-
-app.post('/api/drive/sync', requireAuth, async (req, res) => {
-  try {
-    const drive = getDrive(req);
-    const folderMap = [
-      { name: 'Pose',             type: 'pose',  category: 'posing'    },
-      { name: 'Meme',             type: 'meme',  category: 'memes'     },
-      { name: 'SFX',              type: 'sfx',   category: 'audio'     },
-      { name: 'Music',            type: 'sfx',   category: 'music'     },
-      { name: 'Phixo Knowledge',  type: 'pdf',   category: 'knowledge' },
-      { name: 'Tik Tok Scripts',  type: 'note',  category: 'scripts'   },
-    ];
-
-    let imported = 0;
-    let skipped = 0;
-    const results = [];
-
-    for (const folder of folderMap) {
-      // Find folder in Drive
-      const fr = await drive.files.list({
-        q: `name='${folder.name}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-        fields: 'files(id,name)', pageSize: 5
-      });
-      if (!fr.data.files.length) {
-        results.push({ folder: folder.name, status: 'not found in Drive' });
-        continue;
-      }
-      const folderId = fr.data.files[0].id;
-
-      // List files in folder
-      const files = await drive.files.list({
-        q: `'${folderId}' in parents and trashed=false`,
-        fields: 'files(id,name,thumbnailLink,mimeType,size)',
-        pageSize: 200, orderBy: 'name'
-      });
-      const driveFiles = files.data.files || [];
-
-      // Find which are already imported
-      const ids = driveFiles.map(f => f.id);
-      let existingIds = new Set();
-      if (ids.length) {
-        const r = await pool.query(
-          'SELECT drive_file_id FROM blocks WHERE drive_file_id = ANY($1)', [ids]
-        );
-        r.rows.forEach(row => existingIds.add(row.drive_file_id));
-      }
-
-      // Import new ones
-      const newFiles = driveFiles.filter(f => !existingIds.has(f.id));
-      for (const f of newFiles) {
-        await pool.query(
-          `INSERT INTO blocks (type,title,category,tags,source,drive_file_id,file_name,file_mime,thumbnail_url)
-           VALUES ($1,$2,$3,$4,'drive',$5,$6,$7,$8)`,
-          [folder.type, f.name, folder.category, [], f.id, f.name, f.mimeType||'', f.mimeType&&f.mimeType.startsWith('image/')?`/api/drive/file/${f.id}`:'']
-        );
-        imported++;
-      }
-      skipped += existingIds.size;
-      results.push({ folder: folder.name, new: newFiles.length, existing: existingIds.size });
-    }
-
-    res.json({ ok: true, imported, skipped, results });
-  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
-});
-
-// Clean up deleted files from research library
-app.post('/api/drive/cleanup', requireAuth, async (req, res) => {
-  try {
-    const drive = getDrive(req);
-    const blocks = await pool.query('SELECT id, drive_file_id, title FROM blocks WHERE drive_file_id IS NOT NULL AND drive_file_id != \'\'');
-    
-    let deleted = 0;
-    const deletedBlocks = [];
-    
-    console.log(`Checking ${blocks.rows.length} blocks for deleted Drive files...`);
-    
-    for (const block of blocks.rows) {
-      let shouldDelete = false;
-      
-      try {
-        // Try to get file metadata from Drive
-        const fileRes = await drive.files.get({
-          fileId: block.drive_file_id,
-          fields: 'id,trashed,name'
-        });
-        
-        // If file is trashed, delete from DB
-        if (fileRes.data.trashed) {
-          shouldDelete = true;
-          console.log(`File is trashed: ${block.title} (${block.drive_file_id})`);
-        }
-      } catch (err) {
-        // File doesn't exist (404) or other error - delete from DB
-        shouldDelete = true;
-        console.log(`File not found or error: ${block.title} (${block.drive_file_id}) - ${err.message}`);
-      }
-      
-      if (shouldDelete) {
-        await pool.query('DELETE FROM blocks WHERE id = $1', [block.id]);
-        deletedBlocks.push({ id: block.id, title: block.title });
-        deleted++;
-      }
-    }
-    
-    console.log(`Cleanup complete: ${deleted} blocks deleted from database`);
-    res.json({ ok: true, deleted, deletedBlocks });
-  } catch (err) { 
-    console.error('Cleanup error:', err); 
-    res.status(500).json({ error: err.message }); 
-  }
-});
-
-// Sync clients from Drive "Clients" folder with full document analysis
-app.post('/api/drive/sync-clients', requireAuth, async (req, res) => {
-  try {
-    const drive = getDrive(req);
-    
-    // Helper: Download and extract text from a file
-    const extractFileText = async (fileId, mimeType) => {
-      // Skip if dependencies not available
-      if (!pdfParse || !mammoth) {
-        return null;
-      }
-      
-      try {
-        const fileRes = await drive.files.get(
-          { fileId, alt: 'media' },
-          { responseType: 'arraybuffer' }
-        );
-        const buffer = Buffer.from(fileRes.data);
-        
-        if (mimeType === 'application/pdf' && pdfParse) {
-          const pdfData = await pdfParse(buffer);
-          return pdfData.text;
-        } else if (mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' && mammoth) {
-          const result = await mammoth.extractRawText({ buffer });
-          return result.value;
-        } else if (mimeType === 'text/plain') {
-          return buffer.toString('utf-8');
-        }
-        return null;
-      } catch (err) {
-        console.error(`Error extracting text from ${fileId}:`, err.message);
-        return null;
-      }
-    };
-    
-    // Find "Clients" folder
-    const clientsFolderRes = await drive.files.list({
-      q: "name='Clients' and mimeType='application/vnd.google-apps.folder' and trashed=false",
-      fields: 'files(id,name)',
-      pageSize: 5
-    });
-    
-    if (!clientsFolderRes.data.files.length) {
-      return res.json({ ok: false, message: 'No "Clients" folder found in Drive' });
-    }
-    
-    const clientsFolderId = clientsFolderRes.data.files[0].id;
-    
-    // Get all folders inside Clients
-    const topLevelFoldersRes = await drive.files.list({
-      q: `'${clientsFolderId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-      fields: 'files(id,name)',
-      pageSize: 200
-    });
-    
-    const clientFolders = [];
-    
-    // Process each top-level folder
-    for (const folder of topLevelFoldersRes.data.files || []) {
-      if (folder.name === 'Brand' || folder.name === 'Influencer') {
-        const subFoldersRes = await drive.files.list({
-          q: `'${folder.id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`,
-          fields: 'files(id,name)',
-          pageSize: 200
-        });
-        
-        for (const subFolder of subFoldersRes.data.files || []) {
-          clientFolders.push({
-            id: subFolder.id,
-            name: subFolder.name,
-            category: folder.name.toLowerCase()
-          });
-        }
-      } else {
-        clientFolders.push({
-          id: folder.id,
-          name: folder.name,
-          category: 'individual'
-        });
-      }
-    }
-    
-    let created = 0;
-    let updated = 0;
-    let analyzed = 0;
-    
-    // Process each client folder
-    for (const folder of clientFolders) {
-      console.log(`Processing client folder: ${folder.name}`);
-      
-      // Check if client already exists
-      const existing = await pool.query('SELECT id FROM clients WHERE drive_folder_id = $1', [folder.id]);
-      
-      // Get files inside this client folder
-      const filesRes = await drive.files.list({
-        q: `'${folder.id}' in parents and trashed=false`,
-        fields: 'files(id,name,mimeType)',
-        pageSize: 50
-      });
-      
-      const files = filesRes.data.files || [];
-      
-      // Extract text from all readable files
-      const fileContents = [];
-      for (const file of files) {
-        if (file.mimeType === 'application/pdf' || 
-            file.mimeType === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-            file.mimeType === 'text/plain') {
-          const text = await extractFileText(file.id, file.mimeType);
-          if (text) {
-            fileContents.push(`=== ${file.name} ===\n${text}`);
-          }
-        }
-      }
-      
-      let clientData = {
-        name: folder.name,
-        drive_folder_id: folder.id
-      };
-      
-      // Use Claude to analyze if we have file contents
-      if (fileContents.length > 0 && process.env.ANTHROPIC_API_KEY) {
-        try {
-          const fullText = fileContents.join('\n\n').substring(0, 30000); // Limit to 30k chars
-          
-          const analysis = await anthropic.messages.create({
-            model: 'claude-haiku-4-5-20251001',
-            max_tokens: 2000,
-            messages: [{
-              role: 'user',
-              content: `You are analyzing client documents for a photography business. Extract ALL relevant information and map it to these exact fields.
-
-Client Folder: ${folder.name}
-
-Document Contents:
-${fullText}
-
-Extract and return JSON with these exact fields (use null if not found):
-{
-  "platform": "Instagram/LinkedIn/etc",
-  "thread_id": "message thread ID",
-  "session_type": "Professional Headshots/Personal Branding/etc",
-  "session_date": "session date",
-  "offer": "what was offered",
-  "first_contact": "first contact date",
-  "status": "lead/booked/shot/delivered",
-  "lead_temperature": "hot/warm/cold",
-  "what_they_want": "what client wants",
-  "emotional_read": "how they're feeling",
-  "red_flags": "any red flags",
-  "opportunity": "opportunity notes",
-  "how_to_open": "how to open the session",
-  "things_to_avoid": "things to avoid",
-  "key_question": "key question to ask",
-  "things_to_talk_about": "conversation topics",
-  "what_they_need": "what they need from session",
-  "moment_to_watch": "key moment to watch for",
-  "how_to_close": "how to close session",
-  "lighting_setup": "lighting notes",
-  "conversation_log": "message history if present",
-  "draft_reply": "any draft reply",
-  "notes": "general notes"
 }
 
-Return ONLY valid JSON, no markdown, no explanations.`
-            }]
-          });
-          
-          const responseText = analysis.content[0].text.trim();
-          const cleanJson = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-          const aiData = JSON.parse(cleanJson);
-          
-          // Map all fields
-          Object.assign(clientData, aiData);
-          analyzed++;
-          
-          console.log(`Analyzed ${folder.name}: Found ${Object.keys(aiData).filter(k => aiData[k]).length} populated fields`);
-        } catch (err) {
-          console.error(`Failed to analyze ${folder.name}:`, err.message);
-        }
-      }
-      
-      if (existing.rows.length === 0) {
-        // Create new client with all fields
-        await pool.query(
-          `INSERT INTO clients (
-            name, drive_folder_id, platform, thread_id, session_type, session_date, offer,
-            first_contact, status, lead_temperature, what_they_want, emotional_read, 
-            red_flags, opportunity, how_to_open, things_to_avoid, key_question,
-            things_to_talk_about, what_they_need, moment_to_watch, how_to_close,
-            lighting_setup, conversation_log, draft_reply, notes, created_at
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 
-            $18, $19, $20, $21, $22, $23, $24, $25, NOW()
-          )`,
-          [
-            clientData.name, clientData.drive_folder_id,
-            clientData.platform || null, clientData.thread_id || null,
-            clientData.session_type || null, clientData.session_date || null,
-            clientData.offer || null, clientData.first_contact || null,
-            clientData.status || 'lead', clientData.lead_temperature || null,
-            clientData.what_they_want || null, clientData.emotional_read || null,
-            clientData.red_flags || null, clientData.opportunity || null,
-            clientData.how_to_open || null, clientData.things_to_avoid || null,
-            clientData.key_question || null, clientData.things_to_talk_about || null,
-            clientData.what_they_need || null, clientData.moment_to_watch || null,
-            clientData.how_to_close || null, clientData.lighting_setup || null,
-            clientData.conversation_log || null, clientData.draft_reply || null,
-            clientData.notes || null
-          ]
-        );
-        created++;
-      } else {
-        // Update existing client
-        await pool.query(
-          `UPDATE clients SET 
-            name = $1, platform = COALESCE($2, platform), thread_id = COALESCE($3, thread_id),
-            session_type = COALESCE($4, session_type), session_date = COALESCE($5, session_date),
-            offer = COALESCE($6, offer), first_contact = COALESCE($7, first_contact),
-            status = COALESCE($8, status), lead_temperature = COALESCE($9, lead_temperature),
-            what_they_want = COALESCE($10, what_they_want), emotional_read = COALESCE($11, emotional_read),
-            red_flags = COALESCE($12, red_flags), opportunity = COALESCE($13, opportunity),
-            how_to_open = COALESCE($14, how_to_open), things_to_avoid = COALESCE($15, things_to_avoid),
-            key_question = COALESCE($16, key_question), things_to_talk_about = COALESCE($17, things_to_talk_about),
-            what_they_need = COALESCE($18, what_they_need), moment_to_watch = COALESCE($19, moment_to_watch),
-            how_to_close = COALESCE($20, how_to_close), lighting_setup = COALESCE($21, lighting_setup),
-            conversation_log = COALESCE($22, conversation_log), draft_reply = COALESCE($23, draft_reply),
-            notes = COALESCE($24, notes)
-          WHERE drive_folder_id = $25`,
-          [
-            clientData.name, clientData.platform, clientData.thread_id,
-            clientData.session_type, clientData.session_date, clientData.offer,
-            clientData.first_contact, clientData.status, clientData.lead_temperature,
-            clientData.what_they_want, clientData.emotional_read, clientData.red_flags,
-            clientData.opportunity, clientData.how_to_open, clientData.things_to_avoid,
-            clientData.key_question, clientData.things_to_talk_about, clientData.what_they_need,
-            clientData.moment_to_watch, clientData.how_to_close, clientData.lighting_setup,
-            clientData.conversation_log, clientData.draft_reply, clientData.notes,
-            clientData.drive_folder_id
-          ]
-        );
-        updated++;
-      }
-    }
-    
-    res.json({ ok: true, created, updated, analyzed, total: clientFolders.length });
-  } catch (err) {
-    console.error('Client sync error:', err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Sync discovery from Drive folders (excluding Clients)
-app.post('/api/drive/sync-discovery', requireAuth, async (req, res) => {
-  try {
-    const drive = getDrive(req);
-    
-    // Get all top-level folders except specific ones
-    const excludeFolders = ['Clients', 'Pose', 'Meme', 'SFX', 'Music', 'Phixo Knowledge', 'Tik Tok Scripts', 'Videos'];
-    
-    const allFoldersRes = await drive.files.list({
-      q: "mimeType='application/vnd.google-apps.folder' and 'root' in parents and trashed=false",
-      fields: 'files(id,name)',
-      pageSize: 200
-    });
-    
-    const discoveryFolders = (allFoldersRes.data.files || []).filter(f => !excludeFolders.includes(f.name));
-    
-    let created = 0;
-    let updated = 0;
-    
-    for (const folder of discoveryFolders) {
-      // Check if prospect already exists
-      const existing = await pool.query('SELECT id FROM prospects WHERE drive_folder_id = $1', [folder.id]);
-      
-      if (existing.rows.length === 0) {
-        // Create new prospect
-        await pool.query(
-          `INSERT INTO prospects (name, drive_folder_id, status, category, created_at) 
-           VALUES ($1, $2, 'watching', 'business', NOW())`,
-          [folder.name, folder.id]
-        );
-        created++;
-      } else {
-        // Update name if changed
-        await pool.query(
-          'UPDATE prospects SET name = $1 WHERE drive_folder_id = $2',
-          [folder.name, folder.id]
-        );
-        updated++;
-      }
-    }
-    
-    res.json({ ok: true, created, updated, total: discoveryFolders.length });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get('/api/drive/file/:fileId', requireAuth, async (req, res) => {
-  try {
-    const drive = getDrive(req);
-    const meta = await drive.files.get({
-      fileId: req.params.fileId,
-      fields: 'mimeType,name,size'
-    });
-    const mimeType = meta.data.mimeType || 'application/octet-stream';
-    const fileSize = parseInt(meta.data.size || '0');
-    const isVideo = mimeType.startsWith('video/');
-
-    res.setHeader('Content-Type', mimeType);
-    res.setHeader('Cache-Control', 'private, max-age=3600');
-
-    if (isVideo) {
-      // For video: buffer entirely then serve with proper range support
-      // This enables seeking in the <video> element
-      const chunks = [];
-      const fileRes = await drive.files.get(
-        { fileId: req.params.fileId, alt: 'media' },
-        { responseType: 'stream' }
-      );
-      await new Promise((resolve, reject) => {
-        fileRes.data.on('data', chunk => chunks.push(chunk));
-        fileRes.data.on('end', resolve);
-        fileRes.data.on('error', reject);
-      });
-      const buffer = Buffer.concat(chunks);
-      const total = buffer.length;
-      res.setHeader('Accept-Ranges', 'bytes');
-
-      const range = req.headers.range;
-      if (range) {
-        const parts = range.replace(/bytes=/, '').split('-');
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? Math.min(parseInt(parts[1], 10), total - 1) : total - 1;
-        res.status(206);
-        res.setHeader('Content-Range', `bytes ${start}-${end}/${total}`);
-        res.setHeader('Content-Length', end - start + 1);
-        res.end(buffer.slice(start, end + 1));
-      } else {
-        res.setHeader('Content-Length', total);
-        res.end(buffer);
-      }
-    } else {
-      // Images/PDFs: pipe directly
-      if (fileSize) res.setHeader('Content-Length', fileSize);
-      const fileRes = await drive.files.get(
-        { fileId: req.params.fileId, alt: 'media' },
-        { responseType: 'stream' }
-      );
-      fileRes.data.on('error', () => { if (!res.headersSent) res.status(500).end(); });
-      fileRes.data.pipe(res);
-    }
-  } catch (err) {
-    console.error('Drive file error for', req.params.fileId, ':', err.message);
-    if (!res.headersSent) res.status(404).send('File not found');
-  }
-});
-
-
-
-// ── Library Knowledge Base Q&A ───────────────────────────────────────────────
-app.post('/api/library/ask', requireAuth, async (req, res) => {
-  try {
-    const { question } = req.body;
-    if (!question) return res.status(400).json({ error: 'question required' });
-
-    // Fetch ALL blocks with content
-    const result = await pool.query(`
-      SELECT id, type, title, category, tags, content_payload, metadata, source_url
-      FROM blocks ORDER BY created_at DESC
-    `);
-    const blocks = result.rows;
-
-    if (!blocks.length) return res.json({ answer: "Your library is empty. Add some blocks first.", sources: [] });
-
-    // Build context — every block contributes what it has
-    const contextParts = blocks.map(b => {
-      const m = b.metadata || {};
-      const lines = [`[Block #${b.id}] ${b.type.toUpperCase()}: "${b.title}"`];
-      if (b.category) lines.push(`Category: ${b.category}`);
-      if (m.platform) lines.push(`Platform: ${m.platform}`);
-      if (m.one_liner) lines.push(`Summary: ${m.one_liner}`);
-      if (m.key_points && m.key_points.length) lines.push(`Key points: ${m.key_points.join(' | ')}`);
-      if (m.relevance) lines.push(`Relevance: ${m.relevance}`);
-      if (b.content_payload) {
-        // Include full content for notes/scripts, truncated for long transcripts
-        const maxLen = ['note','conversation','pdf'].includes(b.type) ? 4000 : 1500;
-        const text = b.content_payload.substring(0, maxLen);
-        lines.push(`Content: ${text}${b.content_payload.length > maxLen ? '...[truncated]' : ''}`);
-      }
-      return lines.join('\n');
-    });
-
-    const context = contextParts.join('\n\n---\n\n');
-
-    const Anthropic = require('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    const msg = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1500,
-      system: `You are a research assistant for Ian, a portrait photographer. You have access to Ian's full research library below.
-
-CRITICAL RULES:
-1. Only answer based on what is explicitly in the provided library content
-2. Cite block titles when making claims — e.g. "According to [Block Title]..."
-3. If the answer isn't clearly in the library, say "I don't see that in your library" — never make things up
-4. Be specific and practical. Ian is a working photographer, not a student.
-5. If multiple blocks are relevant, synthesize them and cite each one
-
-LIBRARY CONTENT:
-${context}`,
-      messages: [{ role: 'user', content: question }]
-    });
-
-    const answer = msg.content[0].text;
-
-    // Extract which block IDs were referenced
-    const citedIds = blocks
-      .filter(b => answer.includes(b.title) || answer.includes(`Block #${b.id}`))
-      .map(b => ({ id: b.id, title: b.title, type: b.type }));
-
-    res.json({ answer, sources: citedIds, block_count: blocks.length });
-  } catch (err) {
-    console.error('Library ask error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ── Restyle Script from Hook Example ─────────────────────────────────────────
-// Fetches + transcribes the hook's example URL, then rewrites the script in
-// that delivery style while keeping Phixo voice, the locked hook, and Ian's content.
-// SSE stream: download → transcribe → restyle → done
-app.post('/api/ideate/restyle-script', requireAuth, async (req, res) => {
-  const { exampleUrl, hook, script, pillar, funnelStage, lane } = req.body;
-  if (!exampleUrl) return res.status(400).json({ error: 'exampleUrl required' });
-  if (!script)     return res.status(400).json({ error: 'script required' });
-
-  const fs2  = require('fs');
-  const path2 = require('path');
-  const os   = require('os');
-  const { promisify } = require('util');
-  const { exec } = require('child_process');
-  const execAsync = promisify(exec);
-
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  const send = (step, msg, data = null) =>
-    res.write(`data: ${JSON.stringify({ step, msg, ...(data || {}) })}
-
-`);
-
-  const tmpDir = fs2.mkdtempSync(path2.join(os.tmpdir(), 'phixo-restyle-'));
-  const videoPath = path2.join(tmpDir, 'video.mp4');
-  const audioPath = path2.join(tmpDir, 'audio.mp3');
-
-  try {
-    // ── Step 1: Download audio ────────────────────────────────────────────────
-    send('download', 'Fetching example video...');
-    if (!global.YTDLP_PATH) throw new Error('yt-dlp not ready — wait 30 seconds and try again');
-    const ytdlp = `"${global.YTDLP_PATH}"`;
-
-    // Try audio-only first (faster), fall back to video
-    const cookiesArg = process.env.INSTAGRAM_COOKIES_B64
-      ? `--cookies /tmp/ig_cookies.txt` : '';
-
-    const audioFormats = ['bestaudio[ext=m4a]', 'bestaudio[ext=mp3]', 'bestaudio', 'worstvideo'];
-    let downloaded = false;
-    for (const fmt of audioFormats) {
-      try {
-        await execAsync(`${ytdlp} ${cookiesArg} -f "${fmt}" --no-playlist --no-check-certificate -o "${videoPath}" "${exampleUrl}"`, { timeout: 60000 });
-        if (fs2.existsSync(videoPath) && fs2.statSync(videoPath).size > 1000) { downloaded = true; break; }
-      } catch {}
-    }
-    if (!downloaded) throw new Error('Could not download this URL — Instagram may need cookie setup');
-
-    // ── Step 2: Extract audio ─────────────────────────────────────────────────
-    send('audio', 'Extracting audio...');
-    try {
-      await execAsync(`ffmpeg -i "${videoPath}" -vn -acodec libmp3lame -q:a 4 -y "${audioPath}"`, { timeout: 30000 });
-    } catch {
-      // ffmpeg not available or failed — send video file directly to Whisper
-      fs2.copyFileSync(videoPath, audioPath);
-    }
-
-    const audioFile = fs2.existsSync(audioPath) ? audioPath : videoPath;
-    const audioBuffer = fs2.readFileSync(audioFile);
-
-    // ── Step 3: Transcribe ────────────────────────────────────────────────────
-    send('transcribe', 'Transcribing with Whisper...');
-    const { Blob } = require('buffer');
-    const FormData = require('form-data');
-    const formData = new FormData();
-    const audioFileName = audioPath.endsWith('.mp3') ? 'audio.mp3' : 'audio.mp4';
-    formData.append('file', audioBuffer, { filename: audioFileName, contentType: audioFileName.endsWith('.mp3') ? 'audio/mpeg' : 'video/mp4' });
-    formData.append('model', 'whisper-1');
-    formData.append('response_format', 'text');
-
-    const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`, ...formData.getHeaders() },
-      body: formData
-    });
-    if (!whisperRes.ok) throw new Error('Whisper error: ' + await whisperRes.text());
-    const transcript = (await whisperRes.text()).trim();
-    send('transcribed', `Got transcript (${transcript.split(' ').length} words)`);
-
-    // ── Step 4: Restyle with Sonnet ───────────────────────────────────────────
-    send('restyle', 'Rewriting script in example delivery style...');
-
-    const restylePrompt = `You are rewriting a TikTok/Reel script for Ian Green (Phixo) — portrait photographer, West Island Montreal.
-
-HOOK (locked — do not change):
-"${hook}"
-
-CURRENT SCRIPT:
-${script}
-
-EXAMPLE VIDEO TRANSCRIPT (study the delivery style — how it opens, sentence rhythm, how points land, pacing, natural transitions):
-${transcript}
-
-PHIXO VOICE RULES:
-- Warm and direct, like a knowledgeable friend talking, not a brand
-- Sentences move forward — never recap the previous one
-- Point arrives without being announced ("that's why" / "that's the thing" → cut it)
-- Personal admissions: one clause, move on — not a moment
-- End at the last real thing — no wrap-up, no lesson stated out loud
-- Specific beats vague: "crunchy, over-processed look" beats "artificial"
-- Never: stunning, perfect, gorgeous, transformative, AI hype language
-- "I" = Ian personally. "We" = Ian + client together in session
-- No emojis
-
-TASK:
-Rewrite the script. 
-- Keep the same subject matter and key points
-- Adopt the delivery STYLE of the example transcript: its rhythm, how it opens mid-thought or with a statement, how transitions feel natural not structured
-- Do not copy any sentences from the transcript — absorb the style, apply it to Ian's content
-- The hook is locked and comes first — write what follows it
-- 4-8 sentences, same approximate length as the current script
-
-Return ONLY the rewritten script text. No preamble, no quotes, no explanation.`;
-
-    const msg = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 600,
-      messages: [{ role: 'user', content: restylePrompt }]
-    });
-
-    const restyled = msg.content[0].text.trim();
-
-    // ── Done ──────────────────────────────────────────────────────────────────
-    send('done', 'Script restyled', {
-      restyled,
-      transcriptWordCount: transcript.split(' ').length,
-      transcriptPreview: transcript.slice(0, 200)
-    });
-
-    res.end();
-
-  } catch (err) {
-    send('error', err.message);
-    res.end();
-  } finally {
-    // Clean up temp files
-    try {
-      const fs3 = require('fs');
-      [videoPath, audioPath].forEach(p => { try { fs3.unlinkSync(p); } catch {} });
-      fs3.rmdirSync(tmpDir, { recursive: true });
-    } catch {}
-  }
-});
-
-// ── Block AI Summarize ────────────────────────────────────────────────────────
-app.post('/api/blocks/:id/summarize', requireAuth, async (req, res) => {
-  try {
-    const { id } = req.params;
-    const block = await pool.query('SELECT * FROM blocks WHERE id=$1', [id]);
-    if (!block.rows.length) return res.status(404).json({ error: 'Not found' });
-    const b = block.rows[0];
-
-    // Get content from DB or Drive
-    let content = b.content_payload || '';
-    if (!content && b.drive_file_id) {
-      try {
-        const drive = getDrive(req);
-        const fileRes = await drive.files.get(
-          { fileId: b.drive_file_id, alt: 'media' },
-          { responseType: 'arraybuffer' }
-        );
-        content = Buffer.from(fileRes.data).toString('utf8').substring(0, 8000);
-      } catch(e) { content = b.title; }
-    }
-    if (!content) return res.status(400).json({ error: 'No content to summarize' });
-
-    const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const resp = await claude.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 800,
-      messages: [{
-        role: 'user',
-        content: `You're summarizing research material for portrait photographer Ian Green.
-
-Title: "${b.title}"
-Type: ${b.type}
-
-Content:
-${content.substring(0, 6000)}
-
-Extract the most useful information. Return ONLY valid JSON, no markdown:
-{
-  "key_points": ["5-7 specific, actionable points that are most useful"],
-  "one_liner": "one sentence summary",
-  "relevance": "why this matters for portrait photography sessions"
-}`
-      }]
-    });
-
-    let parsed;
-    try {
-      const raw = resp.content[0].text.replace(/^\`\`\`json\s*/,'').replace(/^\`\`\`\s*/,'').replace(/\s*\`\`\`$/,'').trim();
-      parsed = JSON.parse(raw);
-    } catch(e) {
-      return res.status(500).json({ error: 'AI parse error: ' + e.message });
-    }
-
-    // Merge into existing metadata
-    const existing = b.metadata || {};
-    const newMeta = { ...existing, ...parsed, summarized_at: new Date().toISOString() };
-    await pool.query('UPDATE blocks SET metadata=$1 WHERE id=$2', [JSON.stringify(newMeta), id]);
-
-    res.json({ success: true, metadata: newMeta });
-  } catch(err) {
-    console.error('Summarize error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-
-// Get random hooks for inspiration
-app.get('/api/hooks/random', requireAuth, async (req, res) => {
-  try {
-    const limit = parseInt(req.query.limit) || 5;
-    const result = await pool.query(`
-      SELECT * FROM hooks 
-      ORDER BY RANDOM() 
-      LIMIT $1
-    `, [limit]);
-    res.json(result.rows);
-  } catch (err) {
-    console.error('Random hooks error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// One-time import of hooks from hooks_data.txt
-app.post('/api/hooks/import', requireAuth, async (req, res) => {
-  try {
-    const fs = require('fs');
-    const path = require('path');
-    const hooksFile = path.join(__dirname, 'hooks_data.txt');
-    
-    if (!fs.existsSync(hooksFile)) {
-      return res.status(404).json({ error: 'hooks_data.txt not found' });
-    }
-    
-    // Check if hooks already imported
-    const existing = await pool.query('SELECT COUNT(*) FROM hooks');
-    if (parseInt(existing.rows[0].count) > 0) {
-      return res.json({ message: 'Hooks already imported', count: existing.rows[0].count });
-    }
-    
-    const content = fs.readFileSync(hooksFile, 'utf-8');
-    const lines = content.split('\n').map(l => l.trim()).filter(l => l.length > 0);
-    
-    let currentCategory = 'general';
-    let imported = 0;
-    
-    for (const line of lines) {
-      // Skip title line
-      if (line.includes('1000 VIRAL HOOKS')) continue;
-      
-      // Check if it's a category header (ends with :)
-      if (line.endsWith(':') && line.length < 50) {
-        currentCategory = line.replace(':', '').trim();
-        continue;
-      }
-      
-      // Skip Instagram URLs
-      if (line.startsWith('http')) continue;
-      
-      // Skip URL fragments
-      if (line.includes('instagram.com') || line.includes('igsh=') || line.includes('utm_')) continue;
-      
-      // Skip lines that are too short
-      if (line.length < 20) continue;
-      
-      // This is a hook template
-      await pool.query(
-        'INSERT INTO hooks (text, category, source) VALUES ($1, $2, $3)',
-        [line, currentCategory, 'PDF Import']
-      );
-      imported++;
-    }
-    
-    res.json({ success: true, imported, message: `Imported ${imported} hooks` });
-  } catch (err) {
-    console.error('Hooks import error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ── Library Knowledge Base Q&A ───────────────────────────────────────────────
-app.post('/api/library/ask', requireAuth, async (req, res) => {
-  try {
-    const { question } = req.body;
-    if (!question) return res.status(400).json({ error: 'question required' });
-
-    // Fetch ALL blocks with content
-    const result = await pool.query(`
-      SELECT id, type, title, category, tags, content_payload, metadata, source_url
-      FROM blocks ORDER BY created_at DESC
-    `);
-    const blocks = result.rows;
-
-    if (!blocks.length) return res.json({ answer: "Your library is empty. Add some blocks first.", sources: [] });
-
-    // Build context — every block contributes what it has
-    const contextParts = blocks.map(b => {
-      const m = b.metadata || {};
-      const lines = [`[Block #${b.id}] ${b.type.toUpperCase()}: "${b.title}"`];
-      if (b.category) lines.push(`Category: ${b.category}`);
-      if (m.platform) lines.push(`Platform: ${m.platform}`);
-      if (m.one_liner) lines.push(`Summary: ${m.one_liner}`);
-      if (m.key_points && m.key_points.length) lines.push(`Key points: ${m.key_points.join(' | ')}`);
-      if (m.relevance) lines.push(`Relevance: ${m.relevance}`);
-      if (b.content_payload) {
-        // Include full content for notes/scripts, truncated for long transcripts
-        const maxLen = ['note','conversation','pdf'].includes(b.type) ? 4000 : 1500;
-        const text = b.content_payload.substring(0, maxLen);
-        lines.push(`Content: ${text}${b.content_payload.length > maxLen ? '...[truncated]' : ''}`);
-      }
-      return lines.join('\n');
-    });
-
-    const context = contextParts.join('\n\n---\n\n');
-
-    const Anthropic = require('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    const msg = await client.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1500,
-      system: `You are a research assistant for Ian, a portrait photographer. You have access to Ian's full research library below.
-
-CRITICAL RULES:
-1. Only answer based on what is explicitly in the provided library content
-2. Cite block titles when making claims — e.g. "According to [Block Title]..."
-3. If the answer isn't clearly in the library, say "I don't see that in your library" — never make things up
-4. Be specific and practical. Ian is a working photographer, not a student.
-5. If multiple blocks are relevant, synthesize them and cite each one
-
-LIBRARY CONTENT:
-${context}`,
-      messages: [{ role: 'user', content: question }]
-    });
-
-    const answer = msg.content[0].text;
-
-    // Extract which block IDs were referenced
-    const citedIds = blocks
-      .filter(b => answer.includes(b.title) || answer.includes(`Block #${b.id}`))
-      .map(b => ({ id: b.id, title: b.title, type: b.type }));
-
-    res.json({ answer, sources: citedIds, block_count: blocks.length });
-  } catch (err) {
-    console.error('Library ask error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ── Block AI Summarize ────────────────────────────────────────────────────────
-
-app.post('/api/knowledge/ask', requireAuth, async (req, res) => {
-  try {
-    const { question } = req.body;
-    if (!question) return res.status(400).json({ error: 'Question required' });
-
-    // Step 1: Search blocks by keyword relevance
-    const words = question.toLowerCase().replace(/[^a-z0-9 ]/g,' ').split(' ').filter(w => w.length > 2);
-    const likeTerms = words.map(w => `%${w}%`);
-
-    // Get all blocks that have content, scored by keyword hits
-    const allBlocks = await pool.query(`
-      SELECT id, type, title, category, tags, content_payload, metadata, source_url
-      FROM blocks
-      WHERE content_payload IS NOT NULL AND content_payload != ''
-         OR metadata IS NOT NULL
-      ORDER BY created_at DESC
-      LIMIT 100
-    `);
-
-    // Score each block
-    const scored = allBlocks.rows.map(b => {
-      const haystack = [
-        b.title || '',
-        b.content_payload || '',
-        JSON.stringify(b.metadata || {}),
-        (b.tags || []).join(' '),
-        b.category || ''
-      ].join(' ').toLowerCase();
-      const score = words.reduce((s, w) => s + (haystack.split(w).length - 1), 0);
-      return { ...b, score };
-    }).filter(b => b.score > 0).sort((a,b) => b.score - a.score).slice(0, 6);
-
-    if (scored.length === 0) {
-      return res.json({ answer: "I couldn't find relevant content in your research library for that question. Try adding more blocks first.", sources: [] });
-    }
-
-    // Build context
-    const context = scored.map((b, i) => {
-      const meta = b.metadata || {};
-      const keyPoints = (meta.key_points || []).join('\n- ');
-      const payload = (b.content_payload || '').substring(0, 1200);
-      return [
-        `[Source ${i+1}: ${b.title} (${b.type})]`,
-        meta.one_liner ? `Summary: ${meta.one_liner}` : '',
-        keyPoints ? `Key points:\n- ${keyPoints}` : '',
-        payload ? `Content: ${payload}` : ''
-      ].filter(Boolean).join('\n');
-    }).join('\n\n---\n\n');
-
-    const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const resp = await claude.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 1200,
-      messages: [{
-        role: 'user',
-        content: `You are an AI assistant for Ian Green, a portrait photographer. Answer his question using ONLY the research material provided below. If the answer isn't in the material, say so clearly. Cite sources by their [Source N] labels.
-
-RESEARCH MATERIAL:
-${context}
-
-QUESTION: ${question}
-
-Answer specifically and practically. Reference the actual content from the sources. If multiple sources are relevant, synthesize them.`
-      }]
-    });
-
-    const sources = scored.map(b => ({ id: b.id, title: b.title, type: b.type }));
-    res.json({ answer: resp.content[0].text, sources });
-  } catch(err) {
-    console.error('Knowledge ask error:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-// ═══════════════════════════════════════════════════
-// AI ASSISTANT — Grounded in Drive+DB only
-// ═══════════════════════════════════════════════════
-app.post('/api/assist/post', requireAuth, async (req, res) => {
-  try {
-    const { message, history, post_context } = req.body;
-
-    // Gather context from DB: recent blocks, hooks matching post context
-    const recentBlocks = await pool.query(
-      'SELECT type,title,content_payload,tags,category FROM blocks ORDER BY created_at DESC LIMIT 20'
-    );
-    const hooks = await pool.query('SELECT text,category FROM hooks ORDER BY RANDOM() LIMIT 15');
-
-    const system = `You are Ian's post-building assistant for Phixo, his portrait photography studio in Montreal.
-
-CONTEXT FROM IAN'S LIBRARY:
-Blocks in research library:
-${recentBlocks.rows.map(b=>`- [${b.type}] ${b.title}${b.content_payload?' — '+b.content_payload.substring(0,80):''}`).join('\n')}
-
-Sample hooks from Ian's library:
-${hooks.rows.map(h=>`- [${h.category}] ${h.text}`).join('\n')}
-
-CURRENT POST BEING BUILT:
-${JSON.stringify(post_context||{}, null, 2)}
-
-RULES:
-- Use ONLY content from Ian's library above. No external examples.
-- Ask ONE focused question at a time.
-- When suggesting hooks, give 2-3 SHORT options pulled from or inspired by his hook library.
-- Never write a full caption — help him find the angle, he writes it.
-- Ian's voice: warm, direct, no hype words, no emojis.
-- Keep replies under 5 sentences unless listing hook options.`;
-
-    const messages = [...(history||[]), { role: 'user', content: message }];
-    const response = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6', max_tokens: 500,
-      system, messages
-    });
-    res.json({ reply: response.content[0].text });
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// ═══════════════════════════════════════════════════
-// START
-// ═══════════════════════════════════════════════════
-// ── Tool Setup ──────────────────────────────────────────────────────────────
-const _toolSetup = (async () => {
-  const fs2 = require('fs');
-  const path2 = require('path');
-  const https2 = require('https');
-  const { promisify } = require('util');
-  const { exec } = require('child_process');
-  const execAsync = promisify(exec);
-
-  // ffmpeg via ffmpeg-static npm package
-  let FFMPEG_PATH = null;
-  try {
-    FFMPEG_PATH = require('ffmpeg-static');
-    await execAsync(`"${FFMPEG_PATH}" -version 2>/dev/null`);
-    console.log('ffmpeg: available via ffmpeg-static at', FFMPEG_PATH);
-  } catch(e) {
-    console.warn('ffmpeg-static not available:', e.message);
-    FFMPEG_PATH = null;
-  }
-  global.FFMPEG_PATH = FFMPEG_PATH;
-
-  // yt-dlp: download binary on first boot if not present
-  const binDir = path2.join(process.cwd(), 'bin');
-  const ytdlpPath = path2.join(binDir, 'yt-dlp');
-  if (!fs2.existsSync(binDir)) fs2.mkdirSync(binDir, { recursive: true });
-
-  const checkYtdlp = async (p) => {
-    try { const r = await execAsync(`"${p}" --version 2>/dev/null`); return r.stdout.trim(); }
-    catch(e) { return null; }
+function renderMonthView(){
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('month-title').textContent = `${monthNames[currentMonth]} ${currentYear}`;
+  
+  const firstDay = new Date(currentYear, currentMonth, 1);
+  const lastDay = new Date(currentYear, currentMonth + 1, 0);
+  const prevLastDay = new Date(currentYear, currentMonth, 0);
+  const startDay = firstDay.getDay(); // 0 = Sunday
+  const daysInMonth = lastDay.getDate();
+  
+  const today = new Date();
+  const isToday = (day) => {
+    return day === today.getDate() && currentMonth === today.getMonth() && currentYear === today.getFullYear();
   };
+  
+  let html = '';
+  
+  // Day headers
+  ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(day => {
+    html += `<div class="month-day-header">${day}</div>`;
+  });
+  
+  // Previous month days
+  for(let i = startDay - 1; i >= 0; i--){
+    const day = prevLastDay.getDate() - i;
+    html += `<div class="month-day other-month"><div class="month-day-num">${day}</div></div>`;
+  }
+  
+  // Current month days
+  for(let day = 1; day <= daysInMonth; day++){
+    const dateStr = `${currentYear}-${String(currentMonth + 1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const dayPosts = allPosts.filter(p => p.post_date === dateStr);
+    const todayClass = isToday(day) ? 'today' : '';
+    
+    html += `<div class="month-day ${todayClass}" data-date="${dateStr}">
+      <div class="month-day-num">${day}</div>
+      ${dayPosts.map(p => `
+        <div class="month-post status-${p.status}" onclick="openPostBuilder(${p.id})">
+          <div class="month-post-title">${esc(p.post_goal || 'Untitled')}</div>
+          <div class="month-post-meta">${p.platform || ''}</div>
+        </div>
+      `).join('')}
+      <div class="month-day-add" onclick="createPostForDate('${dateStr}')">+</div>
+    </div>`;
+  }
+  
+  // Next month days
+  const totalCells = startDay + daysInMonth;
+  const remainingCells = totalCells % 7 === 0 ? 0 : 7 - (totalCells % 7);
+  for(let day = 1; day <= remainingCells; day++){
+    html += `<div class="month-day other-month"><div class="month-day-num">${day}</div></div>`;
+  }
+  
+  document.getElementById('month-grid').innerHTML = html;
+}
 
-  // Check if already downloaded
-  let ytdlpVer = await checkYtdlp(ytdlpPath);
-  if (ytdlpVer) {
-    console.log('yt-dlp: ready at', ytdlpPath, '(' + ytdlpVer + ')');
-    global.YTDLP_PATH = ytdlpPath;
+function changeMonth(delta){
+  currentMonth += delta;
+  if(currentMonth > 11){
+    currentMonth = 0;
+    currentYear++;
+  } else if(currentMonth < 0){
+    currentMonth = 11;
+    currentYear--;
+  }
+  renderMonthView();
+}
+
+async function createPostForDate(dateStr){
+  const p = await api('POST','/api/posts',{
+    platform:'Instagram',
+    status:'idea',
+    post_date: dateStr
+  });
+  openPostBuilder(p.id);
+}
+
+async function openNewPost(){
+  const p=await api('POST','/api/posts',{platform:'Instagram',status:'idea'});
+  openPostBuilder(p.id);
+}
+
+// ═══ POST BUILDER ═══
+async function openPostBuilder(id){
+  POST_ID=id;
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.getElementById('v-post-builder').classList.add('on');
+  const post=await api('GET','/api/posts/'+id);
+  postModules=post.modules||[];
+  allBlocks=await api('GET','/api/blocks');
+  assistHistory=[];
+  renderPostBuilder(post);
+}
+async function refreshPostModules(){
+  const post=await api('GET','/api/posts/'+POST_ID);
+  postModules=post.modules||[];
+  renderPostStack();
+}
+function renderPostBuilder(post){
+  const cs = post.content_structure || {};
+  const isGenerated = cs.generatedFrom === 'research_library';
+  
+  // Content type icons
+  const typeIcons = {
+    'short_video': '🎥',
+    'portfolio_image': '📸',
+    'graphic': '🎨',
+    'carousel': '🎞️',
+    'bts_clip': '📹',
+    'stories': '📱',
+    'reel': '🎥',
+    'video': '🎥'
+  };
+  const typeIcon = typeIcons[post.post_type] || '📸';
+  const typeName = (post.post_type || 'photo').replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  
+  document.getElementById('pb-body').innerHTML=`
+    <div class="pb-simple">
+      <div class="pb-top">
+        <h2>
+          ${typeIcon} ${typeName}
+          <button class="btn-link" onclick="setPostType('')" style="font-size:13px;margin-left:12px">Change type</button>
+        </h2>
+        <div class="pb-meta-row">
+          <select onchange="updatePost('platform',this.value)" class="mini-select">
+            <option ${post.platform==='Instagram'?'selected':''}>Instagram</option>
+            <option ${post.platform==='TikTok'?'selected':''}>TikTok</option>
+            <option ${post.platform==='LinkedIn'?'selected':''}>LinkedIn</option>
+            <option ${post.platform==='Facebook'?'selected':''}>Facebook</option>
+          </select>
+          <select onchange="updatePost('funnel_stage',this.value)" class="mini-select">
+            <option value="">Funnel</option>
+            <option value="tof" ${post.funnel_stage==='tof'?'selected':''}>TOF</option>
+            <option value="mof" ${post.funnel_stage==='mof'?'selected':''}>MOF</option>
+            <option value="bof" ${post.funnel_stage==='bof'?'selected':''}>BOF</option>
+          </select>
+          <select onchange="updatePost('status',this.value)" class="mini-select">
+            <option value="idea" ${post.status==='idea'?'selected':''}>Idea</option>
+            <option value="draft" ${post.status==='draft'?'selected':''}>Draft</option>
+            <option value="ready" ${post.status==='ready'?'selected':''}>Ready</option>
+          </select>
+          <input type="date" value="${post.post_date||''}" onchange="updatePost('post_date',this.value)" class="mini-select">
+          <button class="btn btn-danger btn-sm" onclick="deletePost(${post.id})" style="margin-left:auto">Delete</button>
+        </div>
+      </div>
+      
+      <div class="pb-cols">
+        <!-- Left: Reference Blocks -->
+        <div class="pb-refs">
+          <div class="pb-refs-head">
+            <span style="font-weight:700">📚 Reference Material</span>
+            <span style="font-size:11px;color:var(--muted)">Click to attach</span>
+          </div>
+          <input type="text" placeholder="Search your blocks..." class="ref-search" id="ref-search" oninput="filterRefBlocks()">
+          <div id="ref-blocks" class="ref-blocks"></div>
+          
+          <div class="attached-blocks" id="attached-blocks" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)"></div>
+        </div>
+        
+        <!-- Middle: Content Fields (Generated Ideas structure) -->
+        <div class="pb-caption">
+          ${isGenerated ? `
+            <div style="font-size:10px;color:var(--accent);font-weight:700;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px;padding:8px;background:rgba(184,103,62,0.1);border-radius:6px">
+              ✨ Generated from Research Library
+            </div>
+          ` : ''}
+          
+          <div class="caption-section">
+            <div class="cs-label">
+              <span>🪝 HOOK</span>
+              ${!isGenerated ? `<button class="btn-link" onclick="toggleHookSearch()" style="font-size:11px">Search hooks →</button>` : ''}
+            </div>
+            <input 
+              type="text" 
+              placeholder="The line that stops the scroll..."
+              value="${esc(cs.hook||'')}"
+              oninput="updateCS('hook',this.value)"
+              class="caption-input"
+            >
+            ${cs.hookTemplate ? `<div style="font-size:10px;color:var(--muted);margin-top:6px;padding:8px;background:var(--surface-2);border-radius:4px">
+              <strong>Proven Template:</strong> ${esc(cs.hookTemplate)}
+            </div>` : ''}
+          </div>
+          
+          ${cs.overlay ? `
+            <div class="caption-section">
+              <div class="cs-label">📺 TEXT OVERLAY</div>
+              <textarea 
+                placeholder="What appears on screen..."
+                oninput="updateCS('overlay',this.value)"
+                class="caption-textarea"
+                rows="4"
+              >${esc(cs.overlay||'')}</textarea>
+            </div>
+          ` : ''}
+          
+          <div class="caption-section">
+            <div class="cs-label">${isGenerated ? '📝 CAPTION' : '📝 BODY'}</div>
+            <textarea 
+              placeholder="${isGenerated ? 'Full Instagram/TikTok caption...' : 'Context + value points...'}"
+              oninput="updateCS('${isGenerated ? 'caption' : 'body'}',this.value)"
+              class="caption-textarea"
+              rows="8"
+            >${esc(cs.caption || cs.body || '')}</textarea>
+          </div>
+          
+          ${cs.filmIt ? `
+            <div class="caption-section">
+              <div class="cs-label">🎬 FILM IT</div>
+              <textarea 
+                placeholder="Step-by-step filming instructions..."
+                oninput="updateCS('filmIt',this.value)"
+                class="caption-textarea"
+                rows="6"
+                style="font-family:monospace;font-size:11px;background:var(--surface-2)"
+              >${esc(cs.filmIt||'')}</textarea>
+            </div>
+          ` : ''}
+          
+          <div class="caption-section">
+            <div class="cs-label">🎯 CTA</div>
+            <textarea 
+              placeholder="Save this, DM for details, link in bio..."
+              oninput="updateCS('cta',this.value)"
+              class="caption-textarea"
+              rows="2"
+            >${esc(cs.cta||'')}</textarea>
+          </div>
+          
+          ${!isGenerated ? `
+            <div class="caption-section">
+              <div class="cs-label">#️⃣ HASHTAGS</div>
+              <input 
+                type="text"
+                placeholder="#photography #portraits #headshots"
+                value="${esc(cs.hashtags||'')}"
+                oninput="updateCS('hashtags',this.value)"
+                class="caption-input"
+              >
+            </div>
+          ` : ''}
+        </div>
+        
+        <!-- Right: Preview -->
+        <div class="pb-preview-col">
+          <div class="preview-box">
+            <div class="preview-label">PREVIEW</div>
+            <div class="preview-caption" id="preview-caption">Your caption will appear here...</div>
+            <div class="preview-stats">
+              <div><span class="stat-num" id="char-count">0</span><span class="stat-label">/2200</span></div>
+              <div><span class="stat-num" id="line-count">0</span><span class="stat-label">lines</span></div>
+              <div><span class="stat-num" id="hash-count">0</span><span class="stat-label">tags</span></div>
+            </div>
+            <button class="btn btn-dark" style="width:100%;margin-top:12px" onclick="copyCaption()">📋 Copy Caption</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Hook Search Modal -->
+    <div id="hook-search-modal" class="hook-modal" style="display:none">
+      <div class="hook-modal-content">
+        <div class="hook-modal-head">
+          <div>
+            <h3>Search Hooks</h3>
+            <div id="hook-count-display" style="font-size:11px;color:var(--muted);margin-top:4px">Loading count...</div>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn-link" onclick="reimportHooks()" style="font-size:11px">Re-import</button>
+            <button onclick="toggleHookSearch()">✕</button>
+          </div>
+        </div>
+        <input type="text" placeholder="Search 1000+ hooks..." id="hook-search-input" oninput="searchHooksModal(this.value)" class="hook-modal-search">
+        <div id="hook-search-results" class="hook-modal-results"></div>
+      </div>
+    </div>`;
+  
+  loadRefBlocks();
+  loadAttachedBlocks();
+  updatePreview();
+}
+
+async function setPostType(type) {
+  if (!type) {
+    // Show type selector - Strategy Hub content types
+    document.getElementById('pb-body').innerHTML = `
+      <div style="max-width:900px;margin:60px auto">
+        <h2 style="margin-bottom:8px">Choose content type</h2>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:30px">Based on your weekly workflow from Strategy Hub</p>
+        <div class="type-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px">
+          <div class="type-card" onclick="setPostType('short_video')">
+            <div class="type-icon">🎥</div>
+            <div class="type-title">Short Video</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">Mon/Fri - Heavy/Medium</div>
+          </div>
+          <div class="type-card" onclick="setPostType('portfolio_image')">
+            <div class="type-icon">📸</div>
+            <div class="type-title">Portfolio Image</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">Tue - Light</div>
+          </div>
+          <div class="type-card" onclick="setPostType('graphic')">
+            <div class="type-icon">🎨</div>
+            <div class="type-title">Graphic</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">Wed - Medium</div>
+          </div>
+          <div class="type-card" onclick="setPostType('carousel')">
+            <div class="type-icon">🎞️</div>
+            <div class="type-title">Carousel</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">Thu - Medium</div>
+          </div>
+          <div class="type-card" onclick="setPostType('bts_clip')">
+            <div class="type-icon">📹</div>
+            <div class="type-title">BTS Clip</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">Behind the scenes</div>
+          </div>
+          <div class="type-card" onclick="setPostType('stories')">
+            <div class="type-icon">📱</div>
+            <div class="type-title">Stories</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:4px">Sat - Light</div>
+          </div>
+        </div>
+      </div>`;
     return;
   }
+  
+  await api('PATCH', `/api/posts/${POST_ID}`, { post_type: type });
+  const post = await api('GET', `/api/posts/${POST_ID}`);
+  renderPostBuilder(post);
+}
 
-  // Download from GitHub releases
-  console.log('yt-dlp: downloading binary...');
-  const downloadBinary = (url, dest) => new Promise((resolve, reject) => {
-    const follow = (u) => {
-      https2.get(u, { headers: { 'User-Agent': 'phixo-admin' } }, (res) => {
-        if (res.statusCode === 301 || res.statusCode === 302) return follow(res.headers.location);
-        if (res.statusCode !== 200) return reject(new Error('HTTP ' + res.statusCode));
-        const f = fs2.createWriteStream(dest);
-        res.pipe(f);
-        f.on('finish', () => f.close(resolve));
-        f.on('error', reject);
-      }).on('error', reject);
-    };
-    follow(url);
+function updateCS(field, value) {
+  api('GET', `/api/posts/${POST_ID}`).then(post => {
+    const cs = post.content_structure || {};
+    cs[field] = value;
+    api('PATCH', `/api/posts/${POST_ID}`, { content_structure: cs });
   });
+  updatePreview();
+}
+
+function updatePreview() {
+  // Support both generated (caption) and manual (body) content
+  const hook = document.querySelector('[oninput*="updateCS(\'hook\'"]')?.value || '';
+  const caption = document.querySelector('[oninput*="updateCS(\'caption\'"]')?.value || '';
+  const body = document.querySelector('[oninput*="updateCS(\'body\'"]')?.value || '';
+  const cta = document.querySelector('[oninput*="updateCS(\'cta\'"]')?.value || '';
+  const hashtags = document.querySelector('[oninput*="updateCS(\'hashtags\'"]')?.value || '';
+  
+  const mainContent = caption || body;  // Use caption if exists, otherwise body
+  const parts = [hook, mainContent, cta, hashtags].filter(x => x.trim());
+  const fullCaption = parts.join('\n\n');
+  
+  document.getElementById('preview-caption').textContent = fullCaption || 'Your caption will appear here...';
+  document.getElementById('char-count').textContent = fullCaption.length;
+  document.getElementById('line-count').textContent = fullCaption.split('\n').length;
+  
+  const hashMatches = hashtags.match(/#\w+/g);
+  document.getElementById('hash-count').textContent = hashMatches ? hashMatches.length : 0;
+}
+
+function copyCaption() {
+  const caption = document.getElementById('preview-caption').textContent;
+  if (caption === 'Your caption will appear here...') return;
+  navigator.clipboard.writeText(caption);
+  toast('Copied!', 'ok');
+}
+
+let refBlocksData = [];
+async function loadRefBlocks() {
+  refBlocksData = await api('GET', '/api/blocks');
+  filterRefBlocks();
+}
+
+function filterRefBlocks() {
+  const search = (document.getElementById('ref-search')?.value || '').toLowerCase();
+  const filtered = refBlocksData.filter(b => 
+    !search || 
+    b.title.toLowerCase().includes(search) ||
+    (b.content_payload||'').toLowerCase().includes(search)
+  );
+  
+  const html = filtered.slice(0, 20).map(b => {
+    const isAttached = attachedBlockIds.includes(b.id);
+    const hasImg = b.drive_file_id && b.file_mime && b.file_mime.startsWith('image/');
+    const hasVideo = b.type === 'video' || (b.drive_file_id && b.file_mime && b.file_mime.startsWith('video/'));
+    
+    let thumbSrc = null;
+    if (hasImg && b.drive_file_id) {
+      thumbSrc = `/api/drive/file/${b.drive_file_id}`;
+    } else if (['pose','image'].includes(b.type) && b.drive_file_id) {
+      thumbSrc = `/api/drive/file/${b.drive_file_id}`;
+    } else if (b.thumbnail_url) {
+      thumbSrc = b.thumbnail_url;
+    } else if (b.drive_file_id && !hasVideo) {
+      thumbSrc = `/api/drive/thumbnail/${b.drive_file_id}`;
+    }
+    
+    const icon = {pose:'🧍',meme:'😂',video:'🎥',sfx:'🎵',note:'📝',url:'🔗',pdf:'📄'}[b.type] || '📁';
+    const thumbFallbackSrc = b.drive_file_id ? `/api/drive/thumbnail/${b.drive_file_id}` : null;
+    
+    const thumbHtml = thumbSrc
+      ? `<img src="${esc(thumbSrc)}" loading="lazy" style="width:100%;height:100%;object-fit:cover" onerror="${thumbFallbackSrc && thumbSrc !== thumbFallbackSrc ? `this.onerror=null;this.src='${thumbFallbackSrc}'` : `this.outerHTML='<span style=\\'font-size:20px\\'>${icon}</span>'`}">`
+      : `<div style="display:flex;align-items:center;justify-content:center;height:100%"><span style="font-size:20px">${icon}</span></div>`;
+    
+    return `
+      <div class="ref-block ${isAttached ? 'attached' : ''}" onclick="attachBlock(${b.id})" style="display:flex;gap:10px;padding:8px;border:1px solid var(--border);border-radius:6px;cursor:pointer;background:${isAttached ? 'var(--surface-2)' : 'var(--surface)'};margin-bottom:8px">
+        <div style="width:50px;height:50px;flex-shrink:0;border-radius:4px;overflow:hidden;background:var(--bg)">
+          ${thumbHtml}
+        </div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:600;margin-bottom:2px;line-height:1.3">${esc(b.title)}</div>
+          ${b.content_payload ? `<div style="font-size:10px;color:var(--muted);line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.content_payload.substring(0,60))}</div>` : ''}
+        </div>
+        ${isAttached ? `<div style="color:var(--accent);font-size:16px;line-height:1">✓</div>` : ''}
+      </div>`;
+  }).join('');
+  
+  document.getElementById('ref-blocks').innerHTML = html || '<div style="padding:20px;text-align:center;color:var(--muted);font-size:12px">No blocks found</div>';
+}
+
+let attachedBlockIds = [];
+async function attachBlock(blockId) {
+  if (attachedBlockIds.includes(blockId)) {
+    attachedBlockIds = attachedBlockIds.filter(id => id !== blockId);
+  } else {
+    attachedBlockIds.push(blockId);
+  }
+  
+  await api('PATCH', `/api/posts/${POST_ID}`, { 
+    notes: JSON.stringify({ attached_blocks: attachedBlockIds })
+  });
+  
+  loadAttachedBlocks();
+}
+
+function loadAttachedBlocks() {
+  api('GET', `/api/posts/${POST_ID}`).then(post => {
+    try {
+      const notes = JSON.parse(post.notes || '{}');
+      attachedBlockIds = notes.attached_blocks || [];
+    } catch(e) {
+      attachedBlockIds = [];
+    }
+    
+    if (attachedBlockIds.length === 0) {
+      document.getElementById('attached-blocks').innerHTML = '';
+      return;
+    }
+    
+    const attached = refBlocksData.filter(b => attachedBlockIds.includes(b.id));
+    
+    document.getElementById('attached-blocks').innerHTML = `
+      <div style="font-size:11px;font-weight:700;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:1px">Attached (${attached.length})</div>
+      <div style="display:grid;gap:12px">
+        ${attached.map(b => {
+          const hasImg = b.drive_file_id && b.file_mime && b.file_mime.startsWith('image/');
+          const hasVideo = b.type === 'video' || (b.drive_file_id && b.file_mime && b.file_mime.startsWith('video/'));
+          
+          let thumbSrc = null;
+          if (hasImg && b.drive_file_id) {
+            thumbSrc = `/api/drive/file/${b.drive_file_id}`;
+          } else if (['pose','image'].includes(b.type) && b.drive_file_id) {
+            thumbSrc = `/api/drive/file/${b.drive_file_id}`;
+          } else if (b.thumbnail_url) {
+            thumbSrc = b.thumbnail_url;
+          } else if (b.drive_file_id && !hasVideo) {
+            thumbSrc = `/api/drive/thumbnail/${b.drive_file_id}`;
+          }
+          
+          const icon = {pose:'🧍',meme:'😂',video:'🎥',sfx:'🎵',note:'📝',url:'🔗',pdf:'📄'}[b.type] || '📁';
+          const thumbFallbackSrc = b.drive_file_id ? `/api/drive/thumbnail/${b.drive_file_id}` : null;
+          
+          const thumbHtml = thumbSrc
+            ? `<img src="${esc(thumbSrc)}" loading="lazy" style="width:100%;height:100%;object-fit:cover" onerror="${thumbFallbackSrc && thumbSrc !== thumbFallbackSrc ? `this.onerror=null;this.src='${thumbFallbackSrc}'` : `this.outerHTML='<span style=\\'font-size:24px\\'>${icon}</span>'`}">`
+            : `<div style="display:flex;align-items:center;justify-content:center;height:100%"><span style="font-size:24px">${icon}</span></div>`;
+          
+          return `
+            <div style="position:relative;border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--surface);cursor:pointer" onclick="openBlockDetail(${b.id})">
+              <div style="position:relative;height:80px;background:var(--surface-2)">
+                ${thumbHtml}
+                <button onclick="event.stopPropagation();attachBlock(${b.id})" style="position:absolute;top:4px;right:4px;width:24px;height:24px;border-radius:50%;background:rgba(0,0,0,.7);color:#fff;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:12px" title="Remove">✕</button>
+              </div>
+              <div style="padding:8px">
+                <div style="font-size:11px;font-weight:600;margin-bottom:4px;line-height:1.3">${esc(b.title)}</div>
+                ${b.content_payload ? `<div style="font-size:10px;color:var(--muted);line-height:1.3">${esc(b.content_payload.substring(0,50))}${b.content_payload.length > 50 ? '...' : ''}</div>` : ''}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  });
+}
+
+let hooksOffset = 0;
+let hooksLoading = false;
+let hooksHasMore = true;
+let currentHookSearch = '';
+
+function toggleHookSearch() {
+  const modal = document.getElementById('hook-search-modal');
+  if (modal.style.display === 'none') {
+    modal.style.display = 'flex';
+    document.getElementById('hook-search-input').value = '';
+    document.getElementById('hook-search-input').focus();
+    // Reset and load all hooks
+    hooksOffset = 0;
+    hooksHasMore = true;
+    currentHookSearch = '';
+    document.getElementById('hook-search-results').innerHTML = '';
+    loadMoreHooks();
+    loadHookCount();
+    
+    // Add scroll listener for infinite scroll
+    const resultsDiv = document.getElementById('hook-search-results');
+    resultsDiv.onscroll = () => {
+      if (hooksLoading || !hooksHasMore) return;
+      const { scrollTop, scrollHeight, clientHeight } = resultsDiv;
+      if (scrollTop + clientHeight >= scrollHeight - 100) {
+        loadMoreHooks();
+      }
+    };
+  } else {
+    modal.style.display = 'none';
+  }
+}
+
+async function loadHookCount() {
+  try {
+    const data = await api('GET', '/api/hooks/count');
+    document.getElementById('hook-count-display').textContent = `${data.count} hooks in database`;
+  } catch(e) {
+    document.getElementById('hook-count-display').textContent = '';
+  }
+}
+
+async function reimportHooks() {
+  if (!confirm('Delete ALL existing hooks and import fresh 1003 from viral_hooks.csv?')) return;
+  
+  document.getElementById('hook-count-display').textContent = 'Deleting old hooks...';
+  
+  try {
+    const result = await api('POST', '/api/hooks/ingest');
+    toast(`Fresh import complete! ${result.count} hooks loaded.`, 'ok');
+    loadHookCount();
+    
+    // Reload hooks display
+    hooksOffset = 0;
+    hooksHasMore = true;
+    currentHookSearch = '';
+    document.getElementById('hook-search-results').innerHTML = '';
+    loadMoreHooks();
+  } catch(e) {
+    toast('Import failed: ' + e.message, 'err');
+    loadHookCount();
+  }
+}
+
+async function loadMoreHooks() {
+  if (hooksLoading || !hooksHasMore) return;
+  
+  hooksLoading = true;
+  
+  // Show loading indicator
+  const resultsDiv = document.getElementById('hook-search-results');
+  const loadingHTML = '<div class="hook-loading">Loading more hooks...</div>';
+  resultsDiv.innerHTML += loadingHTML;
+  
+  const searchParam = currentHookSearch ? `&search=${encodeURIComponent(currentHookSearch)}` : '';
+  const hooks = await api('GET', `/api/hooks?limit=50&offset=${hooksOffset}${searchParam}`);
+  
+  // Remove loading indicator
+  const loadingEl = resultsDiv.querySelector('.hook-loading');
+  if (loadingEl) loadingEl.remove();
+  
+  if (hooks.length === 0) {
+    hooksHasMore = false;
+    if (hooksOffset === 0) {
+      resultsDiv.innerHTML = '<div class="hook-empty">No hooks found</div>';
+    }
+    hooksLoading = false;
+    return;
+  }
+  
+  if (hooks.length < 50) {
+    hooksHasMore = false;
+  }
+  
+  const hookHTML = hooks.map(h => `
+    <div class="hook-modal-item" onclick="selectHookFromModal(\`${esc(h.text).replace(/`/g, '\\`')}\`)">
+      ${esc(h.text)}
+      ${h.category ? `<span class="hook-cat">${esc(h.category)}</span>` : ''}
+    </div>
+  `).join('');
+  
+  resultsDiv.innerHTML += hookHTML;
+  hooksOffset += 50;
+  hooksLoading = false;
+}
+
+let hookSearchTimeout;
+async function searchHooksModal(query) {
+  currentHookSearch = query.trim();
+  
+  // Reset for new search
+  hooksOffset = 0;
+  hooksHasMore = true;
+  document.getElementById('hook-search-results').innerHTML = '';
+  
+  clearTimeout(hookSearchTimeout);
+  hookSearchTimeout = setTimeout(() => {
+    loadMoreHooks();
+  }, 300);
+}
+
+function selectHookFromModal(hookText) {
+  const hookInput = document.querySelector('[oninput*="updateCS(\'hook\'"]');
+  if (hookInput) {
+    hookInput.value = hookText;
+    updateCS('hook', hookText);
+  }
+  toggleHookSearch();
+}
+
+async function addTextModule(type){
+  try{const m=await api('POST','/api/posts/'+POST_ID+'/modules',{module_type:type});postModules.push(m);renderPostStack();}
+  catch(err){toast(err.message,'err');}
+}
+async function removeModule(mid){
+  try{await api('DELETE','/api/posts/'+POST_ID+'/modules/'+mid);postModules=postModules.filter(m=>m.id!==mid);renderPostStack();}
+  catch(err){toast(err.message,'err');}
+}
+async function updateModuleContent(mid,val){
+  try{await api('PATCH','/api/posts/'+POST_ID+'/modules/'+mid,{content:val});}
+  catch(err){toast(err.message,'err');}
+}
+async function saveModuleOrder(){
+  try{const order=postModules.map((m,i)=>({id:m.id,position:i}));await api('POST','/api/posts/'+POST_ID+'/modules/reorder',{order});}
+  catch(err){/*silent*/}
+}
+function filterPbsBlocks(){
+  const s=(document.getElementById('pbs-search')?.value||'').toLowerCase();
+  const t=document.getElementById('pbs-type')?.value||'';
+  let filtered=allBlocks.filter(b=>{
+    if(t&&b.type!==t)return false;
+    if(s&&!b.title.toLowerCase().includes(s)&&!(b.content_payload||'').toLowerCase().includes(s))return false;
+    return true;
+  }).slice(0,40);
+  const el=document.getElementById('pbs-blocks');
+  if(!el)return;
+  if(!filtered.length){el.innerHTML='<div class="pbs-empty">No blocks found</div>';return;}
+  el.innerHTML=filtered.map(b=>`
+    <div class="pbs-block" onclick="addBlockAsModule(${b.id})">
+      <span class="pi">${typeIcon(b.type)}</span>
+      <div>
+        <div class="pt">${esc(b.title)}</div>
+        <div class="pm">${b.type}${b.funnel_stage?' · '+b.funnel_stage.toUpperCase():''}</div>
+      </div>
+    </div>`).join('');
+}
+async function addBlockAsModule(blockId){
+  try{
+    const b=allBlocks.find(x=>x.id===blockId)||await api('GET','/api/blocks/'+blockId);
+    const m=await api('POST','/api/posts/'+POST_ID+'/modules',{module_type:b.type||'image',block_id:blockId});
+    m.block_title=b.title;m.block_type=b.type;m.drive_file_id=b.drive_file_id;m.file_mime=b.file_mime;m.content_payload=b.content_payload;
+    postModules.push(m);renderPostStack();toast('Added to stack','ok');
+  }catch(err){toast(err.message,'err');}
+}
+async function updatePost(field,val){
+  try{await api('PATCH','/api/posts/'+POST_ID,{[field]:val});}
+  catch(err){toast(err.message,'err');}
+}
+async function deletePost(id){
+  if(!confirm('Delete this post?'))return;
+  try{await api('DELETE','/api/posts/'+id);showView('calendar');}
+  catch(err){toast(err.message,'err');}
+}
+
+// ═══ HOOKS ═══
+async function openHooks(){loadHooks();openModal('m-hooks');}
+async function loadHooks(){
+  const p=new URLSearchParams();
+  const s=document.getElementById('hook-search').value;
+  const c=document.getElementById('hook-cat').value;
+  if(s)p.set('search',s);if(c)p.set('category',c);
+  const hooks=await api('GET','/api/hooks?'+p);
+  const list=document.getElementById('hooks-list');
+  if(!hooks.length){
+    list.innerHTML=`<div style="padding:20px;text-align:center;font-size:13px;color:var(--muted)">No hooks yet.<br><button class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="ingestHooksPdf()">Parse Hooks PDF from Drive</button></div>`;
+    return;
+  }
+  list.innerHTML=hooks.map(h=>`
+    <div class="hook-item" onclick="useHook(${JSON.stringify(h.text)})">
+      <div class="hook-cat">${h.category||'general'}</div>
+      ${esc(h.text)}
+    </div>`).join('');
+}
+async function ingestHooksPdf(){
+  const btn=document.getElementById('hooks-ingest-btn');
+  btn.disabled=true;btn.textContent='Parsing...';
+  try{
+    const r=await api('POST','/api/hooks/ingest-pdf');
+    toast(r.count+' hooks imported from '+r.file,'ok');loadHooks();
+  }catch(err){toast(err.message,'err');}
+  finally{btn.disabled=false;btn.textContent='↻ PDF';}
+}
+async function useHook(text){
+  let hookMod=postModules.find(m=>m.module_type==='hook');
+  if(!hookMod){
+    hookMod=await api('POST','/api/posts/'+POST_ID+'/modules',{module_type:'hook',content:text});
+    postModules.unshift(hookMod);
+  }else{
+    await api('PATCH','/api/posts/'+POST_ID+'/modules/'+hookMod.id,{content:text});
+    hookMod.content=text;
+  }
+  closeM('m-hooks');renderPostStack();toast('Hook set','ok');
+}
+
+// ═══ AI ASSISTANT ═══
+async function sendAssist(){
+  const input=document.getElementById('assist-input');
+  const btn=document.getElementById('assist-btn');
+  const msg=input.value.trim();if(!msg)return;
+  input.value='';btn.disabled=true;btn.textContent='...';
+  addAssistMsg(msg,'user');
+  assistHistory.push({role:'user',content:msg});
+  const post_context={modules:postModules.map(m=>({type:m.module_type,content:m.content||m.block_title||''}))};
+  try{
+    const r=await api('POST','/api/assist/post',{message:msg,history:assistHistory.slice(0,-1),post_context});
+    addAssistMsg(r.reply,'ai');assistHistory.push({role:'assistant',content:r.reply});
+  }catch(err){addAssistMsg('Could not reach assistant.','ai');}
+  finally{btn.disabled=false;btn.textContent='→';input.focus();}
+}
+function quickAssist(msg){document.getElementById('assist-input').value=msg;sendAssist();}
+function addAssistMsg(text,role){
+  const msgs=document.getElementById('assist-msgs');if(!msgs)return;
+  const d=document.createElement('div');
+  d.className='am am-'+(role==='user'?'user':'ai');
+  d.textContent=text;msgs.appendChild(d);msgs.scrollTop=msgs.scrollHeight;
+}
+
+// ═══ INIT ═══
+async function repairThumbnails(){
+  const btn = document.getElementById('repair-btn');
+  btn.disabled=true; btn.textContent='Fixing...';
+  try {
+    const r = await api('POST','/api/blocks/repair-thumbnails');
+    toast(`Fixed: ${r.images_fixed} images, ${r.videos_fixed} videos, ${r.mime_fixed} mime types`,'ok');
+    loadResearch();
+  } catch(err){ toast(err.message,'err'); }
+  finally { btn.disabled=false; btn.textContent='🔧 Fix Thumbs'; }
+}
+async function syncDrive(){
+  const btn=document.getElementById('sync-btn');
+  btn.disabled=true;btn.textContent='Syncing...';
+  try{
+    const r=await api('POST','/api/drive/sync');
+    console.log('Sync results:',JSON.stringify(r.results));
+    const folderSummary=r.results.map(x=>x.folder+': '+(x.new||0)+' new').join(' | ');
+    const msg=r.imported>0
+      ?r.imported+' new block'+(r.imported!==1?'s':'')+' imported'
+      :'Up to date ('+r.skipped+' already in library)';
+    toast(msg,'ok');
+    console.log(folderSummary);
+    loadResearch();
+  }catch(err){
+    console.error('Sync error:',err);
+    toast('Sync failed: '+err.message,'err');
+  }
+  finally{btn.disabled=false;btn.textContent='↻ Sync Drive';}
+}
+
+async function cleanupDeleted(){
+  const btn=document.getElementById('cleanup-btn');
+  if(!confirm('This will remove blocks for files that were deleted from Google Drive. Continue?')) return;
+  btn.disabled=true;btn.textContent='Cleaning...';
+  try{
+    const r=await api('POST','/api/drive/cleanup');
+    const msg=r.deleted>0
+      ?`Removed ${r.deleted} deleted file${r.deleted!==1?'s':''}`
+      :'No deleted files found';
+    toast(msg,'ok');
+    loadResearch();
+  }catch(err){
+    console.error('Cleanup error:',err);
+    toast('Cleanup failed: '+err.message,'err');
+  }
+  finally{btn.disabled=false;btn.textContent='🗑️ Clean Up';}
+}
+
+async function syncClients(){
+  try{
+    const r=await api('POST','/api/drive/sync-clients');
+    const msg=r.created>0||r.updated>0
+      ?`${r.created} new, ${r.updated} updated (${r.total} total folders)`
+      :'No new client folders found';
+    toast(msg,'ok');
+    loadPipeline();
+  }catch(err){
+    console.error('Client sync error:',err);
+    toast('Client sync failed: '+err.message,'err');
+  }
+}
+
+async function syncDiscovery(){
+  try{
+    const r=await api('POST','/api/drive/sync-discovery');
+    const msg=r.created>0||r.updated>0
+      ?`${r.created} new, ${r.updated} updated (${r.total} total folders)`
+      :'No new discovery folders found';
+    toast(msg,'ok');
+    loadDiscovery();
+  }catch(err){
+    console.error('Discovery sync error:',err);
+    toast('Discovery sync failed: '+err.message,'err');
+  }
+}
+
+// Auto-sync handled inside loadResearch
+
+
+// ═══ VIDEO INGEST ═══
+function checkVideoUrl(){
+  const url = document.getElementById('ab-url').value;
+  const isVideo = /tiktok\.com|instagram\.com\/reel|instagram\.com\/p\/|youtube\.com|youtu\.be|twitter\.com|x\.com/.test(url);
+  const typeEl = document.getElementById('ab-url-type');
+  const hint = document.getElementById('ab-url-video-hint');
+  if(isVideo){
+    typeEl.value = 'video';
+    hint.style.display = 'block';
+  } else {
+    hint.style.display = 'none';
+  }
+}
+
+async function handleUrlIngest(){
+  const type = document.getElementById('ab-url-type').value;
+  if(type === 'video'){
+    await ingestVideo();
+  } else {
+    await ingestUrl();
+  }
+}
+
+async function ingestVideo(){
+  const url = document.getElementById('ab-url').value.trim();
+  if(!url){ toast('URL required','err'); return; }
+
+  const btn = document.getElementById('ab-url-btn');
+  const progress = document.getElementById('ab-url-progress');
+  const actions = document.getElementById('ab-url-actions');
+  const stepEl = document.getElementById('ab-prog-step');
+  const msgEl = document.getElementById('ab-prog-msg');
+
+  btn.disabled = true;
+  progress.style.display = 'block';
+  actions.style.opacity = '0.4';
+
+  const stepLabels = {
+    download: 'Downloading video',
+    audio: 'Extracting audio',
+    screenshots: 'Capturing frames',
+    uploading: 'Uploading to Drive',
+    transcribe: 'Transcribing with Whisper',
+    summarize: 'Summarizing with Claude',
+    saving: 'Saving to library',
+    done: 'Done'
+  };
 
   try {
-    await downloadBinary(
-      'https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux',
-      ytdlpPath
-    );
-    fs2.chmodSync(ytdlpPath, '755');
-    ytdlpVer = await checkYtdlp(ytdlpPath);
-    if (ytdlpVer) {
-      console.log('yt-dlp: downloaded and ready (' + ytdlpVer + ')');
-      global.YTDLP_PATH = ytdlpPath;
-    } else {
-      console.warn('yt-dlp: downloaded but failed to execute');
-    }
-  } catch(e) {
-    console.warn('yt-dlp: download failed:', e.message);
-  }
-})();
+    const response = await fetch('/api/blocks/ingest-video', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url,
+        funnel_stage: document.getElementById('ab-url-funnel').value,
+        category: document.getElementById('ab-url-cat').value,
+        tags: document.getElementById('ab-url-tags').value
+      })
+    });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, async () => {
-  console.log(`Phixo Admin v3 — port ${PORT}`);
-  if (process.env.DATABASE_URL) {
-    await initDb();
-    loadViralHooks(); // Load proven viral hooks from CSV
-    // Auto-repair thumbnail URLs on every startup
-    try {
-      // Fix image/pose blocks
-      await pool.query(`
-        UPDATE blocks SET thumbnail_url = '/api/drive/file/' || drive_file_id
-        WHERE drive_file_id IS NOT NULL AND drive_file_id != ''
-          AND type IN ('pose','image') AND file_mime LIKE 'image/%'
-          AND (thumbnail_url IS NULL OR thumbnail_url = '' OR thumbnail_url LIKE 'https://%')
-      `);
-      // Fix all other drive blocks (video, pdf, note, meme) with expired/missing thumbnails
-      await pool.query(`
-        UPDATE blocks SET thumbnail_url = '/api/drive/thumbnail/' || drive_file_id
-        WHERE drive_file_id IS NOT NULL AND drive_file_id != ''
-          AND type NOT IN ('pose','image')
-          AND (thumbnail_url IS NULL OR thumbnail_url = '' OR thumbnail_url LIKE 'https://lh3%' OR thumbnail_url LIKE 'https://drive%')
-      `);
-      console.log('Thumbnail URLs auto-repaired');
-    } catch(e) { console.warn('Auto-repair skipped:', e.message); }
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+
+    while(true){
+      const { done, value } = await reader.read();
+      if(done) break;
+      const text = decoder.decode(value);
+      const lines = text.split('\n').filter(l => l.startsWith('data: '));
+      for(const line of lines){
+        try{
+          const data = JSON.parse(line.slice(6));
+          if(data.error){ throw new Error(data.error); }
+          if(data.step){
+            stepEl.textContent = stepLabels[data.step] || data.step;
+            msgEl.textContent = data.msg || '';
+          }
+          if(data.done){
+            closeM('m-addblock');
+            toast('Video block created — transcript, summary & frames ready','ok');
+            loadResearch();
+          }
+        } catch(parseErr){
+          if(parseErr.message !== 'Unexpected token'){
+            toast(parseErr.message,'err');
+            break;
+          }
+        }
+      }
+    }
+  } catch(err){
+    toast(err.message,'err');
+  } finally {
+    btn.disabled = false;
+    progress.style.display = 'none';
+    actions.style.opacity = '1';
   }
-  else console.log('WARNING: No DATABASE_URL');
+}
+
+// ═══ RICH BLOCK DETAIL - VIDEO ═══
+function formatDuration(secs){
+  if(!secs)return'';
+  const m=Math.floor(secs/60),s=secs%60;
+  return m+'m '+(s<10?'0':'')+s+'s';
+}
+
+async function openBlockDetail(id){
+  const b = await api('GET','/api/blocks/'+id);
+  document.getElementById('bd-title').textContent = b.title;
+
+  if(b.type === 'video'){
+    renderVideoBlock(b);
+  } else {
+    renderGenericBlock(b);
+  }
+  openModal('m-block-detail');
+}
+
+function renderVideoBlock(b){
+  const m = b.metadata || {};
+  const frames = m.screenshot_frames || [];
+  const keyPoints = m.key_points || [];
+  const firstFrame = frames[0];
+
+  document.getElementById('bd-body').innerHTML = `
+    <div class="video-block">
+      <div class="vb-hero">
+        ${firstFrame
+          ? `<img src="/api/drive/file/${firstFrame.id}" onerror="this.src=''">`
+          : `<div style="height:160px;display:flex;align-items:center;justify-content:center;font-size:48px">🎬</div>`}
+        <span class="vb-platform">${esc(m.platform||'Video')}</span>
+        ${m.duration?`<span class="vb-dur">${formatDuration(m.duration)}</span>`:''}
+      </div>
+
+      <div class="vb-meta">
+        <div class="vb-oneliner">${esc(m.one_liner||b.title)}</div>
+        ${m.relevance?`<div class="vb-relevance">${esc(m.relevance)}</div>`:''}
+        ${b.source_url?`<div class="vb-source">Source: <a href="${esc(b.source_url)}" target="_blank">${esc(b.source_url.substring(0,60))}…</a></div>`:''}
+      </div>
+
+      ${keyPoints.length?`
+        <div class="vb-section">
+          <div class="vb-section-head">Key Points</div>
+          <div class="kp-list">
+            ${keyPoints.map((pt,i)=>`
+              <div class="kp-item">
+                <span class="kp-num">${i+1}</span>
+                <span>${esc(pt)}</span>
+              </div>`).join('')}
+          </div>
+        </div>`:''}
+
+      ${frames.length?`
+        <div class="vb-section">
+          <div class="vb-section-head">${frames.length} Frames</div>
+          <div class="shots-strip">
+            ${frames.map((f,i)=>`
+              <div class="shot-frame">
+                <img src="/api/drive/file/${f.id}" loading="lazy" onerror="this.style.opacity='.2'">
+                <div class="shot-label">${esc(f.label||('Frame '+(i+1)))}</div>
+              </div>`).join('')}
+          </div>
+        </div>`:''}
+
+      ${b.content_payload?`
+        <div class="vb-section">
+          <div class="vb-section-head" style="cursor:pointer" onclick="this.nextElementSibling.classList.toggle('hide')">
+            Transcript <span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--muted)">(click to expand)</span>
+          </div>
+          <div class="transcript-block hide">${esc(b.content_payload)}</div>
+        </div>`:''}
+
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">
+        ${(b.tags||[]).map(t=>`<span class="tag t-lead">${esc(t)}</span>`).join('')}
+        ${b.funnel_stage?`<span class="tag t-lead">${b.funnel_stage.toUpperCase()}</span>`:''}
+        ${b.category?`<span class="tag t-lead">${esc(b.category)}</span>`:''}
+      </div>
+      <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+          <input type="checkbox" id="block-is-reference" ${b.is_reference ? 'checked' : ''} onchange="toggleReference(${b.id}, this.checked)">
+          <span>Use as reference for idea generation</span>
+        </label>
+      </div>
+      <div style="margin-top:12px;display:flex;gap:8px">
+        <button class="btn btn-danger btn-sm" onclick="deleteBlock(${b.id})">Delete Block</button>
+      </div>
+    </div>`;
+}
+
+function renderGenericBlock(b){
+  const hasImg = b.drive_file_id && b.file_mime && b.file_mime.startsWith('image/');
+  const hasVideo = b.drive_file_id && b.file_mime && b.file_mime.startsWith('video/');
+  const isNote = ['note','conversation','transcript'].includes(b.type);
+  const isPdf = b.type === 'pdf';
+  const needsSummarize = (isNote || isPdf) && b.content_payload && b.content_payload.length > 100;
+
+  document.getElementById('bd-body').innerHTML = `
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+      <span class="tag t-lead">${b.type}</span>
+      ${b.category?`<span class="tag t-lead">${esc(b.category)}</span>`:''}
+      ${b.funnel_stage?funnelBadge(b.funnel_stage):''}
+      ${(b.tags||[]).map(t=>`<span class="tag t-lead">${esc(t)}</span>`).join('')}
+    </div>
+    ${hasVideo?`
+      <video controls style="width:100%;border-radius:10px;margin-bottom:12px;background:#000;max-height:420px" preload="metadata">
+        <source src="/api/drive/file/${b.drive_file_id}" type="${esc(b.file_mime)}">
+      </video>`:''
+    }
+    ${hasImg?`<img src="/api/drive/file/${b.drive_file_id}" style="max-width:100%;border-radius:8px;margin-bottom:12px;max-height:420px;object-fit:contain;width:100%">`:'' }
+    ${b.thumbnail_url&&!hasImg&&!hasVideo?`<img src="${esc(b.thumbnail_url)}" style="max-width:100%;border-radius:8px;margin-bottom:12px;max-height:240px;object-fit:contain">`:'' }
+    ${b.source_url?`<div style="margin-bottom:10px"><a href="${esc(b.source_url)}" target="_blank" style="color:var(--accent);font-size:13px">↗ Open source</a></div>`:''}
+    ${needsSummarize?`
+      <div id="blk-summary-${b.id}" style="margin-bottom:12px">
+        <button class="btn btn-ghost btn-sm" onclick="summarizeBlock(${b.id})">✨ Summarize with AI</button>
+      </div>`:''
+    }
+    ${b.content_payload?`
+      <div style="margin-bottom:6px;font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px">Content</div>
+      <div class="transcript-block">${esc(b.content_payload)}</div>`:''
+    }
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+      ${b.drive_file_id?`<button class="btn btn-ghost btn-sm" onclick="window.open('/api/drive/file/${b.drive_file_id}','_blank')">↗ Open file</button>`:''}
+      <button class="btn btn-danger btn-sm" onclick="deleteBlock(${b.id})">Delete Block</button>
+    </div>`;
+}
+
+async function summarizeBlock(id){
+  const btn = document.querySelector(`#blk-summary-${id} button`);
+  btn.disabled=true; btn.textContent='Summarizing...';
+  try {
+    const r = await api('POST', `/api/blocks/${id}/summarize`);
+    document.getElementById(`blk-summary-${id}`).innerHTML = `
+      <div style="background:var(--surface-2);border-radius:10px;padding:14px;border-left:3px solid var(--accent)">
+        <div style="font-size:11px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">AI Summary</div>
+        <div style="font-size:13px;line-height:1.7;white-space:pre-wrap">${esc(r.summary||r.content||'No summary returned')}</div>
+      </div>`;
+  } catch(err){ btn.disabled=false; btn.textContent='✨ Summarize with AI'; toast(err.message,'err'); }
+}
+
+loadPipeline();
+
+// ── Ask Library ──────────────────────────────────────────────────────────────
+function openAskLibrary(){
+  document.getElementById('ask-input').value='';
+  openModal('m-ask-library');
+  setTimeout(()=>document.getElementById('ask-input').focus(),100);
+}
+
+async function askLibrary(){
+  const q = document.getElementById('ask-input').value.trim();
+  if(!q) return;
+  const btn = document.getElementById('ask-btn');
+  const status = document.getElementById('ask-status');
+  const history = document.getElementById('ask-history');
+  btn.disabled=true; btn.textContent='Thinking...';
+  status.style.display='block'; status.textContent='Reading your library...';
+  history.style.display='flex';
+
+  // Add user message
+  const userMsg = document.createElement('div');
+  userMsg.style.cssText='align-self:flex-end;background:var(--accent);color:#fff;border-radius:12px 12px 2px 12px;padding:10px 14px;font-size:13px;max-width:85%;line-height:1.6';
+  userMsg.textContent=q;
+  history.appendChild(userMsg);
+  history.scrollTop=history.scrollHeight;
+  document.getElementById('ask-input').value='';
+
+  try {
+    const r = await api('POST','/api/library/ask',{question:q});
+    
+    // Add AI answer
+    const aiMsg = document.createElement('div');
+    aiMsg.style.cssText='align-self:flex-start;background:var(--surface-2);border-radius:2px 12px 12px 12px;padding:12px 14px;font-size:13px;max-width:90%;line-height:1.7;white-space:pre-wrap;border:1px solid var(--border)';
+    aiMsg.textContent=r.answer;
+
+    if(r.sources && r.sources.length){
+      const srcs = document.createElement('div');
+      srcs.style.cssText='margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:6px';
+      srcs.innerHTML='<span style="font-size:10px;color:var(--muted);width:100%;font-weight:600;letter-spacing:.4px;text-transform:uppercase">Sources</span>' +
+        r.sources.map(s=>`<button onclick="openBlockDetail(${s.id});closeM('m-ask-library')" style="background:var(--surface-3);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;cursor:pointer;color:var(--text)">${esc(s.title)}</button>`).join('');
+      aiMsg.appendChild(srcs);
+    }
+
+    const meta = document.createElement('div');
+    meta.style.cssText='font-size:10px;color:var(--muted);margin-top:6px';
+    meta.textContent=`↑ Based on ${r.block_count} blocks in your library`;
+    aiMsg.appendChild(meta);
+
+    history.appendChild(aiMsg);
+    history.scrollTop=history.scrollHeight;
+    status.style.display='none';
+  } catch(err){
+    toast(err.message,'err');
+    status.style.display='none';
+  }
+  btn.disabled=false; btn.textContent='Ask →';
+}
+
+// ═════════════════════════════════════════════════
+// COLLEGE REVIEW FUNCTIONS (v3.37)
+// ═════════════════════════════════════════════════
+
+// ── STRATEGY HUB ────────────────────────────────────────────────────────────
+function showStab(name, el) {
+  document.querySelectorAll('.spanel').forEach(p => p.classList.remove('on'));
+  document.querySelectorAll('.stab').forEach(b => b.classList.remove('on'));
+  const p = document.getElementById('sp-' + name);
+  if (p) p.classList.add('on');
+  if (el) el.classList.add('on');
+  if (name === 'bank') renderBank();
+  if (name === 'weekly') renderWeekly();
+  if (name === 'formats') renderFormats();
+}
+
+const WEEKLY_POSTS = [
+  { num:'Monday', funnel:'ToFu', fClass:'fl-tof', goal:'Broad reach — Educate or Entertain', primary:'TikTok + Instagram Reels', format:'30–60 sec talking head', cells:[
+    {l:"Funnel Stage + Pillar", v:'ToFu → Educate or Entertain. You\'re talking to strangers. Give them something useful or make them laugh. No pitch.', d:false},
+    {l:"The Format", v:'Talking head in a car, a chair, wherever you are. Casual. No production needed.', d:false},
+    {l:'What It Looks Like', v:'"Why you look different in photos than in real life" — you talking directly to camera, one clear idea', d:false},
+    {l:'The Goal', v:'Make them think: this person knows what they\'re doing. Or make them laugh. Either earns the follow.', d:false},
+    {l:"What You Don't Do", v:'Introduce yourself. Explain your services. Mention booking. Just give them something.', d:true},
+  ], cta:'None — just engagement (comments, saves)' },
+  { num:'Wednesday', funnel:'MoFu', fClass:'fl-mof', goal:'Build trust — Educate or Tell', primary:'Instagram Reels or Carousel', format:'30–60 sec video or photo set', cells:[
+    {l:"Funnel Stage + Pillar", v:'MoFu → Educate or Tell. Someone found you and is looking around. They\'re asking: can this person actually do it? Stories and teaching both answer that.', d:false},
+    {l:"The Format", v:'Portfolio image with a real caption, BTS clip, or a quick story told to camera.', d:false},
+    {l:'What It Looks Like', v:'One strong portrait — caption tells what was happening in that moment. Or: a story about something that happened in a session.', d:false},
+    {l:'The Goal', v:'Let the work and the person behind it speak. No hard sell needed here.', d:false},
+    {l:"What You Don't Do", v:'Over-explain. List credentials. Turn a moment into a pitch.', d:true},
+  ], cta:'Soft — "link in bio" or "save this"' },
+  { num:'Friday', funnel:'BoFu', fClass:'fl-bof', goal:'Remove friction — Promote', primary:'Facebook + Instagram', format:'30–60 sec talking head or graphic', cells:[
+    {l:"Funnel Stage + Pillar", v:'BoFu → Promote. Someone\'s basically decided — they just need the practical info. Pricing, process, what to expect.', d:false},
+    {l:"The Format", v:'Talking head answering a specific question. Or a clean graphic with the facts.', d:false},
+    {l:'What It Looks Like', v:'"Here\'s exactly what\'s in a Signature Session" or "What to wear — I\'ll walk you through it"', d:false},
+    {l:'The Goal', v:'Make it easy to say yes. Honest, direct, zero pressure.', d:false},
+    {l:"What You Don't Do", v:'Hard sell. Fake urgency. Scarcity tactics. Just answer honestly.', d:true},
+  ], cta:'Direct — "DM me" or "link in bio to book"' },
+];
+
+function renderWeekly() {
+  const el = document.getElementById('weekly-posts');
+  if (!el || el.dataset.rendered) return;
+  el.dataset.rendered = '1';
+  el.innerHTML = WEEKLY_POSTS.map(p => `
+    <div class="post-slot" style="border-left:3px solid ${p.num==='Monday'?'var(--tof)':p.num==='Wednesday'?'var(--mof)':'var(--bof)'}">
+      <div class="ps-head">
+        <span class="ps-num">${p.num}</span>
+        <span class="funnel-label ${p.fClass}">${p.funnel}</span>
+        <span class="ps-goal">${p.goal}</span>
+        <span class="ps-plat">Primary: ${p.primary}</span>
+      </div>
+      <div class="ps-cells">
+        ${p.cells.map(c=>`<div class="ps-cell"><div class="ps-clabel">${c.l}</div><div class="ps-cval${c.d?' dont':''}">${c.v}</div></div>`).join('')}
+      </div>
+      <div class="ps-meta">
+        <div class="ps-meta-cell"><div class="ps-meta-label">Primary Platform</div>${p.primary}</div>
+        <div class="ps-meta-cell"><div class="ps-meta-label">Cross-Post To</div>${p.cross}</div>
+        <div class="ps-meta-cell"><div class="ps-meta-label">Format</div>${p.format}</div>
+        <div class="ps-meta-cell"><div class="ps-meta-label">Call to Action</div>${p.cta}</div>
+      </div>
+    </div>`).join('');
+}
+
+const CONTENT_BANK = [
+  {
+    id:1,
+    stage:'ToFu',
+    title:'Soft light vs hard light - which for LinkedIn?',
+    hook:'This is what soft light looks like [point at yourself] versus this is what hard light looks like [point at yourself].',
+    overlay:'Which one would you use for your LinkedIn photo?\n1 = Soft  |  2 = Hard',
+    caption:'Testing two lighting setups for professional headshots. Which one do you prefer? Comment 1 or 2 👇',
+    filmIt:'1. Set up soft light (window or softbox)\n2. Film yourself for 3 seconds\n3. Set up hard light (bare flash)\n4. Film yourself for 3 seconds\n5. Edit side-by-side\n6. Add text overlay\n7. 15 seconds total',
+    cta:'Comment 1 or 2',
+    platform:'TikTok, Instagram Reels',
+    length:'15 seconds'
+  },
+  {
+    id:2,
+    stage:'ToFu',
+    title:'One light headshot setup',
+    hook:'Here\'s exactly how much lighting you need for a professional headshot.',
+    overlay:'That\'s it.\nOne light.\nNothing else.',
+    caption:'You don\'t need expensive gear. Here\'s a professional headshot with just one light. Save this if you\'re starting out 💡',
+    filmIt:'1. Start with studio empty/dark\n2. Add ONE light\n3. Position yourself\n4. Timer shot\n5. Show the result\n6. 30 seconds total',
+    cta:'Save this',
+    platform:'TikTok, Instagram',
+    length:'30 seconds'
+  },
+  {
+    id:3,
+    stage:'ToFu',
+    title:'60-second headshot lighting tutorial',
+    hook:'Can I show you how to light a headshot in 60 seconds? Let\'s go.',
+    overlay:'60 seconds.\nReal time.\nNo cuts.',
+    caption:'Full headshot lighting setup in real-time. No edits, no BS. Just the process. ⏱️',
+    filmIt:'1. Start timer on screen\n2. Set up light (show position)\n3. Position camera\n4. Set yourself up with remote/timer\n5. Take shot\n6. Show result on screen\n7. Exactly 60 seconds',
+    cta:'Comment if this helped',
+    platform:'TikTok, Instagram Reels',
+    length:'60 seconds'
+  },
+  {
+    id:4,
+    stage:'ToFu',
+    title:'If you don\'t have expensive lighting...',
+    hook:'If you don\'t have expensive lighting, just use window light like this.',
+    overlay:'Window\n45° angle\nThat\'s it',
+    caption:'Free lighting that looks professional. Just position yourself at 45 degrees to the window. Natural headshot in 30 seconds 🪟',
+    filmIt:'1. Show yourself away from window (bad)\n2. Move to 45° angle from window\n3. Timer shot\n4. Show result\n5. 20 seconds total',
+    cta:'None',
+    platform:'TikTok, Instagram',
+    length:'20 seconds'
+  },
+  {
+    id:5,
+    stage:'ToFu',
+    title:'Natural light vs flash photographers',
+    hook:'Natural light photographers vs flash photographers [comedy format]',
+    overlay:'Me with window light\nvs\nMe with flash\n\nWhich are you?',
+    caption:'Both work. Both have their place. Which camp are you in? 😂 Comment N or F',
+    filmIt:'1. Film yourself by window (casual, relaxed vibe)\n2. Film yourself with flash (serious, technical vibe)\n3. Cut between the two (comedy timing)\n4. 15-25 seconds',
+    cta:'Comment N (natural) or F (flash)',
+    platform:'TikTok',
+    length:'15-25 seconds'
+  },
+  {
+    id:6,
+    stage:'ToFu',
+    title:'Common LinkedIn photo mistake',
+    hook:'Common mistake everyone makes with LinkedIn photos.',
+    overlay:'Wrong: [show bad example]\nWhy: Overhead lighting\nRight: [show correct]',
+    caption:'Stop using overhead lights for headshots. Side lighting is your friend. Here\'s the difference 💡',
+    filmIt:'1. Film yourself under overhead light (unflattering)\n2. Show why it\'s bad (shadows under eyes)\n3. Film yourself with side light (correct)\n4. Show the difference\n5. 30-45 seconds',
+    cta:'Save this',
+    platform:'TikTok, Instagram',
+    length:'30-45 seconds'
+  },
+  {
+    id:7,
+    stage:'ToFu',
+    title:'10-year lighting trick in 60 seconds',
+    hook:'It took me 10 years to learn this lighting trick but I\'ll teach it to you in 60 seconds.',
+    overlay:'Catchlight = life\nNo catchlight = dead eyes\nWatch the difference',
+    caption:'The difference between amateur and pro headshots? Catchlights. Here\'s how to get them every time ✨',
+    filmIt:'1. Film yourself without catchlight (no reflection in eyes)\n2. Add light at correct angle\n3. Film with catchlight (sparkle in eyes)\n4. Show close-up comparison\n5. 45-60 seconds',
+    cta:'Save this',
+    platform:'TikTok, Instagram',
+    length:'45-60 seconds'
+  },
+  {
+    id:8,
+    stage:'ToFu',
+    title:'Headshot with basic gear challenge',
+    hook:'Here\'s a professional headshot with just a phone, window, and reflector.',
+    overlay:'Phone\nWindow\nReflector\n= Professional headshot',
+    caption:'You don\'t need a fancy camera. Here\'s what you can do with a phone and natural light 📱',
+    filmIt:'1. Show the gear (phone, window, $10 reflector)\n2. Set up shot (phone on tripod, you by window)\n3. Timer shot\n4. Show final result\n5. 30 seconds',
+    cta:'None',
+    platform:'TikTok, Instagram',
+    length:'30 seconds'
+  },
+  {
+    id:9,
+    stage:'ToFu',
+    title:'Why you look different in photos',
+    hook:'Why you look completely different in photos than in real life.',
+    overlay:'Lens compression\n+\nFamiliarity effect\n= You hate your photos',
+    caption:'It\'s not you. It\'s physics and psychology. Here\'s why photos feel "off" and what to do about it 🤓',
+    filmIt:'1. Film yourself with wide lens (distorted)\n2. Film yourself with portrait lens (normal)\n3. Explain mirror vs photo (we\'re used to reversed image)\n4. 45-60 seconds',
+    cta:'None',
+    platform:'TikTok, Instagram',
+    length:'45-60 seconds'
+  },
+  {
+    id:10,
+    stage:'ToFu',
+    title:'The one phone setting for better portraits',
+    hook:'The one phone setting that instantly makes portrait photos look better.',
+    overlay:'Portrait mode?\nNo.\n\nThis instead:',
+    caption:'Most people don\'t know about this setting. It\'s built into your phone and makes a huge difference 📱',
+    filmIt:'1. Open phone camera\n2. Show the setting to change (e.g., exposure lock, grid, 2x zoom)\n3. Take photo without it\n4. Take photo with it\n5. Show comparison\n6. 30 seconds',
+    cta:'Save this',
+    platform:'TikTok, Instagram',
+    length:'30 seconds'
+  },
+  {
+    id:11,
+    stage:'MoFu',
+    title:'Behind the scenes: Headshot setup',
+    hook:'Watch me set up and light a professional headshot from scratch.',
+    overlay:'BTS: Lighting a headshot\nNo edits\nFull process',
+    caption:'From empty studio to final shot. This is the full process. Camera on tripod, timer running, editing the result. 📸',
+    filmIt:'1. Camera on tripod filming the whole space\n2. Position light\n3. Set up tethered laptop\n4. Position yourself\n5. Timer/remote shot\n6. Review on laptop\n7. Show final image\n8. 45-60 seconds',
+    cta:'Link in bio for sessions',
+    platform:'Instagram Reels, TikTok',
+    length:'45-60 seconds'
+  },
+  {
+    id:12,
+    stage:'MoFu',
+    title:'Day in the life of headshot photographer',
+    hook:'Day in the life of a headshot photographer working from a basement studio.',
+    overlay:'8am: Studio setup\n9am: Lighting tests on myself\n11am: Editing\n2pm: Client session',
+    caption:'Real day, real studio. No glam, just the work. This is what it actually looks like running headshot sessions from home 🏠',
+    filmIt:'1. Morning - setting up studio (timelapse)\n2. Testing lighting on yourself\n3. Editing at laptop\n4. (If you have a session) Quick BTS clip\n5. 45-60 seconds total',
+    cta:'Follow for more BTS',
+    platform:'Instagram Reels',
+    length:'45-60 seconds'
+  },
+  {
+    id:13,
+    stage:'MoFu',
+    title:'Tethered shooting experience explained',
+    hook:'This is what tethered shooting looks like and why it changes everything.',
+    overlay:'Take photo\n↓\nInstant review on laptop\n↓\nAdjust together',
+    caption:'You see your photos in real-time. We adjust together. No surprises. This is how all my sessions work 💻',
+    filmIt:'1. Show tethered setup (camera → laptop)\n2. Take photo with timer/remote\n3. Show photo appearing on laptop instantly\n4. Zoom in, review details\n5. 30-45 seconds',
+    cta:'Save if you want this experience',
+    platform:'Instagram',
+    length:'30-45 seconds'
+  },
+  {
+    id:14,
+    stage:'MoFu',
+    title:'How I built my basement studio',
+    hook:'From empty basement to functioning headshot studio.',
+    overlay:'Before: Empty room\nDuring: Setup\nAfter: Working studio',
+    caption:'Started from an empty basement. Built it into a working studio. Here\'s the full transformation 🔨',
+    filmIt:'1. Show empty basement (before photo/video)\n2. Show setup process (timelapse if possible)\n3. Show current studio\n4. Show a final headshot taken in the space\n5. 30-45 seconds',
+    cta:'None or "Ask me anything"',
+    platform:'Instagram Reels, TikTok',
+    length:'30-45 seconds'
+  },
+  {
+    id:15,
+    stage:'MoFu',
+    title:'Setting up for a LinkedIn headshot',
+    hook:'Here\'s exactly how I set up for a LinkedIn headshot session.',
+    overlay:'Step 1: Background\nStep 2: Lighting\nStep 3: Camera height\nStep 4: Test shot',
+    caption:'The full setup process. Background, lighting, camera position. Everything you need to know 🎬',
+    filmIt:'1. Set up neutral background\n2. Position key light at 45°\n3. Set camera at eye level\n4. Take test shot (on yourself with timer)\n5. Show result\n6. 45-60 seconds',
+    cta:'Link in bio',
+    platform:'Instagram',
+    length:'45-60 seconds'
+  },
+  {
+    id:16,
+    stage:'MoFu',
+    title:'What happens during a session',
+    hook:'Here\'s what actually happens during a headshot session with me.',
+    overlay:'We start relaxed\nI show you poses\nYou see photos live\nWe adjust together',
+    caption:'It\'s collaborative. I\'m not barking directions. We\'re working together to get shots you actually like. Here\'s how it works 🤝',
+    filmIt:'1. Show yourself relaxed (start of session vibe)\n2. Demonstrate a pose physically\n3. Show tethered screen review\n4. Adjust and shoot again\n5. 30-45 seconds',
+    cta:'DM to book',
+    platform:'Instagram',
+    length:'30-45 seconds'
+  },
+  {
+    id:17,
+    stage:'MoFu',
+    title:'Testing 3 lighting angles',
+    hook:'Testing 3 different lighting angles. Which one works best?',
+    overlay:'1: 45° side\n2: Straight on\n3: Rembrandt\n\nComment your favorite',
+    caption:'Same person, same camera, three different light positions. Which one do you like? Comment 1, 2, or 3 👇',
+    filmIt:'1. Set up light at 45° - film yourself\n2. Move light straight on - film yourself\n3. Move light for Rembrandt - film yourself\n4. Show all three side-by-side\n5. 25-35 seconds',
+    cta:'Comment 1, 2, or 3',
+    platform:'TikTok, Instagram',
+    length:'25-35 seconds'
+  },
+  {
+    id:18,
+    stage:'MoFu',
+    title:'My editing workflow for headshots',
+    hook:'Here\'s my entire editing workflow from raw file to final export.',
+    overlay:'Import → Basic adjustments → Skin retouching → Color grade → Export',
+    caption:'Natural retouching. Nothing overdone. Here\'s the full workflow from start to finish 💻',
+    filmIt:'1. Screen record: Import RAW file\n2. Basic exposure/color adjustments\n3. Light skin retouching (show before/after)\n4. Final color grade\n5. Export\n6. 45-60 seconds',
+    cta:'Save this',
+    platform:'Instagram, TikTok',
+    length:'45-60 seconds'
+  },
+  {
+    id:19,
+    stage:'MoFu',
+    title:'Recreating a magazine cover look',
+    hook:'Recreating a professional magazine look with basic gear.',
+    overlay:'Magazine cover lighting\n= Two lights + reflector\n\nHere\'s the setup',
+    caption:'You don\'t need a studio in New York. Here\'s how to recreate editorial lighting in a basement 📰',
+    filmIt:'1. Show reference image (magazine cover)\n2. Show your setup (2 lights, reflector)\n3. Light diagram or quick setup explanation\n4. Timer shot of yourself\n5. Show result next to reference\n6. 45-60 seconds',
+    cta:'None or "Link in bio"',
+    platform:'Instagram',
+    length:'45-60 seconds'
+  },
+  {
+    id:20,
+    stage:'MoFu',
+    title:'Why I always use tethered shooting',
+    hook:'Before I used tethered shooting vs after I started using it.',
+    overlay:'Before: Guessing\nAfter: Confidence\n\nThis changed everything',
+    caption:'Game changer for both me and my clients. You see photos instantly. We know we got the shot. No surprises 🎯',
+    filmIt:'1. Explain old way (take photos, hope they\'re good)\n2. Show tethered setup\n3. Demonstrate instant review\n4. Show client confidence (or simulate it)\n5. 30-45 seconds',
+    cta:'Link in bio',
+    platform:'Instagram, TikTok',
+    length:'30-45 seconds'
+  },
+  {
+    id:21,
+    stage:'BoFu',
+    title:'What to wear for professional headshots',
+    hook:'What to wear for a professional headshot - tested on myself.',
+    overlay:'Option 1: Solid color\nOption 2: Subtle pattern\nOption 3: Business casual\n\nWhich works best?',
+    caption:'Tested 3 outfit options. Solid colors usually win. Here\'s why 👔 DM me to book your session.',
+    filmIt:'1. Film yourself in solid color shirt\n2. Film yourself in subtle pattern\n3. Film yourself in business casual\n4. Show all three side-by-side\n5. Point out which works best\n6. 30-45 seconds',
+    cta:'DM me to book',
+    platform:'Instagram, TikTok, Facebook',
+    length:'30-45 seconds'
+  },
+  {
+    id:22,
+    stage:'BoFu',
+    title:'Signature Session breakdown',
+    hook:'Here\'s exactly what you get with a Signature Session.',
+    overlay:'$175\n30 minutes\n10 retouched images\nOnline gallery\nNo surprises',
+    caption:'Clear pricing. No hidden fees. This is what you walk away with. DM me to book 💼',
+    filmIt:'1. Text on screen: pricing\n2. Text on screen: what\'s included\n3. Show example gallery\n4. Show example final images\n5. 20-30 seconds',
+    cta:'DM me to book',
+    platform:'Facebook, Instagram',
+    length:'20-30 seconds'
+  },
+  {
+    id:23,
+    stage:'BoFu',
+    title:'Booking to delivery timeline',
+    hook:'Here\'s what happens from the moment you book to when you get your images.',
+    overlay:'1. Book + deposit\n2. Session (30 min)\n3. You select favorites\n4. I edit\n5. Delivery (3-5 days)',
+    caption:'Full process. No confusion. Book → Session → Selection → Editing → Delivery. Simple as that 📅 Link in bio.',
+    filmIt:'1. Show booking form or DM\n2. Show session (quick clip)\n3. Show selection process (tethered screen)\n4. Show editing software\n5. Show final gallery delivery\n6. 30-45 seconds',
+    cta:'Link in bio to book',
+    platform:'Facebook, Instagram',
+    length:'30-45 seconds'
+  },
+  {
+    id:24,
+    stage:'BoFu',
+    title:'Session availability',
+    hook:'When I have sessions available.',
+    overlay:'Saturday mornings\n9am - 1pm\n\nWednesday evenings\n6pm - 9pm\n\nThat\'s it',
+    caption:'Limited availability. These are the only times I shoot. Book in advance 📆 DM me to book.',
+    filmIt:'1. Simple text on screen (times)\n2. Show your studio/setup\n3. Maybe show calendar\n4. 15-20 seconds',
+    cta:'DM me to book',
+    platform:'Facebook, Instagram',
+    length:'15-20 seconds'
+  },
+  {
+    id:25,
+    stage:'BoFu',
+    title:'Natural retouching explained',
+    hook:'Here\'s what "natural retouching" actually means at Phixo.',
+    overlay:'What changes:\n- Exposure/color\n- Blemishes\n- Flyaways\n\nWhat doesn\'t:\n- Face shape\n- Skin texture\n- You',
+    caption:'You look like you, just polished. No airbrushing. No fake smoothing. Natural retouching means you\'re still you ✨',
+    filmIt:'1. Show before image (straight from camera)\n2. Show after image (retouched)\n3. Zoom in on details\n4. Explain what changed vs what didn\'t\n5. 30-45 seconds',
+    cta:'None or "Link in bio"',
+    platform:'Instagram, Facebook',
+    length:'30-45 seconds'
+  },
+  {
+    id:26,
+    stage:'BoFu',
+    title:'Tethered shooting advantage',
+    hook:'Here\'s why I shoot tethered for every session.',
+    overlay:'You see photos LIVE\nWe adjust TOGETHER\nNo surprises\n\nConfidence',
+    caption:'This is why clients love the process. You\'re not waiting until later to see if we got it. You know right now 💻',
+    filmIt:'1. Show tethered setup\n2. Take photo\n3. Show it appearing on screen immediately\n4. Simulate client reviewing it\n5. 25-35 seconds',
+    cta:'DM to book',
+    platform:'Instagram, Facebook',
+    length:'25-35 seconds'
+  },
+  {
+    id:27,
+    stage:'BoFu',
+    title:'Add-ons explained',
+    hook:'Here are the add-ons available and when they actually make sense.',
+    overlay:'Extra images: +$15 each\nAll digital proofs: +$50\nRush editing: +$75\n\nYou choose',
+    caption:'Most people don\'t need add-ons. But they\'re there if you want them. No pressure 💰 DM to book.',
+    filmIt:'1. Text on screen: add-on options\n2. Explain when each makes sense\n3. "Most people just do standard package"\n4. 20-30 seconds',
+    cta:'DM to book',
+    platform:'Facebook, Instagram',
+    length:'20-30 seconds'
+  },
+  {
+    id:28,
+    stage:'BoFu',
+    title:'Top 3 pre-booking questions',
+    hook:'The 3 questions everyone asks before booking.',
+    overlay:'1. What do I wear?\n2. How long is it?\n3. When do I get photos?\n\nAnswers:',
+    caption:'Answering the big 3. Solid colors, 30 minutes, 3-5 days delivery. Any other questions? DM me 💬',
+    filmIt:'1. Show the 3 questions on screen\n2. Answer each one clearly\n3. Simple, direct, honest\n4. 25-35 seconds',
+    cta:'DM with questions',
+    platform:'Facebook, Instagram',
+    length:'25-35 seconds'
+  },
+  {
+    id:29,
+    stage:'BoFu',
+    title:'Why basement studio works',
+    hook:'Why I shoot in a basement studio (and why it\'s actually better).',
+    overlay:'Controlled environment\nNo distractions\nFocus on you\n\nPrivate, professional, simple',
+    caption:'Not a fancy downtown studio. Just a basement. But it\'s controlled, private, and focused. That\'s what matters 🏠',
+    filmIt:'1. Show your studio space (honest shot)\n2. Explain the advantages (control, privacy, focus)\n3. Show a final headshot made there\n4. 30-40 seconds',
+    cta:'None',
+    platform:'Instagram, Facebook',
+    length:'30-40 seconds'
+  },
+  {
+    id:30,
+    stage:'BoFu',
+    title:'How to book a session',
+    hook:'Here\'s exactly how to book a session with me.',
+    overlay:'Step 1: DM me\nStep 2: Pick a time\nStep 3: Pay deposit\nStep 4: Show up\n\nThat\'s it',
+    caption:'Zero friction. DM me, pick a time, pay deposit, show up. Link in bio or DM me now 📅',
+    filmIt:'1. Show each step on screen\n2. Keep it simple and direct\n3. Show booking form or calendar if you have one\n4. 20-30 seconds',
+    cta:'DM me or link in bio',
+    platform:'Facebook, Instagram',
+    length:'20-30 seconds'
+  }
+];;
+
+let bankFilter = 'all';
+let usedIdeas = JSON.parse(localStorage.getItem('phixo-used-ideas') || '{}');
+
+function filterBank(f, el) {
+  bankFilter = f;
+  document.querySelectorAll('.bfilt').forEach(b => b.classList.remove('on'));
+  if (el) el.classList.add('on');
+  renderBank();
+}
+
+function toggleUsed(id) {
+  usedIdeas[id] = !usedIdeas[id];
+  localStorage.setItem('phixo-used-ideas', JSON.stringify(usedIdeas));
+  renderBank();
+}
+
+function renderBank() {
+  const grid = document.getElementById('bank-grid');
+  const countEl = document.getElementById('bank-used-count');
+  if (!grid) return;
+  const items = bankFilter === 'all' ? CONTENT_BANK : CONTENT_BANK.filter(i => i.stage === bankFilter);
+  const usedCount = Object.values(usedIdeas).filter(Boolean).length;
+  if (countEl) countEl.textContent = usedCount + ' used · ' + (CONTENT_BANK.length - usedCount) + ' remaining';
+  const stageColor = {ToFu:'var(--tof)',MoFu:'var(--mof)',BoFu:'var(--bof)'};
+  const stageClass = {ToFu:'fl-tof',MoFu:'fl-mof',BoFu:'fl-bof'};
+  
+  grid.innerHTML = items.map(item => {
+    const filmSteps = item.filmIt.split('\\n').map(step => `<div style="padding:3px 0;color:var(--text)">${step}</div>`).join('');
+    
+    return `
+    <div class="bank-card${usedIdeas[item.id]?' used':''}" style="border-left:4px solid ${stageColor[item.stage]};cursor:pointer" onclick="toggleScript(${item.id})">
+      <div class="bc-top">
+        <span class="bc-num">${String(item.id).padStart(2,'0')}</span>
+        <span class="bc-title">${item.title}</span>
+      </div>
+      <div class="bc-meta" style="font-size:11px;color:var(--muted);margin:8px 0;display:flex;gap:12px;align-items:center">
+        <span class="funnel-label ${stageClass[item.stage]}">${item.stage}</span>
+        <span>${item.platform}</span>
+        <span>${item.length}</span>
+      </div>
+      <div id="script-${item.id}" class="bc-script" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <div style="margin-bottom:12px">
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px;font-family:var(--hind)">HOOK (what you say)</div>
+          <div style="font-size:13px;line-height:1.6;color:var(--text);font-style:italic;background:var(--surface-2);padding:10px;border-radius:6px">${item.hook}</div>
+        </div>
+        <div style="margin-bottom:12px">
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px;font-family:var(--hind)">TEXT OVERLAY (on screen)</div>
+          <div style="font-size:13px;line-height:1.6;color:var(--text);white-space:pre-line;background:var(--surface-2);padding:10px;border-radius:6px">${item.overlay}</div>
+        </div>
+        <div style="margin-bottom:12px">
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px;font-family:var(--hind)">CAPTION (post text)</div>
+          <div style="font-size:13px;line-height:1.6;color:var(--text);background:var(--surface-2);padding:10px;border-radius:6px">${item.caption}</div>
+        </div>
+        <div style="margin-bottom:12px">
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px;font-family:var(--hind)">FILM IT (step by step)</div>
+          <div style="font-size:12px;line-height:1.7;background:var(--surface-2);padding:10px;border-radius:6px">${filmSteps}</div>
+        </div>
+        <div style="display:flex;gap:12px;align-items:center;padding-top:8px">
+          <div style="font-size:11px;color:var(--muted)"><strong>CTA:</strong> ${item.cta}</div>
+          <button class="bc-used-btn${usedIdeas[item.id]?' marked':''}" onclick="event.stopPropagation();toggleUsed(${item.id})">${usedIdeas[item.id]?'✓ used':'mark used'}</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleScript(id) {
+  const el = document.getElementById(`script-${id}`);
+  if (el) {
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  }
+}
+
+const FORMATS = [
+  {platform:'Instagram',color:'#c13584',formats:[
+    {name:'Reels',stage:'ToFu / MoFu',sc:'fl-tof',why:'Pushed to non-followers — highest discovery on Instagram.',best:'Meme-style content for ToFu. Process, portfolio, BTS for MoFu.',cta:'None for ToFu. Soft for MoFu.'},
+    {name:'Carousel',stage:'MoFu',sc:'fl-mof',why:'Requires intent to swipe. Instagram resurfaces saved carousels.',best:'Before/after, portfolio sets, process walkthrough, saveable tips.',cta:'Soft — "save this" or "link in bio"'},
+    {name:'Static Image',stage:'MoFu',sc:'fl-mof',why:'Less algorithmic push. Mostly reaches existing followers.',best:'Single strong portraits across all three lanes.',cta:'None or very soft'},
+    {name:'Stories',stage:'MoFu / BoFu',sc:'fl-mof',why:'Existing followers only — zero discovery. Warm audience.',best:'Sneak peeks, polls, booking prompts, availability.',cta:'Direct — link sticker, "DM me"'},
+    {name:'Live',stage:'MoFu / BoFu',sc:'fl-mof',why:'Notifies followers. No discovery reach. Low priority.',best:'Studio tour, Q&A about sessions.',cta:'Direct — "DM me to book"'},
+  ]},
+  {platform:'TikTok',color:'#888',formats:[
+    {name:'Standard Video',stage:'ToFu / MoFu',sc:'fl-tof',why:'Strongest discovery algorithm of the three platforms.',best:'Meme formats, trending audio for ToFu. Process, BTS for MoFu.',cta:'None for ToFu. Soft for MoFu.'},
+    {name:'Photo Mode (Slideshow)',stage:'MoFu',sc:'fl-mof',why:'FYP distribution but requires intent to swipe.',best:'Portfolio sets, side-by-side comparisons, session range.',cta:'Soft — "link in bio"'},
+    {name:'Duet / Stitch',stage:'ToFu',sc:'fl-tof',why:'Attach to already-performing content and inherit its reach.',best:'React to "I hate photos of me" clips. Respond to photography myths.',cta:'None'},
+    {name:'Live',stage:'MoFu / BoFu',sc:'fl-mof',why:'Can appear to non-followers in Live tab.',best:'Studio walkthrough, editing in real time, booking Q&A.',cta:'Direct — "link in bio to book"'},
+  ]},
+  {platform:'Facebook',color:'#1877f2',formats:[
+    {name:'Feed Video',stage:'MoFu / BoFu',sc:'fl-mof',why:'Organic reach is low — existing followers and local Montreal / West Island network.',best:'Session walkthroughs, what to expect, repurposed Reels.',cta:'Soft to direct'},
+    {name:'Feed Post (Text / Image)',stage:'BoFu',sc:'fl-bof',why:'Lowest reach. Almost exclusively existing followers and local word-of-mouth.',best:'Availability, pricing, session inclusions, booking prompts.',cta:'Direct — "DM me" or "book through the link"'},
+    {name:'Stories',stage:'BoFu',sc:'fl-bof',why:'Existing followers only. Casual, quick, direct.',best:'Last-minute availability. Repurposed Instagram Stories.',cta:'Direct'},
+    {name:'Events',stage:'BoFu',sc:'fl-bof',why:'One of the few formats that can still reach beyond followers through RSVPs.',best:'Mini session days, seasonal promos with a specific date.',cta:'Direct — RSVP or booking link'},
+    {name:'Groups',stage:'ToFu / BoFu',sc:'fl-tof',why:'Local Montreal/West Island groups — one of the only organic ways to reach strangers on Facebook.',best:'West Island community groups, responding to photographer recs.',cta:'Direct but conversational'},
+  ]},
+];
+
+function renderFormats() {
+  const el = document.getElementById('formats-body');
+  if (!el || el.dataset.rendered) return;
+  el.dataset.rendered = '1';
+  el.innerHTML = FORMATS.map(p => `
+    <div class="fmt-platform">
+      <div class="fmt-plat-name" style="color:${p.color}">${p.platform}</div>
+      <table class="stab-table">
+        <thead><tr><th>Format</th><th>Stage</th><th>Why This Stage</th><th>Best For</th><th>Call to Action</th></tr></thead>
+        <tbody>
+          ${p.formats.map(f=>`<tr>
+            <td><strong>${f.name}</strong></td>
+            <td><span class="funnel-label ${f.sc}">${f.stage}</span></td>
+            <td>${f.why}</td>
+            <td>${f.best}</td>
+            <td>${f.cta}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`).join('');
+}
+
+// ═══════════════════════════════════════════════════
+// RESEARCH LIBRARY - Video Generation
+// ═══════════════════════════════════════════════════
+
+async function toggleReference(blockId, isChecked) {
+  try {
+    await api('PATCH', `/api/blocks/${blockId}`, { is_reference: isChecked });
+    toast(isChecked ? 'Marked as reference' : 'Unmarked as reference', 'ok');
+  } catch (err) {
+    console.error('Toggle reference error:', err);
+    toast('Error updating reference status');
+  }
+}
+
+async function generateFromVideos() {
+  const statusEl = document.getElementById('gen-status');
+  const button = document.getElementById('gen-ideas-btn');
+  
+  button.disabled = true;
+  button.textContent = 'Generating...';
+  statusEl.textContent = 'Searching reference videos and generating ideas...';
+  
+  try {
+    const tags = document.getElementById('gen-tags').value.trim();
+    const params = {
+      funnel_stage: document.getElementById('gen-stage').value || null,
+      tags: tags ? tags.split(',').map(t => t.trim()) : null,
+      count: parseInt(document.getElementById('gen-count').value)
+    };
+    
+    // Store params for regenerate
+    lastGenerateParams = params;
+    
+    const response = await fetch('/api/research/generate-ideas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(params)
+    });
+    
+    const result = await response.json();
+    
+    if (result.ideas && result.ideas.length > 0) {
+      // Store ideas for save functions
+      currentIdeas = result.ideas;
+      statusEl.textContent = `Generated ${result.ideas.length} ideas using ${result.sourcesUsed} reference videos`;
+      renderGeneratedIdeas(result.ideas);
+    } else if (result.error) {
+      statusEl.textContent = `Error: ${result.message || result.error}`;
+      if (result.suggestion) {
+        statusEl.innerHTML += `<br><span style="color:var(--accent)">${result.suggestion}</span>`;
+      }
+    } else {
+      statusEl.textContent = 'No ideas generated. Mark some videos as reference first.';
+    }
+  } catch (err) {
+    console.error('Generate error:', err);
+    statusEl.textContent = 'Error generating ideas';
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Generate Ideas';
+  }
+}
+
+function renderGeneratedIdeas(ideas) {
+  const container = document.getElementById('generated-ideas');
+  const grid = document.getElementById('generated-ideas-grid');
+  
+  container.style.display = 'block';
+  
+  grid.innerHTML = ideas.map((idea, idx) => `
+    <div class="bank-card" style="border-left:4px solid var(--accent);cursor:pointer" onclick="toggleGeneratedIdea(${idx})">
+      <div class="bc-top">
+        <span class="bc-num">${String(idx + 1).padStart(2, '0')}</span>
+        <span class="bc-title">${esc(idea.title)}</span>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin:8px 0">
+        ${esc(idea.platform)} • ${esc(idea.length)}
+      </div>
+      <div id="gen-idea-${idx}" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+        <div style="margin-bottom:12px">
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px">HOOK</div>
+          <div style="font-size:13px;font-style:italic;background:var(--surface-2);padding:10px;border-radius:6px">${esc(idea.hook)}</div>
+          ${idea.hookTemplate ? `<div style="font-size:10px;color:var(--muted);margin-top:6px;padding:8px;background:var(--bg);border-radius:4px">
+            <strong>Proven Template:</strong> ${esc(idea.hookTemplate)}
+          </div>` : ''}
+        </div>
+        <div style="margin-bottom:12px">
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px">TEXT OVERLAY</div>
+          <div style="font-size:13px;white-space:pre-line;background:var(--surface-2);padding:10px;border-radius:6px">${esc(idea.overlay)}</div>
+        </div>
+        <div style="margin-bottom:12px">
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px">CAPTION</div>
+          <div style="font-size:13px;background:var(--surface-2);padding:10px;border-radius:6px">${esc(idea.caption)}</div>
+        </div>
+        <div style="margin-bottom:12px">
+          <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:var(--accent);margin-bottom:6px">FILM IT</div>
+          <div style="font-size:12px;white-space:pre-line;background:var(--surface-2);padding:10px;border-radius:6px">${esc(idea.filmIt)}</div>
+        </div>
+        <div style="font-size:11px;color:var(--muted);margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+          <strong>CTA:</strong> ${esc(idea.cta)}<br>
+          <strong>Inspiration:</strong> ${esc(idea.sourceInspiration || 'N/A')}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button 
+            class="bb bb-sec" 
+            id="regen-idea-${idx}"
+            onclick="event.stopPropagation();regenerateSingleIdea(${idx})" 
+            style="flex:1"
+            title="Regenerate just this one idea">
+            ↻ Regenerate
+          </button>
+          <button 
+            class="bb bb-main" 
+            id="save-idea-${idx}"
+            onclick="event.stopPropagation();saveIdeaAsDraft(${idx})" 
+            style="flex:1">
+            Save as Idea
+          </button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+  
+  // Scroll to generated ideas
+  container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function toggleGeneratedIdea(idx) {
+  const el = document.getElementById(`gen-idea-${idx}`);
+  if (el) {
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+  }
+}
+
+// Store generated ideas and last request params for save/regenerate
+let currentIdeas = [];
+let lastGenerateParams = {};
+
+async function saveIdeaAsDraft(idx) {
+  const idea = currentIdeas[idx];
+  if (!idea) return;
+  
+  const button = document.getElementById(`save-idea-${idx}`);
+  button.disabled = true;
+  button.textContent = 'Saving...';
+  
+  try {
+    // Map generated idea to post builder structure
+    const postData = {
+      post_goal: idea.title,
+      platform: idea.platform || 'Instagram',
+      funnel_stage: lastGenerateParams.funnel_stage || null,
+      post_type: 'short_video',  // Generated ideas are short videos
+      status: 'idea',
+      content_structure: {
+        // Generated idea fields (exact structure)
+        hook: idea.hook,
+        hookTemplate: idea.hookTemplate,
+        overlay: idea.overlay,
+        caption: idea.caption,    // Full caption
+        filmIt: idea.filmIt,
+        cta: idea.cta,
+        
+        // Metadata
+        platform: idea.platform,
+        length: idea.length,
+        sourceInspiration: idea.sourceInspiration,
+        generatedFrom: 'research_library'
+      }
+    };
+    
+    await api('POST', '/api/posts', postData);
+    
+    button.textContent = 'Saved ✓';
+    button.classList.remove('bb-main');
+    button.classList.add('bb-sec');
+    toast('Saved as idea', 'ok');
+  } catch (err) {
+    console.error('Save idea error:', err);
+    button.disabled = false;
+    button.textContent = 'Save as Idea';
+    toast('Error saving idea');
+  }
+}
+
+async function saveAllIdeas() {
+  if (currentIdeas.length === 0) return;
+  
+  try {
+    const promises = currentIdeas.map((idea, idx) => saveIdeaAsDraft(idx));
+    await Promise.all(promises);
+    toast(`Saved ${currentIdeas.length} ideas to Ideas column`, 'ok');
+  } catch (err) {
+    console.error('Save all error:', err);
+    toast('Some ideas failed to save');
+  }
+}
+
+async function regenerateIdeas() {
+  if (!lastGenerateParams.funnel_stage && !lastGenerateParams.tags) {
+    toast('No previous generate request found');
+    return;
+  }
+  
+  // Call generateFromVideos again with same params
+  const statusEl = document.getElementById('gen-status');
+  const button = document.getElementById('gen-ideas-btn');
+  
+  button.disabled = true;
+  button.textContent = 'Regenerating...';
+  statusEl.textContent = 'Generating new ideas...';
+  
+  try {
+    const response = await fetch('/api/research/generate-ideas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(lastGenerateParams)
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Generation failed');
+    }
+    
+    if (data.ideas && data.ideas.length > 0) {
+      currentIdeas = data.ideas;
+      renderGeneratedIdeas(data.ideas);
+      statusEl.textContent = `Generated ${data.ideas.length} new ideas from ${data.sourcesUsed} reference videos`;
+      toast('New ideas generated!', 'ok');
+    } else {
+      throw new Error('No ideas returned');
+    }
+  } catch (err) {
+    console.error('Regenerate error:', err);
+    statusEl.textContent = `Error: ${err.message}`;
+    toast('Failed to regenerate ideas');
+  } finally {
+    button.disabled = false;
+    button.textContent = 'Generate Ideas';
+  }
+}
+
+async function regenerateSingleIdea(idx) {
+  if (!lastGenerateParams.funnel_stage && !lastGenerateParams.tags) {
+    toast('No previous generate request found');
+    return;
+  }
+  
+  const button = document.getElementById(`regen-idea-${idx}`);
+  
+  button.disabled = true;
+  button.textContent = 'Regenerating...';
+  
+  try {
+    // Request just 1 idea
+    const response = await fetch('/api/research/generate-ideas', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...lastGenerateParams,
+        count: 1  // Only generate 1 new idea
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Generation failed');
+    }
+    
+    if (data.ideas && data.ideas.length > 0) {
+      // Replace this specific idea with the new one
+      currentIdeas[idx] = data.ideas[0];
+      renderGeneratedIdeas(currentIdeas);
+      toast('Idea regenerated!', 'ok');
+    } else {
+      throw new Error('No idea returned');
+    }
+  } catch (err) {
+    console.error('Regenerate single error:', err);
+    toast('Failed to regenerate idea');
+    button.disabled = false;
+    button.textContent = '↻ Regenerate';
+  }
+}
+
+async function deleteUntitledPosts() {
+  if (!confirm('Delete all untitled/empty posts? This cannot be undone.')) {
+    return;
+  }
+  
+  try {
+    const result = await api('DELETE', '/api/posts/cleanup-untitled');
+    if (result.deleted > 0) {
+      toast(`Deleted ${result.deleted} untitled posts`, 'ok');
+      await loadCalendar();  // Reload calendar to show changes
+    } else {
+      toast('No untitled posts found', 'ok');
+    }
+  } catch (err) {
+    console.error('Cleanup error:', err);
+    toast('Failed to cleanup untitled posts');
+  }
+}
+
+// ─────────────────────────────────────────────────────────
+// CONTENT IDEATION
+// ─────────────────────────────────────────────────────────
+
+let _ideateSelectedBlocks = new Map(); // id → block data
+let _ideateAllBlocks = [];             // all blocks for filtering
+
+function setIdeateMode(mode, btn) {
+  document.querySelectorAll('.ideate-mode').forEach(b => b.classList.remove('on'));
+  btn.classList.add('on');
+  document.querySelectorAll('.ideate-form').forEach(f => f.classList.add('hide'));
+  const form = document.getElementById('ideate-form-' + mode);
+  if (form) form.classList.remove('hide');
+  clearIdeation();
+  // Load blocks when switching to research mode
+  if (mode === 'research' && _ideateAllBlocks.length === 0) loadIdeateBlocks();
+}
+
+function clearIdeation() {
+  document.getElementById('ideate-results').style.display = 'none';
+  document.getElementById('ideate-results-grid').innerHTML = '';
+  const status = document.getElementById('ideate-status');
+  status.style.display = 'none';
+  status.textContent = '';
+}
+
+// Load all library blocks into the tile picker
+async function loadIdeateBlocks() {
+  const grid = document.getElementById('ideate-block-grid');
+  if (!grid) return;
+  grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--muted);font-size:13px">Loading library...</div>';
+  try {
+    const data = await api('GET', '/api/blocks?limit=200');
+    _ideateAllBlocks = Array.isArray(data) ? data : (data.blocks || data.rows || []);
+    renderIdeateBlockGrid(_ideateAllBlocks);
+  } catch (e) {
+    grid.innerHTML = '<div style="grid-column:1/-1;padding:20px;color:#c04040;font-size:13px">Failed to load library: ' + e.message + '</div>';
+  }
+}
+
+function renderIdeateBlockGrid(blocks) {
+  const grid = document.getElementById('ideate-block-grid');
+  if (!grid) return;
+  if (blocks.length === 0) {
+    grid.innerHTML = '<div style="grid-column:1/-1;padding:32px;text-align:center;color:var(--muted);font-size:13px">No blocks found</div>';
+    return;
+  }
+  grid.innerHTML = blocks.map(b => {
+    const isSelected = _ideateSelectedBlocks.has(b.id);
+    const icon = b.type === 'video' ? '🎬' : b.type === 'image' ? '🖼' : b.type === 'article' ? '📄' : b.type === 'note' ? '📝' : '📁';
+    const thumbSrc = b.thumbnail_url || (b.drive_file_id ? `/api/drive/thumbnail/${b.drive_file_id}` : '');
+    const thumbHtml = thumbSrc
+      ? `<img src="${thumbSrc}" loading="lazy" style="width:100%;height:100%;object-fit:cover" onerror="this.outerHTML='<span style=\\'font-size:28px\\'>${icon}</span>'">`
+      : `<span style="font-size:28px">${icon}</span>`;
+    const funnelHtml = b.funnel_stage ? `<span class="funnel-label fl-${b.funnel_stage}" style="font-size:9px;padding:1px 6px">${b.funnel_stage.toUpperCase()}</span>` : '';
+    const snippet = (b.content_payload || '').slice(0, 60);
+    return `
+    <div class="ideate-block-tile${isSelected ? ' selected' : ''}" id="ibt-${b.id}" onclick="openIdeateBlockDetail(${b.id})">
+      <div class="ibt-check" onclick="event.stopPropagation();toggleIdeateBlock(${b.id})">${isSelected ? '✓' : ''}</div>
+      <div class="ibt-thumb">${thumbHtml}</div>
+      <div class="ibt-body">
+        ${funnelHtml ? `<div style="margin-bottom:3px">${funnelHtml}</div>` : ''}
+        <div class="ibt-title">${b.title || 'Untitled'}</div>
+        ${snippet ? `<div class="ibt-meta">${snippet}…</div>` : `<div class="ibt-meta">${b.type}</div>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function toggleIdeateBlock(id) {
+  const block = _ideateAllBlocks.find(b => b.id === id);
+  if (!block) return;
+  if (_ideateSelectedBlocks.has(id)) {
+    _ideateSelectedBlocks.delete(id);
+  } else {
+    _ideateSelectedBlocks.set(id, block);
+  }
+  // Update tile appearance
+  const tile = document.getElementById('ibt-' + id);
+  if (tile) {
+    tile.classList.toggle('selected', _ideateSelectedBlocks.has(id));
+    const check = tile.querySelector('.ibt-check');
+    if (check) check.textContent = _ideateSelectedBlocks.has(id) ? '✓' : '';
+  }
+  // Update count badge
+  const countEl = document.getElementById('ideate-selected-count');
+  if (countEl) {
+    const n = _ideateSelectedBlocks.size;
+    countEl.textContent = n === 0 ? '0 selected' : `${n} selected`;
+    countEl.style.color = n > 0 ? 'var(--accent)' : 'var(--muted)';
+    countEl.style.fontWeight = n > 0 ? '700' : '400';
+  }
+}
+
+async function openIdeateBlockDetail(id) {
+  // Reuse existing block detail modal if available, but also allow selection from it
+  const block = _ideateAllBlocks.find(b => b.id === id);
+  if (!block) return;
+  // Open the existing block detail modal
+  openBlockDetail(id);
+}
+
+function filterIdeateBlocks(query) {
+  if (!query.trim()) {
+    renderIdeateBlockGrid(_ideateAllBlocks);
+    return;
+  }
+  const q = query.toLowerCase();
+  const filtered = _ideateAllBlocks.filter(b =>
+    (b.title || '').toLowerCase().includes(q) ||
+    (b.type || '').toLowerCase().includes(q) ||
+    (b.content_payload || '').toLowerCase().includes(q) ||
+    (b.tags || []).some(t => t.toLowerCase().includes(q)) ||
+    (b.funnel_stage || '').toLowerCase().includes(q)
+  );
+  renderIdeateBlockGrid(filtered);
+}
+
+async function runIdeation(mode) {
+  const btn = document.getElementById('ideate-btn-' + mode);
+  const status = document.getElementById('ideate-status');
+  const results = document.getElementById('ideate-results');
+
+  const payload = { mode };
+
+  if (mode === 'scratch') {
+    payload.funnel_stage = document.getElementById('ideate-stage').value;
+    payload.pillar = document.getElementById('ideate-pillar').value;
+    payload.lane = document.getElementById('ideate-lane').value;
+    payload.count = parseInt(document.getElementById('ideate-count-scratch').value) || 3;
+  } else if (mode === 'riff') {
+    payload.seed_idea = (document.getElementById('ideate-seed').value || '').trim();
+    payload.count = parseInt(document.getElementById('ideate-count-riff').value) || 3;
+    if (!payload.seed_idea) { toast('Paste an idea to riff on first'); return; }
+  } else if (mode === 'research') {
+    payload.block_ids = Array.from(_ideateSelectedBlocks.keys());
+    payload.count = parseInt(document.getElementById('ideate-count-research').value) || 3;
+    if (payload.block_ids.length === 0) { toast('Select at least one block from the library'); return; }
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Generating...';
+  status.style.display = 'block';
+  status.textContent = 'Pulling hooks from the library, running through your strategy... ~15–20 seconds.';
+  results.style.display = 'none';
+
+  try {
+    const data = await api('POST', '/api/content/ideate', payload);
+    if (!data.ideas || data.ideas.length === 0) throw new Error('No ideas returned');
+
+    const label = document.getElementById('ideate-results-label');
+    if (mode === 'scratch') label.textContent = `${data.ideas.length} ideas — ${payload.funnel_stage} / ${payload.pillar}${payload.lane !== 'any' ? ' / ' + payload.lane : ''}`;
+    else if (mode === 'riff') label.textContent = `${data.ideas.length} variations`;
+    else label.textContent = `${data.ideas.length} ideas from ${payload.block_ids.length} block${payload.block_ids.length > 1 ? 's' : ''}`;
+
+    window._lastIdeationIdeas = data.ideas;
+    renderIdeationCards(data.ideas, mode);
+    results.style.display = 'block';
+    status.style.display = 'none';
+    toast(`${data.ideas.length} ideas generated`, 'ok');
+  } catch (err) {
+    console.error('Ideation error:', err);
+    status.textContent = 'Error: ' + err.message;
+    toast('Generation failed');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = mode === 'riff' ? 'Generate Variations →' : 'Generate →';
+  }
+}
+
+function renderIdeationCards(ideas, mode) {
+  const grid = document.getElementById('ideate-results-grid');
+  grid.innerHTML = ideas.map((idea, idx) => {
+    const stage = idea.funnelStage || '';
+    const stageCls = stage === 'ToFu' ? 'fl-tof' : stage === 'MoFu' ? 'fl-mof' : 'fl-bof';
+    const note = idea.variationNote || idea.sourceAdaptation || '';
+    const hookPill = (idea.hookId || idea.hookTemplate)
+      ? `<span class="ideate-hook-pill" title="${(idea.hookTemplate || '').replace(/"/g,"'")}">Hook ${idea.hookId || 'real'}</span>`
+      : '';
+
+    return `
+    <div class="ideate-card">
+      <div class="ideate-card-head">
+        <div style="flex:1">
+          <div class="ideate-card-title">${idea.title || 'Untitled'}</div>
+          <div class="ideate-card-badges">
+            ${stage ? `<span class="funnel-label ${stageCls}" style="font-size:10px">${stage}</span>` : ''}
+            ${idea.pillar ? `<span class="tag" style="font-size:10px;border:1px solid var(--border);background:var(--bg);color:var(--accent)">${idea.pillar}</span>` : ''}
+            ${idea.lane && idea.lane !== 'any' ? `<span class="tag" style="font-size:10px;border:1px solid var(--border);background:var(--bg);color:var(--muted)">${idea.lane}</span>` : ''}
+            ${hookPill}
+            ${idea.length ? `<span style="font-size:10px;color:var(--muted)">${idea.length}</span>` : ''}
+          </div>
+          ${note ? `<div style="margin-top:7px;background:var(--accent-light);border:1px solid #e8d5a8;border-radius:5px;padding:5px 10px;font-size:11px;color:var(--muted);font-style:italic">${note}</div>` : ''}
+        </div>
+        <button class="btn btn-ghost btn-xs" onclick="saveIdeationIdea(${idx})" title="Save to Calendar">Save →</button>
+      </div>
+      <div class="ideate-card-body">
+        ${idea.hook ? `<div class="ideate-section"><div class="ideate-label">Hook — from your library</div><div class="ideate-val" style="font-weight:600;font-size:14px">${idea.hook}</div>${idea.hookTemplate ? `<div style="font-size:10px;color:var(--muted);margin-top:3px;font-style:italic">Template: ${idea.hookTemplate}</div>` : ''}</div>` : ''}
+        ${idea.script ? `<div class="ideate-section"><div class="ideate-label">Script</div><div class="ideate-val script" id="ideate-script-${idx}">${idea.script}</div>${idea.exampleUrl ? '<button class="restyle-btn" onclick="restyleScript(' + idx + ')" title="Rewrite using example delivery style">&#8635; Style from example</button>' : ''}</div>` : ''}
+        ${idea.filmIt ? `<div class="ideate-section"><div class="ideate-label">Film It</div><div class="ideate-val film">${idea.filmIt}</div></div>` : ''}
+        ${idea.caption ? `<div class="ideate-section"><div class="ideate-label">Caption</div><div class="ideate-val">${idea.caption}</div></div>` : ''}
+        ${idea.overlay ? `<div class="ideate-section"><div class="ideate-label">On-Screen Text</div><div class="ideate-val" style="color:var(--muted)">${idea.overlay}</div></div>` : ''}
+      </div>
+      <div class="ideate-card-foot">
+        ${idea.platform ? `<span style="font-size:11px;color:var(--muted)">${idea.platform}</span>` : ''}
+        ${idea.cta && idea.cta !== 'None' && idea.cta !== 'none' ? `<span style="font-size:11px;color:var(--muted);margin-left:auto">CTA: ${idea.cta}</span>` : ''}
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function saveIdeationIdea(idx) {
+  const idea = (window._lastIdeationIdeas || [])[idx];
+  if (!idea) return;
+  try {
+    const stage = (idea.funnelStage || '').replace('ToFu','tof').replace('MoFu','mof').replace('BoFu','bof').toLowerCase();
+    await api('POST', '/api/posts', {
+      title: idea.title || 'Untitled idea',
+      status: 'idea',
+      platform: idea.platform || '',
+      caption: [idea.hook, idea.script, idea.caption].filter(Boolean).join('\n\n'),
+      notes: [
+        idea.filmIt ? 'FILM IT:\n' + idea.filmIt : '',
+        idea.overlay ? 'OVERLAY: ' + idea.overlay : '',
+        idea.cta ? 'CTA: ' + idea.cta : '',
+        idea.hookTemplate ? 'HOOK TEMPLATE: ' + idea.hookTemplate : '',
+        idea.variationNote || idea.sourceAdaptation || ''
+      ].filter(Boolean).join('\n\n'),
+      funnel_stage: stage || '',
+    });
+    toast('Saved to calendar', 'ok');
+  } catch (e) { toast('Save failed: ' + e.message); }
+}
+
+async function saveAllIdeationIdeas() {
+  const ideas = window._lastIdeationIdeas || [];
+  if (!ideas.length) return;
+  let saved = 0;
+  for (const idea of ideas) {
+    try {
+      const stage = (idea.funnelStage || '').replace('ToFu','tof').replace('MoFu','mof').replace('BoFu','bof').toLowerCase();
+      await api('POST', '/api/posts', {
+        title: idea.title || 'Untitled idea',
+        status: 'idea',
+        platform: idea.platform || '',
+        caption: [idea.hook, idea.script, idea.caption].filter(Boolean).join('\n\n'),
+        notes: [
+          idea.filmIt ? 'FILM IT:\n' + idea.filmIt : '',
+          idea.overlay ? 'OVERLAY: ' + idea.overlay : '',
+          idea.cta ? 'CTA: ' + idea.cta : '',
+          idea.hookTemplate ? 'HOOK TEMPLATE: ' + idea.hookTemplate : '',
+          idea.variationNote || idea.sourceAdaptation || ''
+        ].filter(Boolean).join('\n\n'),
+        funnel_stage: stage || '',
+      });
+      saved++;
+    } catch (e) { console.error(e); }
+  }
+  toast(`${saved} ideas saved to calendar`, 'ok');
+}
+
+
+
+// Restyle Script
+let _restyleIdx = null;
+function openRestyleModal()  { document.getElementById('restyle-modal').style.display = 'flex'; }
+function closeRestyleModal() { document.getElementById('restyle-modal').style.display = 'none'; _restyleIdx = null; }
+
+async function restyleScript(idx) {
+  const idea = (window._lastIdeationIdeas || [])[idx];
+  if (!idea || !idea.exampleUrl) { if(window.toast) toast('No example URL for this hook','warn'); return; }
+  _restyleIdx = idx;
+  document.getElementById('restyle-meta').textContent = (idea.hookId||'') + ' — ' + (idea.exampleUrl||'').slice(0,70);
+  document.getElementById('restyle-progress').textContent = 'Starting...';
+  document.getElementById('restyle-result').style.display = 'none';
+  document.getElementById('restyle-error').style.display = 'none';
+  document.getElementById('restyle-close-row').style.display = 'block';
+  document.getElementById('restyle-textarea').value = '';
+  document.getElementById('restyle-transcript-preview').textContent = '';
+  openRestyleModal();
+
+  const token = localStorage.getItem('phixo_token') || '';
+  let reader;
+  try {
+    const res = await fetch('/api/ideate/restyle-script', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body: JSON.stringify({exampleUrl:idea.exampleUrl,hook:idea.hook||'',script:idea.script||'',pillar:idea.pillar||'',funnelStage:idea.funnelStage||'',lane:idea.lane||''})
+    });
+    reader = res.body.getReader();
+  } catch(e) { showRestyleError('Network error: '+e.message); return; }
+
+  const dec = new TextDecoder(); let buf = '';
+  while(true) {
+    const {done,value} = await reader.read();
+    if(done) break;
+    buf += dec.decode(value,{stream:true});
+    const lines = buf.split('\n'); buf = lines.pop();
+    for(const line of lines) {
+      if(!line.startsWith('data: ')) continue;
+      let evt; try { evt=JSON.parse(line.slice(6)); } catch { continue; }
+      const prog = document.getElementById('restyle-progress');
+      if(evt.step==='error') { showRestyleError(evt.msg); return; }
+      if(evt.step==='done') {
+        prog.textContent = '\u2713 Done';
+        document.getElementById('restyle-result').style.display = 'block';
+        document.getElementById('restyle-textarea').value = evt.restyled||'';
+        document.getElementById('restyle-close-row').style.display = 'none';
+        if(evt.transcriptPreview) document.getElementById('restyle-transcript-preview').textContent = 'From transcript: "'+evt.transcriptPreview.slice(0,180)+'..."';
+      } else {
+        const labels={download:'\u2b07 Downloading...', audio:'\u266a Extracting audio...', transcribe:'\ud83d\udcdd Transcribing...', transcribed:'\u2713 Transcribed — rewriting...', restyle:'\u270d Applying style...'};
+        prog.textContent = labels[evt.step]||evt.msg;
+      }
+    }
+  }
+}
+
+function applyRestyle() {
+  const idx = _restyleIdx; if(idx===null) return;
+  const s = document.getElementById('restyle-textarea').value.trim(); if(!s) return;
+  const ideas = window._lastIdeationIdeas||[]; if(ideas[idx]) ideas[idx].script = s;
+  const el = document.getElementById('ideate-script-'+idx); if(el) el.textContent = s;
+  closeRestyleModal(); if(window.toast) toast('Script updated','ok');
+}
+
+function showRestyleError(msg) {
+  document.getElementById('restyle-progress').textContent = '';
+  const e = document.getElementById('restyle-error'); e.textContent = '\u2717 '+msg; e.style.display='block';
+}
+
+document.addEventListener('click', function(e) {
+  const m = document.getElementById('restyle-modal');
+  if(m && e.target===m) closeRestyleModal();
 });
+
+</script>
+<!-- Ask Library Modal -->
+<div class="mbg off" id="m-ask-library">
+  <div class="modal" style="max-width:680px">
+    <div class="mh"><h2>Ask your Library 🧠</h2><button class="mx" onclick="closeM('m-ask-library')">✕</button></div>
+    <div class="mb" style="display:flex;flex-direction:column;gap:12px">
+      <p style="font-size:13px;color:var(--muted);margin:0">Ask anything — Claude reads your actual research blocks, transcripts, and notes to answer. No hallucination, citations included.</p>
+      <div id="ask-history" style="display:none;max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-bottom:4px"></div>
+      <div style="display:flex;gap:8px">
+        <textarea id="ask-input" placeholder="e.g. What posing tips do I have for nervous clients? What did that Canva video say about composition?" style="flex:1;min-height:72px;resize:vertical;font-size:13px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:inherit" onkeydown="if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){askLibrary();return false}"></textarea>
+        <button class="btn btn-dark" id="ask-btn" onclick="askLibrary()" style="align-self:flex-end;white-space:nowrap">Ask →</button>
+      </div>
+      <div id="ask-status" style="font-size:11px;color:var(--muted);display:none"></div>
+    </div>
+  </div>
+</div>
+
+<div id="restyle-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
+  <div id="restyle-modal-inner">
+    <h3>&#8635; Style from example</h3>
+    <div class="restyle-meta" id="restyle-meta"></div>
+    <div id="restyle-progress"></div>
+    <div id="restyle-result" style="display:none;margin-top:12px">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Restyled script — edit before applying:</div>
+      <textarea id="restyle-textarea" spellcheck="true"></textarea>
+      <div id="restyle-transcript-preview"></div>
+      <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
+        <button class="btn btn-ghost btn-sm" onclick="closeRestyleModal()">Cancel</button>
+        <button class="btn btn-primary btn-sm" onclick="applyRestyle()">Apply to script</button>
+      </div>
+    </div>
+    <div id="restyle-error" style="display:none;color:#c0392b;font-size:12px;margin-top:8px"></div>
+    <div id="restyle-close-row" style="margin-top:12px;text-align:right">
+      <button class="btn btn-ghost btn-sm" onclick="closeRestyleModal()">Close</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>
