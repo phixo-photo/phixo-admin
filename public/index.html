@@ -462,18 +462,6 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .ideate-val.script{background:var(--bg);border-left:3px solid var(--accent);padding:10px 14px;border-radius:0 6px 6px 0;font-style:italic}
 .ideate-val.film{white-space:pre-line;font-size:12px;background:var(--nav);color:#bbb;padding:10px 14px;border-radius:6px;font-family:monospace}
 .ideate-hook-pill{background:#e8f0fd;border:1px solid #b8c8f0;border-radius:20px;padding:3px 10px;font-size:10px;color:#3050aa;font-weight:600}
-.restyle-btn{display:inline-flex;align-items:center;gap:5px;background:none;border:1px solid var(--border);border-radius:5px;padding:3px 9px;font-size:11px;color:var(--muted);cursor:pointer;margin-top:6px;transition:all .15s}
-.restyle-btn:hover{border-color:var(--accent);color:var(--accent)}
-.restyle-btn.loading{opacity:.6;cursor:wait}
-#restyle-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;align-items:center;justify-content:center}
-#restyle-modal.open{display:flex}
-#restyle-modal-inner{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:24px;width:min(560px,92vw);max-height:85vh;overflow-y:auto}
-#restyle-modal-inner h3{margin:0 0 4px;font-size:15px}
-#restyle-modal-inner .restyle-meta{font-size:11px;color:var(--muted);margin-bottom:16px}
-#restyle-progress{font-size:12px;color:var(--accent);padding:8px 0;min-height:22px}
-#restyle-result{display:none;margin-top:12px}
-#restyle-result textarea{width:100%;min-height:140px;padding:10px;border:1px solid var(--border);border-radius:6px;font-size:13px;line-height:1.6;resize:vertical;background:var(--bg);color:var(--text)}
-#restyle-transcript-preview{font-size:10px;color:var(--muted);margin-top:8px;font-style:italic;line-height:1.5}
 .ideate-card-foot{padding:10px 18px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center}
 
 </style>
@@ -4277,7 +4265,7 @@ function renderIdeationCards(ideas, mode) {
       </div>
       <div class="ideate-card-body">
         ${idea.hook ? `<div class="ideate-section"><div class="ideate-label">Hook — from your library</div><div class="ideate-val" style="font-weight:600;font-size:14px">${idea.hook}</div>${idea.hookTemplate ? `<div style="font-size:10px;color:var(--muted);margin-top:3px;font-style:italic">Template: ${idea.hookTemplate}</div>` : ''}</div>` : ''}
-        ${idea.script ? `<div class="ideate-section"><div class="ideate-label">Script</div><div class="ideate-val script" id="ideate-script-${idx}">${idea.script}</div>${idea.exampleUrl ? '<button class="restyle-btn" onclick="restyleScript(' + idx + ')" title="Rewrite script using delivery style of the hook example">↺ Style from example</button>' : ''}</div>` : ''}
+        ${idea.script ? `<div class="ideate-section"><div class="ideate-label">Script</div><div class="ideate-val script">${idea.script}</div></div>` : ''}
         ${idea.filmIt ? `<div class="ideate-section"><div class="ideate-label">Film It</div><div class="ideate-val film">${idea.filmIt}</div></div>` : ''}
         ${idea.caption ? `<div class="ideate-section"><div class="ideate-label">Caption</div><div class="ideate-val">${idea.caption}</div></div>` : ''}
         ${idea.overlay ? `<div class="ideate-section"><div class="ideate-label">On-Screen Text</div><div class="ideate-val" style="color:var(--muted)">${idea.overlay}</div></div>` : ''}
@@ -4341,128 +4329,6 @@ async function saveAllIdeationIdeas() {
 }
 
 
-
-// ── Restyle Script from Hook Example ─────────────────────────────────────────
-let _restyleTargetIdx = null;
-
-async function restyleScript(idx) {
-  const idea = (window._lastIdeationIdeas || [])[idx];
-  if (!idea) return;
-  if (!idea.exampleUrl) return toast('No example URL for this hook', 'warn');
-
-  _restyleTargetIdx = idx;
-
-  // Open modal, reset state
-  document.getElementById('restyle-modal').classList.add('open');
-  document.getElementById('restyle-meta').textContent =
-    `Hook: ${idea.hookId || ''} — ${(idea.exampleUrl || '').slice(0, 60)}...`;
-  document.getElementById('restyle-progress').textContent = 'Starting...';
-  document.getElementById('restyle-result').style.display = 'none';
-  document.getElementById('restyle-error').style.display = 'none';
-  document.getElementById('restyle-cancel-row').style.display = 'block';
-  document.getElementById('restyle-textarea').value = '';
-  document.getElementById('restyle-transcript-preview').textContent = '';
-
-  // SSE request
-  const token = localStorage.getItem('phixo_token') || '';
-  let reader;
-  try {
-    const res = await fetch('/api/ideate/restyle-script', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-      body: JSON.stringify({
-        exampleUrl: idea.exampleUrl,
-        hook: idea.hook || '',
-        script: idea.script || '',
-        pillar: idea.pillar || '',
-        funnelStage: idea.funnelStage || '',
-        lane: idea.lane || ''
-      })
-    });
-    reader = res.body.getReader();
-  } catch (e) {
-    showRestyleError('Network error: ' + e.message);
-    return;
-  }
-
-  const decoder = new TextDecoder();
-  let buf = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += decoder.decode(value, { stream: true });
-    const lines = buf.split('
-');
-    buf = lines.pop();
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue;
-      let evt;
-      try { evt = JSON.parse(line.slice(6)); } catch { continue; }
-
-      const prog = document.getElementById('restyle-progress');
-
-      if (evt.step === 'error') {
-        showRestyleError(evt.msg);
-        return;
-      } else if (evt.step === 'done') {
-        prog.textContent = '✓ Done';
-        document.getElementById('restyle-result').style.display = 'block';
-        document.getElementById('restyle-textarea').value = evt.restyled || '';
-        document.getElementById('restyle-cancel-row').style.display = 'none';
-        if (evt.transcriptPreview) {
-          document.getElementById('restyle-transcript-preview').textContent =
-            'Example transcript sample: "' + evt.transcriptPreview.slice(0, 180) + '..."';
-        }
-      } else {
-        const labels = {
-          download: '⬇ Downloading example video...',
-          audio: '🎵 Extracting audio...',
-          transcribe: '📝 Transcribing with Whisper...',
-          transcribed: '✓ Transcribed — rewriting script...',
-          restyle: '✍ Applying delivery style...'
-        };
-        prog.textContent = labels[evt.step] || evt.msg || evt.step;
-      }
-    }
-  }
-}
-
-function closeRestyleModal() {
-  document.getElementById('restyle-modal').classList.remove('open');
-  _restyleTargetIdx = null;
-}
-
-function applyRestyle() {
-  const idx = _restyleTargetIdx;
-  if (idx === null) return;
-  const newScript = document.getElementById('restyle-textarea').value.trim();
-  if (!newScript) return;
-
-  // Update the in-memory idea
-  const ideas = window._lastIdeationIdeas || [];
-  if (ideas[idx]) ideas[idx].script = newScript;
-
-  // Update the DOM — find the script element by id
-  const el = document.getElementById('ideate-script-' + idx);
-  if (el) el.textContent = newScript;
-
-  closeRestyleModal();
-  toast('Script updated', 'ok');
-}
-
-function showRestyleError(msg) {
-  document.getElementById('restyle-progress').textContent = '';
-  const err = document.getElementById('restyle-error');
-  err.textContent = '✗ ' + msg;
-  err.style.display = 'block';
-}
-
-// Close modal on backdrop click
-document.getElementById('restyle-modal').addEventListener('click', function(e) {
-  if (e.target === this) closeRestyleModal();
-});
-
 </script>
 <!-- Ask Library Modal -->
 <div class="mbg off" id="m-ask-library">
@@ -4479,28 +4345,5 @@ document.getElementById('restyle-modal').addEventListener('click', function(e) {
     </div>
   </div>
 </div>
-
-<!-- Restyle Script Modal -->
-<div id="restyle-modal">
-  <div id="restyle-modal-inner">
-    <h3>↺ Style from example</h3>
-    <div class="restyle-meta" id="restyle-meta">Fetching transcript from hook example...</div>
-    <div id="restyle-progress"></div>
-    <div id="restyle-result">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Restyled script — edit before saving:</div>
-      <textarea id="restyle-textarea" spellcheck="true"></textarea>
-      <div id="restyle-transcript-preview"></div>
-      <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
-        <button class="btn btn-ghost btn-sm" onclick="closeRestyleModal()">Cancel</button>
-        <button class="btn btn-primary btn-sm" onclick="applyRestyle()">Apply to script</button>
-      </div>
-    </div>
-    <div id="restyle-error" style="display:none;color:#c0392b;font-size:12px;margin-top:8px"></div>
-    <div id="restyle-cancel-row" style="margin-top:12px;text-align:right">
-      <button class="btn btn-ghost btn-sm" onclick="closeRestyleModal()">Close</button>
-    </div>
-  </div>
-</div>
-
 </body>
 </html>
