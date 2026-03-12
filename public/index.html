@@ -4269,7 +4269,7 @@ function renderIdeationCards(ideas, mode) {
         <button class="btn btn-ghost btn-xs" onclick="saveIdeationIdea(${idx})" title="Save to Calendar">Save →</button>
       </div>
       <div class="ideate-card-body">
-        ${idea.hook ? `<div class="ideate-section"><div class="ideate-label">Hook — from your library</div><div class="ideate-val" style="font-weight:600;font-size:14px">${idea.hook}</div>${idea.hookTemplate ? `<div style="font-size:10px;color:var(--muted);margin-top:3px;font-style:italic">Template: ${idea.hookTemplate}</div>` : ''}</div>` : ''}
+        ${idea.hook ? `<div class="ideate-section"><div class="ideate-label">Hook — from your library</div><div class="ideate-val" style="font-weight:600;font-size:14px">${idea.hook}</div>${idea.hookTemplate ? `<div style="font-size:10px;color:var(--muted);margin-top:3px;font-style:italic">Template: ${idea.hookTemplate}</div>` : ''}${idea.exampleUrl ? `<a href="${idea.exampleUrl}" target="_blank" rel="noopener" style="display:inline-block;margin-top:5px;font-size:11px;color:var(--accent);text-decoration:none;opacity:.8" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=.8">&#8599; See example</a>` : ''}</div>` : ''}
         ${renderScriptSection(idea, idx)}
         ${idea.filmIt ? `<div class="ideate-section"><div class="ideate-label">Film It</div><div class="ideate-val film">${idea.filmIt}</div></div>` : ''}
         ${idea.caption ? `<div class="ideate-section"><div class="ideate-label">Caption</div><div class="ideate-val">${idea.caption}</div></div>` : ''}
