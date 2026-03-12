@@ -4273,7 +4273,7 @@ function renderIdeationCards(ideas, mode) {
       </div>
       <div class="ideate-card-body">
         ${idea.hook ? `<div class="ideate-section"><div class="ideate-label">Hook — from your library</div><div class="ideate-val" style="font-weight:600;font-size:14px">${idea.hook}</div>${idea.hookTemplate ? `<div style="font-size:10px;color:var(--muted);margin-top:3px;font-style:italic">Template: ${idea.hookTemplate}</div>` : ''}</div>` : ''}
-        ${idea.script ? `<div class="ideate-section"><div class="ideate-label">Script</div><div class="ideate-val script" id="ideate-script-${idx}">${idea.script}</div>${idea.exampleUrl ? '<button class="restyle-btn" onclick="restyleScript(' + idx + ')" title="Rewrite using example delivery style">&#8635; Style from example</button>' : ''}</div>` : ''}
+        ${renderScriptSection(idea, idx)}
         ${idea.filmIt ? `<div class="ideate-section"><div class="ideate-label">Film It</div><div class="ideate-val film">${idea.filmIt}</div></div>` : ''}
         ${idea.caption ? `<div class="ideate-section"><div class="ideate-label">Caption</div><div class="ideate-val">${idea.caption}</div></div>` : ''}
         ${idea.overlay ? `<div class="ideate-section"><div class="ideate-label">On-Screen Text</div><div class="ideate-val" style="color:var(--muted)">${idea.overlay}</div></div>` : ''}
@@ -4338,16 +4338,24 @@ async function saveAllIdeationIdeas() {
 
 
 
-// Restyle Script
-let _restyleIdx = null;
+function renderScriptSection(idea, idx) {
+  if (!idea.script) return '';
+  var btn = idea.exampleUrl
+    ? '<button class="restyle-btn" onclick="restyleScript(' + idx + ')" title="Rewrite using delivery style of hook example">&#8635; Style from example</button>'
+    : '';
+  var scriptEl = '<div class="ideate-val script" id="ideate-script-' + idx + '">' + idea.script + '</div>';
+  return '<div class="ideate-section"><div class="ideate-label">Script</div>' + scriptEl + btn + '</div>';
+}
+
+var _restyleIdx = null;
 function openRestyleModal()  { document.getElementById('restyle-modal').style.display = 'flex'; }
 function closeRestyleModal() { document.getElementById('restyle-modal').style.display = 'none'; _restyleIdx = null; }
 
 async function restyleScript(idx) {
-  const idea = (window._lastIdeationIdeas || [])[idx];
-  if (!idea || !idea.exampleUrl) { if(window.toast) toast('No example URL for this hook','warn'); return; }
+  var idea = (window._lastIdeationIdeas || [])[idx];
+  if (!idea || !idea.exampleUrl) { if (window.toast) toast('No example URL for this hook', 'warn'); return; }
   _restyleIdx = idx;
-  document.getElementById('restyle-meta').textContent = (idea.hookId||'') + ' — ' + (idea.exampleUrl||'').slice(0,70);
+  document.getElementById('restyle-meta').textContent = (idea.hookId || '') + ' — ' + (idea.exampleUrl || '').slice(0, 70);
   document.getElementById('restyle-progress').textContent = 'Starting...';
   document.getElementById('restyle-result').style.display = 'none';
   document.getElementById('restyle-error').style.display = 'none';
@@ -4356,58 +4364,65 @@ async function restyleScript(idx) {
   document.getElementById('restyle-transcript-preview').textContent = '';
   openRestyleModal();
 
-  const token = localStorage.getItem('phixo_token') || '';
-  let reader;
+  var token = localStorage.getItem('phixo_token') || '';
+  var reader;
   try {
-    const res = await fetch('/api/ideate/restyle-script', {
+    var res = await fetch('/api/ideate/restyle-script', {
       method: 'POST',
-      headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
-      body: JSON.stringify({exampleUrl:idea.exampleUrl,hook:idea.hook||'',script:idea.script||'',pillar:idea.pillar||'',funnelStage:idea.funnelStage||'',lane:idea.lane||''})
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({ exampleUrl: idea.exampleUrl, hook: idea.hook || '', script: idea.script || '', pillar: idea.pillar || '', funnelStage: idea.funnelStage || '', lane: idea.lane || '' })
     });
     reader = res.body.getReader();
-  } catch(e) { showRestyleError('Network error: '+e.message); return; }
+  } catch (e) { showRestyleError('Network error: ' + e.message); return; }
 
-  const dec = new TextDecoder(); let buf = '';
-  while(true) {
-    const {done,value} = await reader.read();
-    if(done) break;
-    buf += dec.decode(value,{stream:true});
-    const lines = buf.split('\n'); buf = lines.pop();
-    for(const line of lines) {
-      if(!line.startsWith('data: ')) continue;
-      let evt; try { evt=JSON.parse(line.slice(6)); } catch { continue; }
-      const prog = document.getElementById('restyle-progress');
-      if(evt.step==='error') { showRestyleError(evt.msg); return; }
-      if(evt.step==='done') {
-        prog.textContent = '\u2713 Done';
+  var dec = new TextDecoder(); var buf = '';
+  while (true) {
+    var chunk = await reader.read();
+    if (chunk.done) break;
+    buf += dec.decode(chunk.value, { stream: true });
+    var lines = buf.split('\n'); buf = lines.pop();
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (!line.startsWith('data: ')) continue;
+      var evt; try { evt = JSON.parse(line.slice(6)); } catch (e) { continue; }
+      var prog = document.getElementById('restyle-progress');
+      if (evt.step === 'error') { showRestyleError(evt.msg); return; }
+      if (evt.step === 'done') {
+        prog.textContent = '✓ Done';
         document.getElementById('restyle-result').style.display = 'block';
-        document.getElementById('restyle-textarea').value = evt.restyled||'';
+        document.getElementById('restyle-textarea').value = evt.restyled || '';
         document.getElementById('restyle-close-row').style.display = 'none';
-        if(evt.transcriptPreview) document.getElementById('restyle-transcript-preview').textContent = 'From transcript: "'+evt.transcriptPreview.slice(0,180)+'..."';
+        if (evt.transcriptPreview) {
+          document.getElementById('restyle-transcript-preview').textContent = 'From transcript: "' + evt.transcriptPreview.slice(0, 180) + '..."';
+        }
       } else {
-        const labels={download:'\u2b07 Downloading...', audio:'\u266a Extracting audio...', transcribe:'\ud83d\udcdd Transcribing...', transcribed:'\u2713 Transcribed — rewriting...', restyle:'\u270d Applying style...'};
-        prog.textContent = labels[evt.step]||evt.msg;
+        var labels = { download: '⬇ Downloading...', audio: 'Extracting audio...', transcribe: 'Transcribing...', transcribed: '✓ Transcribed — rewriting...', restyle: 'Applying style...' };
+        prog.textContent = labels[evt.step] || evt.msg || evt.step;
       }
     }
   }
 }
 
 function applyRestyle() {
-  const idx = _restyleIdx; if(idx===null) return;
-  const s = document.getElementById('restyle-textarea').value.trim(); if(!s) return;
-  const ideas = window._lastIdeationIdeas||[]; if(ideas[idx]) ideas[idx].script = s;
-  const el = document.getElementById('ideate-script-'+idx); if(el) el.textContent = s;
-  closeRestyleModal(); if(window.toast) toast('Script updated','ok');
+  var idx = _restyleIdx; if (idx === null) return;
+  var s = document.getElementById('restyle-textarea').value.trim(); if (!s) return;
+  var ideas = window._lastIdeationIdeas || [];
+  if (ideas[idx]) ideas[idx].script = s;
+  var el = document.getElementById('ideate-script-' + idx); if (el) el.textContent = s;
+  closeRestyleModal();
+  if (window.toast) toast('Script updated', 'ok');
 }
 
 function showRestyleError(msg) {
   document.getElementById('restyle-progress').textContent = '';
-  const e = document.getElementById('restyle-error'); e.textContent = '\u2717 '+msg; e.style.display='block';
+  var e = document.getElementById('restyle-error');
+  e.textContent = '✗ ' + msg;
+  e.style.display = 'block';
 }
 
 document.addEventListener('click', function(e) {
-  const m = document.getElementById('restyle-modal');
-  if(m && e.target===m) closeRestyleModal();
+  var m = document.getElementById('restyle-modal');
+  if (m && e.target === m) closeRestyleModal();
 });
 
 </script>
@@ -4429,11 +4444,11 @@ document.addEventListener('click', function(e) {
 
 <div id="restyle-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;align-items:center;justify-content:center">
   <div id="restyle-modal-inner">
-    <h3>&#8635; Style from example</h3>
+    <h3>Style from example</h3>
     <div class="restyle-meta" id="restyle-meta"></div>
     <div id="restyle-progress"></div>
     <div id="restyle-result" style="display:none;margin-top:12px">
-      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Restyled script — edit before applying:</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Restyled script:</div>
       <textarea id="restyle-textarea" spellcheck="true"></textarea>
       <div id="restyle-transcript-preview"></div>
       <div style="display:flex;gap:8px;margin-top:12px;justify-content:flex-end">
