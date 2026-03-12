@@ -2757,28 +2757,38 @@ app.post('/api/ideate/restyle-script', requireAuth, async (req, res) => {
     send('transcribed', 'Transcribed — rewriting script...');
 
     send('restyle', 'Applying delivery style...');
-    const restylePrompt = `You are rewriting a TikTok/Reel script for Ian Green (Phixo), portrait photographer, West Island Montreal.
+    const restylePrompt = `You are doing a style transplant on a TikTok/Reel script for Ian Green (Phixo), portrait photographer, West Island Montreal.
 
-HOOK (locked — this comes first, do not change it):
+This is NOT a rewrite of the transcript. The transcript is a real human talking. You are extracting human delivery signals from it and applying them to Ian's existing script. Ian's content, subject, and points all stay. Only how it sounds changes.
+
+HOOK (locked — comes first, do not touch it):
 "${hook}"
 
-CURRENT SCRIPT:
+IAN'S CURRENT SCRIPT — this is your content source. Keep the same points and subject matter:
 ${script}
 
-EXAMPLE VIDEO TRANSCRIPT — study the delivery style only. How it opens, sentence rhythm, pacing, how transitions feel. Do NOT copy sentences:
+REAL HUMAN TRANSCRIPT — extract delivery signals only. Do NOT use this person's topic, examples, or structure:
 ${transcript}
 
-PHIXO VOICE RULES:
-- Warm and direct, like a knowledgeable friend, not a brand
-- Sentences move forward — never recap the previous one
-- Point arrives without being announced
-- End at the last real thing — no wrap-up, no lesson stated out loud
+WHAT TO EXTRACT FROM THE TRANSCRIPT:
+- Sentence length: short and clipped, or longer and flowing?
+- Pacing: does it move fast or does it breathe between ideas?
+- Does it use numbered steps, or does it just talk through things continuously?
+- Energy: casual and off-the-cuff, or measured and direct?
+- Where does emphasis land — start of sentences, end, or mid-thought?
+- Transitions: hard cuts to next point, connective words, or just the next sentence?
+
+Apply those signals to Ian's script. Same content. Different human feel.
+
+PHIXO VOICE (always applies):
+- Warm and direct — knowledgeable friend, not a brand
+- Sentences move forward, never recap the previous one
+- Point lands without being announced
+- Ends at the last real thing — no wrap-up sentence, no lesson stated out loud
 - Specific over vague. Never: stunning, perfect, gorgeous, transformative
 - No emojis
 
-TASK: Rewrite the script. Keep the same subject matter and key points. Match the DELIVERY STYLE of the transcript. Do NOT copy its sentences. The hook is locked and comes first — write what follows. 4-8 sentences.
-
-Return ONLY the rewritten script. No preamble, no quotes, no explanation.`;
+Write only what comes after the hook. 4-8 sentences. Return ONLY the script. No preamble, no explanation.`;
 
     const msg = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
@@ -3070,28 +3080,38 @@ app.post('/api/ideate/restyle-script', requireAuth, async (req, res) => {
     send('transcribed', 'Transcribed — rewriting script...');
 
     send('restyle', 'Applying delivery style...');
-    const restylePrompt = `You are rewriting a TikTok/Reel script for Ian Green (Phixo), portrait photographer, West Island Montreal.
+    const restylePrompt = `You are doing a style transplant on a TikTok/Reel script for Ian Green (Phixo), portrait photographer, West Island Montreal.
 
-HOOK (locked — this comes first, do not change it):
+This is NOT a rewrite of the transcript. The transcript is a real human talking. You are extracting human delivery signals from it and applying them to Ian's existing script. Ian's content, subject, and points all stay. Only how it sounds changes.
+
+HOOK (locked — comes first, do not touch it):
 "${hook}"
 
-CURRENT SCRIPT:
+IAN'S CURRENT SCRIPT — this is your content source. Keep the same points and subject matter:
 ${script}
 
-EXAMPLE VIDEO TRANSCRIPT — study the delivery style only. How it opens, sentence rhythm, pacing, how transitions feel. Do NOT copy sentences:
+REAL HUMAN TRANSCRIPT — extract delivery signals only. Do NOT use this person's topic, examples, or structure:
 ${transcript}
 
-PHIXO VOICE RULES:
-- Warm and direct, like a knowledgeable friend, not a brand
-- Sentences move forward — never recap the previous one
-- Point arrives without being announced
-- End at the last real thing — no wrap-up, no lesson stated out loud
+WHAT TO EXTRACT FROM THE TRANSCRIPT:
+- Sentence length: short and clipped, or longer and flowing?
+- Pacing: does it move fast or does it breathe between ideas?
+- Does it use numbered steps, or does it just talk through things continuously?
+- Energy: casual and off-the-cuff, or measured and direct?
+- Where does emphasis land — start of sentences, end, or mid-thought?
+- Transitions: hard cuts to next point, connective words, or just the next sentence?
+
+Apply those signals to Ian's script. Same content. Different human feel.
+
+PHIXO VOICE (always applies):
+- Warm and direct — knowledgeable friend, not a brand
+- Sentences move forward, never recap the previous one
+- Point lands without being announced
+- Ends at the last real thing — no wrap-up sentence, no lesson stated out loud
 - Specific over vague. Never: stunning, perfect, gorgeous, transformative
 - No emojis
 
-TASK: Rewrite the script. Keep the same subject matter and key points. Match the DELIVERY STYLE of the transcript. Do NOT copy its sentences. The hook is locked and comes first — write what follows. 4-8 sentences.
-
-Return ONLY the rewritten script. No preamble, no quotes, no explanation.`;
+Write only what comes after the hook. 4-8 sentences. Return ONLY the script. No preamble, no explanation.`;
 
     const msg = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
