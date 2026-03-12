@@ -2719,7 +2719,12 @@ app.post('/api/ideate/restyle-script', requireAuth, async (req, res) => {
     send('download', 'Downloading example video...');
     if (!global.YTDLP_PATH) throw new Error('yt-dlp not ready — wait 30s and retry');
     const ytdlp = '"' + global.YTDLP_PATH + '"';
-    const cookiesArg = process.env.INSTAGRAM_COOKIES_B64 ? '--cookies /tmp/ig_cookies.txt' : '';
+    let cookiesArg = '';
+    if (exampleUrl.includes('instagram.com') && process.env.INSTAGRAM_COOKIES) {
+      const cookiePath2 = path2.join(tmpDir, 'ig_cookies.txt');
+      fs2.writeFileSync(cookiePath2, process.env.INSTAGRAM_COOKIES);
+      cookiesArg = '--cookies "' + cookiePath2 + '"';
+    }
     let downloaded = false;
     for (const fmt of ['bestaudio[ext=m4a]','bestaudio[ext=mp3]','bestaudio','worstvideo']) {
       try {
@@ -3027,7 +3032,12 @@ app.post('/api/ideate/restyle-script', requireAuth, async (req, res) => {
     send('download', 'Downloading example video...');
     if (!global.YTDLP_PATH) throw new Error('yt-dlp not ready — wait 30s and retry');
     const ytdlp = '"' + global.YTDLP_PATH + '"';
-    const cookiesArg = process.env.INSTAGRAM_COOKIES_B64 ? '--cookies /tmp/ig_cookies.txt' : '';
+    let cookiesArg = '';
+    if (exampleUrl.includes('instagram.com') && process.env.INSTAGRAM_COOKIES) {
+      const cookiePath2 = path2.join(tmpDir, 'ig_cookies.txt');
+      fs2.writeFileSync(cookiePath2, process.env.INSTAGRAM_COOKIES);
+      cookiesArg = '--cookies "' + cookiePath2 + '"';
+    }
     let downloaded = false;
     for (const fmt of ['bestaudio[ext=m4a]','bestaudio[ext=mp3]','bestaudio','worstvideo']) {
       try {
