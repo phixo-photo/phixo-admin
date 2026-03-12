@@ -2745,11 +2745,20 @@ const params = new URLSearchParams(location.search);
 const idx = params.get('idx');
 const token = params.get('token') || localStorage.getItem('phixo_token') || '';
 let idea = null;
+let idxFromStorage = idx;
 
-try {
-  const raw = sessionStorage.getItem('phixo_restyle_idea');
-  if (raw) idea = JSON.parse(raw);
-} catch(e) {}
+const key = params.get('key');
+if (key) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      idea = parsed.idea || parsed;
+      idxFromStorage = parsed.idx != null ? parsed.idx : idx;
+    }
+    localStorage.removeItem(key); // clean up immediately
+  } catch(e) {}
+}
 
 if (!idea) {
   document.getElementById('progress').textContent = '';
@@ -2802,7 +2811,7 @@ function applyAndClose() {
   const s = document.getElementById('restyled').value.trim();
   if(!s) return;
   if(window.opener && !window.opener.closed) {
-    try { window.opener.applyRestyleResult(idx, s); } catch(e) {}
+    try { window.opener.applyRestyleResult(idxFromStorage, s); } catch(e) {}
   }
   window.close();
 }
