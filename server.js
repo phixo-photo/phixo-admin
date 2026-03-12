@@ -208,9 +208,7 @@ const VIRAL_HOOKS_DATA = [{"id": "EDU_0001", "category": "EDUCATIONAL", "templat
 let VIRAL_HOOKS = VIRAL_HOOKS_DATA;
 const USED_HOOK_IDS = new Set();
 const MAX_USED_HISTORY = 100;
-function loadViralHooks() {
-  console.log(`✓ Viral hooks ready: ${VIRAL_HOOKS.length} hooks embedded`);
-}
+function loadViralHooks() { console.log(`✓ Viral hooks: ${VIRAL_HOOKS.length} embedded`); }
 
 function getRelevantHooks(funnelStage, count = 25) {
   if (VIRAL_HOOKS.length === 0) return [];
@@ -252,64 +250,35 @@ function getRelevantHooks(funnelStage, count = 25) {
 async function selectAndFillHooksViaHaiku(count, context) {
   if (VIRAL_HOOKS.length === 0) return [];
   const categories = ['EDUCATIONAL','STORYTELLING','MYTH BUSTING','AUTHORITY','COMPARISON','DAY IN THE LIFE','RANDOM'];
-  const PER_CAT = 20;
   const usedIds = new Set(USED_HOOK_IDS);
   let slice = [];
   for (const cat of categories) {
-    const pool = VIRAL_HOOKS.filter(h => h.category === cat && !usedIds.has(h.id)).sort(() => Math.random() - 0.5).slice(0, PER_CAT);
+    const pool = VIRAL_HOOKS.filter(h => h.category === cat && !usedIds.has(h.id)).sort(() => Math.random() - 0.5).slice(0, 20);
     slice.push(...pool);
   }
   slice = slice.sort(() => Math.random() - 0.5);
   const csvText = slice.map(h => `${h.id}|${h.category}|${h.template}`).join('\n');
-  const selectionPrompt = `You are selecting hooks for Ian Green, portrait photographer, West Island Montreal.
-
+  const prompt = `You are selecting hooks for Ian Green, portrait photographer Montreal.
 ABOUT IAN: ${context}
-
-TASK:
-1. Read all hooks below.
-2. Select exactly ${count} hooks that best fit Ian's content.
-3. Each selected hook MUST be from a DIFFERENT category. No two can share a category.
-4. For each hook, fill in all placeholder text (anything in parentheses) with portrait photography context.
-
-RULES:
-- Return ONLY a JSON array. No explanation, no markdown.
-- Every "id" MUST exist exactly in the database below.
-- Do not invent, modify, or combine IDs.
-- "filledHook" = template with ALL placeholders replaced. Keep sentence structure.
-- DIFFERENT CATEGORIES REQUIRED.
-
-RETURN FORMAT:
-[{"id": "EDU_0047", "filledHook": "If you just booked your first headshot session and don't want to look stiff, here are 3 things to do immediately."}]
-
+TASK: Select exactly ${count} hooks, each from a DIFFERENT category. Fill all placeholders with portrait photography context.
+RULES: Return ONLY a JSON array. IDs must exist exactly in database. No invented IDs.
+FORMAT: [{"id":"EDU_0047","filledHook":"If you just booked your first headshot session and don't want to look stiff, here are 3 things to do immediately."}]
 HOOK DATABASE (ID|Category|Template):
 ${csvText}`;
   let msg;
   try {
-    msg = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1500,
-      temperature: 1.0,
-      messages: [{ role: 'user', content: selectionPrompt }]
-    });
-  } catch (e) { console.error('Haiku hook error:', e.message); return []; }
+    msg = await anthropic.messages.create({ model:'claude-haiku-4-5-20251001', max_tokens:1500, temperature:1.0, messages:[{role:'user',content:prompt}] });
+  } catch(e) { console.error('Haiku error:',e.message); return []; }
   const text = msg.content[0].text.trim();
   let returned = [];
-  try {
-    const match = text.match(/\[.*\]/s);
-    if (match) returned = JSON.parse(match[0]);
-  } catch (e) { console.error('Haiku parse error:', e.message); return []; }
-  const hookMap = Object.fromEntries(VIRAL_HOOKS.map(h => [h.id, h]));
-  const validIdSet = new Set(VIRAL_HOOKS.map(h => h.id));
-  const validated = returned
-    .filter(item => item && typeof item.id === 'string' && validIdSet.has(item.id.trim()))
-    .map(item => ({
-      id: item.id.trim(),
-      category: hookMap[item.id.trim()].category,
-      template: hookMap[item.id.trim()].template,
-      exampleUrl: hookMap[item.id.trim()].exampleUrl,
-      filledHook: item.filledHook || hookMap[item.id.trim()].template
-    }));
-  console.log(`Hook selection: slice=${slice.length}, returned ${returned.length}, validated ${validated.length}`);
+  try { const m = text.match(/\[.*\]/s); if(m) returned = JSON.parse(m[0]); } catch(e) { console.error('Haiku parse:',e.message); return []; }
+  const hookMap = Object.fromEntries(VIRAL_HOOKS.map(h=>[h.id,h]));
+  const validSet = new Set(VIRAL_HOOKS.map(h=>h.id));
+  const validated = returned.filter(item=>item&&typeof item.id==='string'&&validSet.has(item.id.trim())).map(item=>({
+    id:item.id.trim(), category:hookMap[item.id.trim()].category, template:hookMap[item.id.trim()].template,
+    exampleUrl:hookMap[item.id.trim()].exampleUrl, filledHook:item.filledHook||hookMap[item.id.trim()].template
+  }));
+  console.log(`Hooks: slice=${slice.length} returned=${returned.length} validated=${validated.length}`);
   return validated;
 }
 
@@ -663,14 +632,12 @@ For each idea return (JSON array, in order matching the IDEA numbers above):
 1. title — short, what the video is about
 2. script — what Ian says. 4-8 sentences. Moves forward, no wrap-up. Write like the RIGHT examples.
 3. overlay — text on screen, empty string if none
-4. caption — in Ian's voice, no emojis
-5. filmIt — numbered steps: where to sit, what to do, how long
-6. cta — call to action if any
-7. platform — TikTok, Instagram, etc.
-8. length — estimated seconds
-9. sourceInspiration — which video block inspired this
-
-Do NOT include a hook field — Node attaches it automatically.
+5. caption — in Ian's voice, no emojis
+6. filmIt — numbered steps: where to sit, what to do, how long
+7. cta — call to action if any
+8. platform — TikTok, Instagram, etc.
+9. length — estimated seconds
+10. sourceInspiration — which video block inspired this
 
 Format as JSON array only. No preamble, no markdown fences.`;
 
@@ -778,12 +745,10 @@ For each idea return (in order matching IDEA numbers above):
 4. lane
 5. script — what Ian actually says. 4-8 sentences. Write like the RIGHT examples. Moves forward, no wrap-up.
 6. overlay — optional on-screen text, empty string if none
-7. caption — in Ian's voice, no emojis
-8. filmIt — numbered steps: where to sit, what to do, how long
-9. cta — none for ToFu, soft trail for MoFu, direct for BoFu
-10. length — estimated seconds
-
-Do NOT include a hook field — Node attaches it automatically.
+8. caption — in Ian's voice, no emojis
+9. filmIt — numbered steps: where to sit, what to do, how long
+10. cta — none for ToFu, soft trail for MoFu, direct for BoFu
+11. length — estimated seconds
 
 Return as a JSON array only. No preamble, no markdown fences.`;
 
@@ -810,13 +775,11 @@ For each variation return (in order matching IDEA numbers above):
 4. lane
 5. script — write like the RIGHT examples in the system prompt
 6. overlay
-7. caption
-8. filmIt
-9. cta
-10. length
-11. variationNote — one sentence: what is different about this angle
-
-Do NOT include a hook field — Node attaches it automatically.
+8. caption
+9. filmIt
+10. cta
+11. length
+12. variationNote — one sentence: what is different about this angle
 
 Return as a JSON array only. No preamble, no markdown fences.`;
 
@@ -859,13 +822,11 @@ For each idea return (in order matching IDEA numbers above):
 4. lane
 5. script — write like the RIGHT examples in the system prompt
 6. overlay
-7. caption
-8. filmIt
-9. cta
-10. length
-11. sourceAdaptation — one sentence: what format or concept came from the block
-
-Do NOT include a hook field — Node attaches it automatically.
+8. caption
+9. filmIt
+10. cta
+11. length
+12. sourceAdaptation — one sentence: what format or concept came from the block
 
 Return as a JSON array only. No preamble, no markdown fences.`;
 
@@ -2734,10 +2695,130 @@ ${context}`,
   }
 });
 
-// ── Restyle Script from Hook Example ─────────────────────────────────────────
-// Fetches + transcribes the hook's example URL, then rewrites the script in
-// that delivery style while keeping Phixo voice, the locked hook, and Ian's content.
-// SSE stream: download → transcribe → restyle → done
+
+// ── Restyle popup page ────────────────────────────────────────────────────────
+app.get('/restyle', requireAuth, (req, res) => {
+  res.send(`<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Style from Example — Phixo</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8f8f6;color:#1a1a1a;padding:20px;font-size:14px}
+  h2{font-size:16px;margin-bottom:4px}
+  .meta{font-size:11px;color:#888;margin-bottom:16px;word-break:break-all}
+  .progress{font-size:12px;color:#4a7fd4;min-height:20px;margin:12px 0}
+  .section-label{font-size:11px;color:#888;margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+  .original{background:#fff;border:1px solid #e0e0e0;border-radius:6px;padding:10px 12px;font-size:13px;line-height:1.6;color:#555;margin-bottom:16px}
+  textarea{width:100%;min-height:160px;padding:10px 12px;border:1px solid #d0d0d0;border-radius:6px;font-size:13px;line-height:1.6;resize:vertical;background:#fff;color:#1a1a1a;font-family:inherit}
+  textarea:focus{outline:none;border-color:#4a7fd4}
+  .btn-row{display:flex;gap:8px;margin-top:12px;justify-content:flex-end}
+  button{padding:7px 16px;border-radius:5px;font-size:13px;cursor:pointer;border:1px solid #ccc;background:#fff;color:#333}
+  button.primary{background:#4a7fd4;border-color:#4a7fd4;color:#fff}
+  button.primary:hover{background:#3a6fc4}
+  button:disabled{opacity:.5;cursor:wait}
+  .transcript-preview{font-size:10px;color:#aaa;margin-top:8px;font-style:italic;line-height:1.5}
+  .error{color:#c0392b;font-size:12px;margin-top:8px;padding:8px;background:#fdf0f0;border-radius:4px}
+  #result-section{display:none}
+</style>
+</head>
+<body>
+<h2>↺ Style from Example</h2>
+<div class="meta" id="meta">Loading...</div>
+<div class="progress" id="progress">Initializing...</div>
+<div id="result-section">
+  <div class="section-label">Original script</div>
+  <div class="original" id="original-script"></div>
+  <div class="section-label">Restyled script — edit before applying</div>
+  <textarea id="restyled" spellcheck="true"></textarea>
+  <div class="transcript-preview" id="transcript-preview"></div>
+  <div class="btn-row">
+    <button onclick="window.close()">Cancel</button>
+    <button class="primary" onclick="applyAndClose()">Apply to script</button>
+  </div>
+</div>
+<div class="error" id="error" style="display:none"></div>
+<script>
+const params = new URLSearchParams(location.search);
+const idx = params.get('idx');
+const token = params.get('token') || localStorage.getItem('phixo_token') || '';
+let idea = null;
+
+try {
+  const raw = sessionStorage.getItem('phixo_restyle_idea');
+  if (raw) idea = JSON.parse(raw);
+} catch(e) {}
+
+if (!idea) {
+  document.getElementById('progress').textContent = '';
+  document.getElementById('error').style.display = 'block';
+  document.getElementById('error').textContent = 'No idea data found. Close this window and try again.';
+} else {
+  document.getElementById('meta').textContent = (idea.hookId||'') + ' — ' + (idea.exampleUrl||'').slice(0,80);
+  document.getElementById('original-script').textContent = idea.script || '';
+  startRestyle();
+}
+
+async function startRestyle() {
+  const prog = document.getElementById('progress');
+  let reader;
+  try {
+    const res = await fetch('/api/ideate/restyle-script', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json','Authorization':'Bearer '+token},
+      body: JSON.stringify({exampleUrl:idea.exampleUrl,hook:idea.hook||'',script:idea.script||'',pillar:idea.pillar||'',funnelStage:idea.funnelStage||'',lane:idea.lane||''})
+    });
+    if (!res.ok) throw new Error('Server error ' + res.status);
+    reader = res.body.getReader();
+  } catch(e) { showError('Could not reach server: ' + e.message); return; }
+
+  const dec = new TextDecoder(); let buf = '';
+  const labels = {download:'⬇ Downloading example video...',audio:'Extracting audio...',transcribe:'📝 Transcribing with Whisper...',transcribed:'✓ Transcribed — rewriting script...',restyle:'✍ Applying delivery style...'};
+
+  while(true) {
+    const {done, value} = await reader.read();
+    if(done) break;
+    buf += dec.decode(value, {stream:true});
+    const lines = buf.split('\n'); buf = lines.pop();
+    for(const line of lines) {
+      if(!line.startsWith('data: ')) continue;
+      let evt; try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+      if(evt.step === 'error') { showError(evt.msg); return; }
+      if(evt.step === 'done') {
+        prog.textContent = '✓ Done';
+        document.getElementById('result-section').style.display = 'block';
+        document.getElementById('restyled').value = evt.restyled || '';
+        if(evt.transcriptPreview) document.getElementById('transcript-preview').textContent = 'From transcript: "' + evt.transcriptPreview.slice(0,200) + '..."';
+      } else {
+        prog.textContent = labels[evt.step] || evt.msg || evt.step;
+      }
+    }
+  }
+}
+
+function applyAndClose() {
+  const s = document.getElementById('restyled').value.trim();
+  if(!s) return;
+  if(window.opener && !window.opener.closed) {
+    try { window.opener.applyRestyleResult(idx, s); } catch(e) {}
+  }
+  window.close();
+}
+
+function showError(msg) {
+  document.getElementById('progress').textContent = '';
+  const e = document.getElementById('error');
+  e.textContent = '✗ ' + msg;
+  e.style.display = 'block';
+}
+</script>
+</body>
+</html>`);
+});
+
+// ── Restyle Script API ────────────────────────────────────────────────────────
 app.post('/api/ideate/restyle-script', requireAuth, async (req, res) => {
   const { exampleUrl, hook, script, pillar, funnelStage, lane } = req.body;
   if (!exampleUrl) return res.status(400).json({ error: 'exampleUrl required' });
@@ -2745,135 +2826,92 @@ app.post('/api/ideate/restyle-script', requireAuth, async (req, res) => {
 
   const fs2  = require('fs');
   const path2 = require('path');
-  const os   = require('os');
+  const os2  = require('os');
   const { promisify } = require('util');
   const { exec } = require('child_process');
   const execAsync = promisify(exec);
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
-  const send = (step, msg, data = null) =>
-    res.write(`data: ${JSON.stringify({ step, msg, ...(data || {}) })}
+  const send = (step, msg, data) => res.write('data: ' + JSON.stringify({step, msg, ...(data||{})}) + '\n\n');
 
-`);
-
-  const tmpDir = fs2.mkdtempSync(path2.join(os.tmpdir(), 'phixo-restyle-'));
+  const tmpDir   = fs2.mkdtempSync(path2.join(os2.tmpdir(), 'phixo-rs-'));
   const videoPath = path2.join(tmpDir, 'video.mp4');
   const audioPath = path2.join(tmpDir, 'audio.mp3');
 
   try {
-    // ── Step 1: Download audio ────────────────────────────────────────────────
-    send('download', 'Fetching example video...');
-    if (!global.YTDLP_PATH) throw new Error('yt-dlp not ready — wait 30 seconds and try again');
-    const ytdlp = `"${global.YTDLP_PATH}"`;
-
-    // Try audio-only first (faster), fall back to video
-    const cookiesArg = process.env.INSTAGRAM_COOKIES_B64
-      ? `--cookies /tmp/ig_cookies.txt` : '';
-
-    const audioFormats = ['bestaudio[ext=m4a]', 'bestaudio[ext=mp3]', 'bestaudio', 'worstvideo'];
+    send('download', 'Downloading example video...');
+    if (!global.YTDLP_PATH) throw new Error('yt-dlp not ready — wait 30s and try again');
+    const ytdlp = '"' + global.YTDLP_PATH + '"';
+    const cookiesArg = process.env.INSTAGRAM_COOKIES_B64 ? '--cookies /tmp/ig_cookies.txt' : '';
     let downloaded = false;
-    for (const fmt of audioFormats) {
+    for (const fmt of ['bestaudio[ext=m4a]','bestaudio[ext=mp3]','bestaudio','worstvideo']) {
       try {
-        await execAsync(`${ytdlp} ${cookiesArg} -f "${fmt}" --no-playlist --no-check-certificate -o "${videoPath}" "${exampleUrl}"`, { timeout: 60000 });
+        await execAsync(ytdlp + ' ' + cookiesArg + ' -f "' + fmt + '" --no-playlist --no-check-certificate -o "' + videoPath + '" "' + exampleUrl + '"', {timeout:60000});
         if (fs2.existsSync(videoPath) && fs2.statSync(videoPath).size > 1000) { downloaded = true; break; }
-      } catch {}
+      } catch(e) {}
     }
-    if (!downloaded) throw new Error('Could not download this URL — Instagram may need cookie setup');
+    if (!downloaded) throw new Error('Could not download — Instagram may need cookie setup');
 
-    // ── Step 2: Extract audio ─────────────────────────────────────────────────
     send('audio', 'Extracting audio...');
-    try {
-      await execAsync(`ffmpeg -i "${videoPath}" -vn -acodec libmp3lame -q:a 4 -y "${audioPath}"`, { timeout: 30000 });
-    } catch {
-      // ffmpeg not available or failed — send video file directly to Whisper
-      fs2.copyFileSync(videoPath, audioPath);
-    }
-
+    try { await execAsync('ffmpeg -i "' + videoPath + '" -vn -acodec libmp3lame -q:a 4 -y "' + audioPath + '"', {timeout:30000}); } catch(e) {}
     const audioFile = fs2.existsSync(audioPath) ? audioPath : videoPath;
     const audioBuffer = fs2.readFileSync(audioFile);
 
-    // ── Step 3: Transcribe ────────────────────────────────────────────────────
     send('transcribe', 'Transcribing with Whisper...');
-    const { Blob } = require('buffer');
     const FormData = require('form-data');
-    const formData = new FormData();
-    const audioFileName = audioPath.endsWith('.mp3') ? 'audio.mp3' : 'audio.mp4';
-    formData.append('file', audioBuffer, { filename: audioFileName, contentType: audioFileName.endsWith('.mp3') ? 'audio/mpeg' : 'video/mp4' });
-    formData.append('model', 'whisper-1');
-    formData.append('response_format', 'text');
-
-    const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`, ...formData.getHeaders() },
-      body: formData
+    const fd = new FormData();
+    const fname = audioFile.endsWith('.mp3') ? 'audio.mp3' : 'audio.mp4';
+    fd.append('file', audioBuffer, {filename:fname, contentType: fname.endsWith('.mp3') ? 'audio/mpeg' : 'video/mp4'});
+    fd.append('model', 'whisper-1');
+    fd.append('response_format', 'text');
+    const wres = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+      method:'POST', headers:{'Authorization':'Bearer '+process.env.OPENAI_API_KEY, ...fd.getHeaders()}, body:fd
     });
-    if (!whisperRes.ok) throw new Error('Whisper error: ' + await whisperRes.text());
-    const transcript = (await whisperRes.text()).trim();
-    send('transcribed', `Got transcript (${transcript.split(' ').length} words)`);
+    if (!wres.ok) throw new Error('Whisper error: ' + await wres.text());
+    const transcript = (await wres.text()).trim();
+    send('transcribed', 'Transcribed — rewriting script...');
 
-    // ── Step 4: Restyle with Sonnet ───────────────────────────────────────────
-    send('restyle', 'Rewriting script in example delivery style...');
-
+    send('restyle', 'Applying delivery style...');
     const restylePrompt = `You are rewriting a TikTok/Reel script for Ian Green (Phixo) — portrait photographer, West Island Montreal.
 
-HOOK (locked — do not change):
+HOOK (locked — comes first, do not change):
 "${hook}"
 
 CURRENT SCRIPT:
 ${script}
 
-EXAMPLE VIDEO TRANSCRIPT (study the delivery style — how it opens, sentence rhythm, how points land, pacing, natural transitions):
+EXAMPLE VIDEO TRANSCRIPT — study the delivery style only: how it opens, sentence rhythm, pacing, transitions:
 ${transcript}
 
 PHIXO VOICE RULES:
 - Warm and direct, like a knowledgeable friend talking, not a brand
 - Sentences move forward — never recap the previous one
-- Point arrives without being announced ("that's why" / "that's the thing" → cut it)
-- Personal admissions: one clause, move on — not a moment
+- Point arrives without being announced
+- Personal admissions: one clause, then move on
 - End at the last real thing — no wrap-up, no lesson stated out loud
-- Specific beats vague: "crunchy, over-processed look" beats "artificial"
-- Never: stunning, perfect, gorgeous, transformative, AI hype language
-- "I" = Ian personally. "We" = Ian + client together in session
+- Specific over vague. Never: stunning, perfect, gorgeous, transformative
 - No emojis
 
-TASK:
-Rewrite the script. 
-- Keep the same subject matter and key points
-- Adopt the delivery STYLE of the example transcript: its rhythm, how it opens mid-thought or with a statement, how transitions feel natural not structured
-- Do not copy any sentences from the transcript — absorb the style, apply it to Ian's content
-- The hook is locked and comes first — write what follows it
-- 4-8 sentences, same approximate length as the current script
+TASK: Rewrite the script. Keep the same subject matter and key points. Adopt the DELIVERY STYLE of the transcript — its rhythm, how it opens, how transitions feel natural. Do NOT copy sentences from the transcript. The hook is locked and comes first — write what follows it. 4-8 sentences.
 
-Return ONLY the rewritten script text. No preamble, no quotes, no explanation.`;
+Return ONLY the rewritten script. No preamble, no quotes, no explanation.`;
 
-    const msg = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 600,
-      messages: [{ role: 'user', content: restylePrompt }]
-    });
-
+    const msg = await anthropic.messages.create({model:'claude-sonnet-4-6', max_tokens:600, messages:[{role:'user',content:restylePrompt}]});
     const restyled = msg.content[0].text.trim();
 
-    // ── Done ──────────────────────────────────────────────────────────────────
-    send('done', 'Script restyled', {
-      restyled,
-      transcriptWordCount: transcript.split(' ').length,
-      transcriptPreview: transcript.slice(0, 200)
-    });
-
+    send('done', 'Done', {restyled, transcriptPreview: transcript.slice(0, 250)});
     res.end();
 
-  } catch (err) {
+  } catch(err) {
     send('error', err.message);
     res.end();
   } finally {
-    // Clean up temp files
     try {
       const fs3 = require('fs');
-      [videoPath, audioPath].forEach(p => { try { fs3.unlinkSync(p); } catch {} });
-      fs3.rmdirSync(tmpDir, { recursive: true });
-    } catch {}
+      [videoPath, audioPath].forEach(p => { try { fs3.unlinkSync(p); } catch(e) {} });
+      try { require('fs').rmdirSync(tmpDir, {recursive:true}); } catch(e) {}
+    } catch(e) {}
   }
 });
 
