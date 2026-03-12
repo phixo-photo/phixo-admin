@@ -465,6 +465,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .restyle-btn{background:none;border:1px solid var(--border);border-radius:5px;padding:3px 10px;font-size:11px;color:var(--muted);cursor:pointer;margin-top:8px;transition:all .15s}
 .restyle-btn:hover{border-color:var(--accent);color:var(--accent)}
 .restyle-inline{margin-top:8px;padding:10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;font-size:12px}
+.restyle-analysis{font-size:11px;color:var(--muted);padding:8px 10px;background:var(--surface);border-left:3px solid var(--accent);border-radius:3px;margin-bottom:10px;line-height:1.5;font-style:italic}
 .restyle-inline textarea{width:100%;min-height:120px;margin-top:8px;padding:8px;border:1px solid var(--border);border-radius:5px;font-size:13px;line-height:1.6;resize:vertical;background:var(--surface);color:var(--text);font-family:inherit;box-sizing:border-box}
 .restyle-inline .ri-actions{display:flex;gap:8px;margin-top:8px;justify-content:flex-end}
 .ideate-card-foot{padding:10px 18px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center}
@@ -4413,7 +4414,12 @@ async function startRestyle(idx) {
 
       if (evt.step === 'done') {
         var restyled = evt.restyled || '';
-        box.innerHTML = '<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Restyled — edit then apply:</div>'
+        var analysis = evt.analysis || '';
+        var analysisHtml = analysis
+          ? '<div class="restyle-analysis"><strong>Why this hook works:</strong> ' + analysis + '</div>'
+          : '';
+        box.innerHTML = analysisHtml
+          + '<div style="font-size:11px;color:var(--muted);margin-bottom:6px">Script — edit then apply:</div>'
           + '<textarea id="restyle-ta-' + idx + '" spellcheck="true">' + restyled.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</textarea>'
           + '<div class="ri-actions">'
           + '<button class="restyle-btn" onclick="cancelRestyle(' + idx + ')">Cancel</button>'
