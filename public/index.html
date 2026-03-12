@@ -4335,10 +4335,9 @@ async function saveAllIdeationIdeas() {
 function renderScriptSection(idea, idx) {
   if (!idea.script) return '';
   var scriptDiv = '<div class="ideate-val script" id="ideate-script-' + idx + '">' + escHtml(idea.script) + '</div>';
-  var btn = '';
-  if (idea.exampleUrl) {
-    btn = '<button class="restyle-btn" onclick="openRestyle(' + idx + ')" title="Rewrite script using delivery style of hook example">\u21ba Style from example</button>';
-  }
+  var btn = idea.exampleUrl
+    ? '<button class="restyle-btn" onclick="openRestyle(' + idx + ')" title="Rewrite script using delivery style of hook example">\u21ba Style from example</button>'
+    : '';
   return '<div class="ideate-section"><div class="ideate-label">Script</div>' + scriptDiv + btn + '</div>';
 }
 
@@ -4351,14 +4350,14 @@ function openRestyle(idx) {
   var idea = ideas[idx];
   if (!idea) return;
   if (!idea.exampleUrl) { if (window.toast) toast('No example URL for this hook', 'warn'); return; }
-  // Store idea data in sessionStorage for the popup to read
-  try { sessionStorage.setItem('phixo_restyle_idea', JSON.stringify(idea)); } catch(e) {}
+  // Use localStorage with a unique temp key — works across windows, same origin
+  var key = 'phixo_restyle_' + Date.now();
+  try { localStorage.setItem(key, JSON.stringify({idea: idea, idx: idx})); } catch(e) {}
   var token = localStorage.getItem('phixo_token') || '';
-  var url = '/restyle?idx=' + idx + '&token=' + encodeURIComponent(token);
-  window.open(url, 'phixo_restyle', 'width=620,height=680,resizable=yes,scrollbars=yes');
+  var url = '/restyle?key=' + encodeURIComponent(key) + '&token=' + encodeURIComponent(token);
+  window.open(url, 'phixo_restyle', 'width=640,height=700,resizable=yes,scrollbars=yes');
 }
 
-// Called by the popup when user hits "Apply to script"
 function applyRestyleResult(idx, newScript) {
   var ideas = window._lastIdeationIdeas || [];
   if (ideas[idx]) ideas[idx].script = newScript;
