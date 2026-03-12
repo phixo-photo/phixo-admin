@@ -2757,46 +2757,63 @@ app.post('/api/ideate/restyle-script', requireAuth, async (req, res) => {
     send('transcribed', 'Transcribed — rewriting script...');
 
     send('restyle', 'Applying delivery style...');
-    const restylePrompt = `You are doing a style transplant on a TikTok/Reel script for Ian Green (Phixo), portrait photographer, West Island Montreal.
+    const restylePrompt = `You are helping Ian Green (Phixo), portrait photographer, West Island Montreal, write a TikTok/Reel script.
 
-This is NOT a rewrite of the transcript. The transcript is a real human talking. You are extracting human delivery signals from it and applying them to Ian's existing script. Ian's content, subject, and points all stay. Only how it sounds changes.
+A real creator already used this hook in the wild and made it work. Your job is to figure out WHY it worked — what did they understand about this hook — and then write Ian's version from that understanding.
 
-HOOK (locked — comes first, do not touch it):
+HOOK (locked — Ian is using this exact hook):
 "${hook}"
 
-IAN'S CURRENT SCRIPT — this is your content source. Keep the same points and subject matter:
+IAN'S CONTENT (the subject matter, points, and details to work with):
 ${script}
 
-REAL HUMAN TRANSCRIPT — extract delivery signals only. Do NOT use this person's topic, examples, or structure:
+REAL EXAMPLE TRANSCRIPT (someone who already made this hook land):
 ${transcript}
 
-WHAT TO EXTRACT FROM THE TRANSCRIPT:
-- Sentence length: short and clipped, or longer and flowing?
-- Pacing: does it move fast or does it breathe between ideas?
-- Does it use numbered steps, or does it just talk through things continuously?
-- Energy: casual and off-the-cuff, or measured and direct?
-- Where does emphasis land — start of sentences, end, or mid-thought?
-- Transitions: hard cuts to next point, connective words, or just the next sentence?
+STEP 1 — ANALYZE THE EXAMPLE:
+Read the transcript and figure out what this creator understood about the hook. Ask yourself:
+- What promise does this hook make to a viewer? What are they now expecting?
+- Did the creator deliver a list, a story, a single building argument, or something else — and why did that choice fit this hook?
+- Where did the energy go? Did it build, stay flat, or land all at once at the end?
+- Was it personal or instructional — and what did the hook demand?
+- What would have broken this hook? What would have felt like a bait-and-switch?
 
-Apply those signals to Ian's script. Same content. Different human feel.
+Write one sentence summarizing what made this hook work. Be specific — not 'it was engaging' but 'this hook works when the script stays in confession-of-practice mode rather than tutorial mode' or 'this hook demands a concrete numbered payoff delivered fast.'
+
+STEP 2 — WRITE IAN'S SCRIPT:
+Using that understanding, write Ian's script. Use Ian's content above as your subject matter. Apply the structural insight from Step 1 — not the words, not the topic, but the shape of how the hook gets earned.
 
 PHIXO VOICE (always applies):
 - Warm and direct — knowledgeable friend, not a brand
 - Sentences move forward, never recap the previous one
 - Point lands without being announced
-- Ends at the last real thing — no wrap-up sentence, no lesson stated out loud
+- Ends at the last real thing — no wrap-up, no lesson stated out loud
 - Specific over vague. Never: stunning, perfect, gorgeous, transformative
 - No emojis
 
-Write only what comes after the hook. 4-8 sentences. Return ONLY the script. No preamble, no explanation.`;
+Write only what comes after the hook. 4-8 sentences.
+
+Return your response as JSON in this exact format, nothing else:
+{"analysis":"one sentence about what makes this hook work","script":"the script text"}
+`;
 
     const msg = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 600,
       messages: [{role:'user', content: restylePrompt}]
     });
-    const restyled = msg.content[0].text.trim();
-    send('done', 'Done', { restyled, transcriptPreview: transcript.slice(0, 250) });
+    let restyled = '', analysis = '';
+    try {
+      const raw = msg.content[0].text.trim();
+      const clean = raw.replace(/^```json\s*/,'').replace(/```\s*$/,'');
+      const parsed = JSON.parse(clean);
+      restyled = parsed.script || '';
+      analysis = parsed.analysis || '';
+    } catch(e) {
+      // fallback: treat whole response as script
+      restyled = msg.content[0].text.trim();
+    }
+    send('done', 'Done', { restyled, analysis, transcriptPreview: transcript.slice(0, 250) });
     res.end();
 
   } catch(err) {
@@ -3080,46 +3097,63 @@ app.post('/api/ideate/restyle-script', requireAuth, async (req, res) => {
     send('transcribed', 'Transcribed — rewriting script...');
 
     send('restyle', 'Applying delivery style...');
-    const restylePrompt = `You are doing a style transplant on a TikTok/Reel script for Ian Green (Phixo), portrait photographer, West Island Montreal.
+    const restylePrompt = `You are helping Ian Green (Phixo), portrait photographer, West Island Montreal, write a TikTok/Reel script.
 
-This is NOT a rewrite of the transcript. The transcript is a real human talking. You are extracting human delivery signals from it and applying them to Ian's existing script. Ian's content, subject, and points all stay. Only how it sounds changes.
+A real creator already used this hook in the wild and made it work. Your job is to figure out WHY it worked — what did they understand about this hook — and then write Ian's version from that understanding.
 
-HOOK (locked — comes first, do not touch it):
+HOOK (locked — Ian is using this exact hook):
 "${hook}"
 
-IAN'S CURRENT SCRIPT — this is your content source. Keep the same points and subject matter:
+IAN'S CONTENT (the subject matter, points, and details to work with):
 ${script}
 
-REAL HUMAN TRANSCRIPT — extract delivery signals only. Do NOT use this person's topic, examples, or structure:
+REAL EXAMPLE TRANSCRIPT (someone who already made this hook land):
 ${transcript}
 
-WHAT TO EXTRACT FROM THE TRANSCRIPT:
-- Sentence length: short and clipped, or longer and flowing?
-- Pacing: does it move fast or does it breathe between ideas?
-- Does it use numbered steps, or does it just talk through things continuously?
-- Energy: casual and off-the-cuff, or measured and direct?
-- Where does emphasis land — start of sentences, end, or mid-thought?
-- Transitions: hard cuts to next point, connective words, or just the next sentence?
+STEP 1 — ANALYZE THE EXAMPLE:
+Read the transcript and figure out what this creator understood about the hook. Ask yourself:
+- What promise does this hook make to a viewer? What are they now expecting?
+- Did the creator deliver a list, a story, a single building argument, or something else — and why did that choice fit this hook?
+- Where did the energy go? Did it build, stay flat, or land all at once at the end?
+- Was it personal or instructional — and what did the hook demand?
+- What would have broken this hook? What would have felt like a bait-and-switch?
 
-Apply those signals to Ian's script. Same content. Different human feel.
+Write one sentence summarizing what made this hook work. Be specific — not 'it was engaging' but 'this hook works when the script stays in confession-of-practice mode rather than tutorial mode' or 'this hook demands a concrete numbered payoff delivered fast.'
+
+STEP 2 — WRITE IAN'S SCRIPT:
+Using that understanding, write Ian's script. Use Ian's content above as your subject matter. Apply the structural insight from Step 1 — not the words, not the topic, but the shape of how the hook gets earned.
 
 PHIXO VOICE (always applies):
 - Warm and direct — knowledgeable friend, not a brand
 - Sentences move forward, never recap the previous one
 - Point lands without being announced
-- Ends at the last real thing — no wrap-up sentence, no lesson stated out loud
+- Ends at the last real thing — no wrap-up, no lesson stated out loud
 - Specific over vague. Never: stunning, perfect, gorgeous, transformative
 - No emojis
 
-Write only what comes after the hook. 4-8 sentences. Return ONLY the script. No preamble, no explanation.`;
+Write only what comes after the hook. 4-8 sentences.
+
+Return your response as JSON in this exact format, nothing else:
+{"analysis":"one sentence about what makes this hook work","script":"the script text"}
+`;
 
     const msg = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 600,
       messages: [{role:'user', content: restylePrompt}]
     });
-    const restyled = msg.content[0].text.trim();
-    send('done', 'Done', { restyled, transcriptPreview: transcript.slice(0, 250) });
+    let restyled = '', analysis = '';
+    try {
+      const raw = msg.content[0].text.trim();
+      const clean = raw.replace(/^```json\s*/,'').replace(/```\s*$/,'');
+      const parsed = JSON.parse(clean);
+      restyled = parsed.script || '';
+      analysis = parsed.analysis || '';
+    } catch(e) {
+      // fallback: treat whole response as script
+      restyled = msg.content[0].text.trim();
+    }
+    send('done', 'Done', { restyled, analysis, transcriptPreview: transcript.slice(0, 250) });
     res.end();
 
   } catch(err) {
