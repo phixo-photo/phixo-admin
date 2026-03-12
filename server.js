@@ -2735,16 +2735,17 @@ app.post('/api/ideate/restyle-script', requireAuth, async (req, res) => {
     const audioBuffer = fs2.readFileSync(audioFile);
 
     send('transcribe', 'Transcribing with Whisper...');
-    const FormData = require('form-data');
-    const fd = new FormData();
-    const fname = audioFile.endsWith('.mp3') ? 'audio.mp3' : 'audio.mp4';
-    fd.append('file', audioBuffer, {filename: fname, contentType: fname.endsWith('.mp3') ? 'audio/mpeg' : 'video/mp4'});
-    fd.append('model', 'whisper-1');
-    fd.append('response_format', 'text');
+    const audioExt2 = audioFile.endsWith('.mp3') ? 'mp3' : 'mp4';
+    const audioMime2 = audioFile.endsWith('.mp3') ? 'audio/mpeg' : 'video/mp4';
+    const audioBlob2 = new Blob([audioBuffer], { type: audioMime2 });
+    const wForm = new FormData();
+    wForm.append('file', audioBlob2, 'audio.' + audioExt2);
+    wForm.append('model', 'whisper-1');
+    wForm.append('response_format', 'text');
     const wres = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY, ...fd.getHeaders() },
-      body: fd
+      headers: { 'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY },
+      body: wForm
     });
     if (!wres.ok) throw new Error('Whisper error: ' + await wres.text());
     const transcript = (await wres.text()).trim();
@@ -3042,16 +3043,17 @@ app.post('/api/ideate/restyle-script', requireAuth, async (req, res) => {
     const audioBuffer = fs2.readFileSync(audioFile);
 
     send('transcribe', 'Transcribing with Whisper...');
-    const FormData = require('form-data');
-    const fd = new FormData();
-    const fname = audioFile.endsWith('.mp3') ? 'audio.mp3' : 'audio.mp4';
-    fd.append('file', audioBuffer, {filename: fname, contentType: fname.endsWith('.mp3') ? 'audio/mpeg' : 'video/mp4'});
-    fd.append('model', 'whisper-1');
-    fd.append('response_format', 'text');
+    const audioExt2 = audioFile.endsWith('.mp3') ? 'mp3' : 'mp4';
+    const audioMime2 = audioFile.endsWith('.mp3') ? 'audio/mpeg' : 'video/mp4';
+    const audioBlob2 = new Blob([audioBuffer], { type: audioMime2 });
+    const wForm = new FormData();
+    wForm.append('file', audioBlob2, 'audio.' + audioExt2);
+    wForm.append('model', 'whisper-1');
+    wForm.append('response_format', 'text');
     const wres = await fetch('https://api.openai.com/v1/audio/transcriptions', {
       method: 'POST',
-      headers: { 'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY, ...fd.getHeaders() },
-      body: fd
+      headers: { 'Authorization': 'Bearer ' + process.env.OPENAI_API_KEY },
+      body: wForm
     });
     if (!wres.ok) throw new Error('Whisper error: ' + await wres.text());
     const transcript = (await wres.text()).trim();
