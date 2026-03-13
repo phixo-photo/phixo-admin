@@ -2206,7 +2206,7 @@ async function refreshPostModules(){
 }
 function renderPostBuilder(post){
   const cs = post.content_structure || {};
-  const isGenerated = cs.generatedFrom === 'research_library';
+  const isGenerated = cs.generatedFrom === 'research_library' || cs.generatedFrom === 'ideation_tab';
   
   // Content type icons
   const typeIcons = {
@@ -2303,13 +2303,13 @@ function renderPostBuilder(post){
           ` : ''}
           
           <div class="caption-section">
-            <div class="cs-label">${isGenerated ? '📝 CAPTION' : '📝 BODY'}</div>
+            <div class="cs-label">${isGenerated ? '📝 SCRIPT / CAPTION' : '📝 BODY'}</div>
             <textarea 
-              placeholder="${isGenerated ? 'Full Instagram/TikTok caption...' : 'Context + value points...'}"
-              oninput="updateCS('${isGenerated ? 'caption' : 'body'}',this.value)"
+              placeholder="${isGenerated ? 'Your script and caption...' : 'Context + value points...'}"
+              oninput="updateCS('${isGenerated ? 'script' : 'body'}',this.value)"
               class="caption-textarea"
               rows="8"
-            >${esc(cs.caption || cs.body || '')}</textarea>
+            >${esc(cs.script || cs.caption || cs.body || '')}</textarea>
           </div>
           
           ${cs.filmIt ? `
@@ -2446,14 +2446,14 @@ function updateCS(field, value) {
 }
 
 function updatePreview() {
-  // Support both generated (caption) and manual (body) content
   const hook = document.querySelector('[oninput*="updateCS(\'hook\'"]')?.value || '';
+  const script = document.querySelector('[oninput*="updateCS(\'script\'"]')?.value || '';
   const caption = document.querySelector('[oninput*="updateCS(\'caption\'"]')?.value || '';
   const body = document.querySelector('[oninput*="updateCS(\'body\'"]')?.value || '';
   const cta = document.querySelector('[oninput*="updateCS(\'cta\'"]')?.value || '';
   const hashtags = document.querySelector('[oninput*="updateCS(\'hashtags\'"]')?.value || '';
   
-  const mainContent = caption || body;  // Use caption if exists, otherwise body
+  const mainContent = script || caption || body;
   const parts = [hook, mainContent, cta, hashtags].filter(x => x.trim());
   const fullCaption = parts.join('\n\n');
   
@@ -4286,25 +4286,43 @@ function renderIdeationCards(ideas, mode) {
 
 async function saveIdeationIdea(idx) {
   const idea = (window._lastIdeationIdeas || [])[idx];
-  if (!idea) return;
+  if (!idea) { toast('Idea not found — try regenerating'); return; }
+
+  const btn = document.querySelector(`[onclick="saveIdeationIdea(${idx})"]`);
+  if (btn) { btn.disabled = true; btn.textContent = 'Saving...'; }
+
   try {
     const stage = (idea.funnelStage || '').replace('ToFu','tof').replace('MoFu','mof').replace('BoFu','bof').toLowerCase();
     await api('POST', '/api/posts', {
-      title: idea.title || 'Untitled idea',
+      post_goal: idea.title || 'Untitled idea',
       status: 'idea',
       platform: idea.platform || '',
-      caption: [idea.hook, idea.script, idea.caption].filter(Boolean).join('\n\n'),
-      notes: [
-        idea.filmIt ? 'FILM IT:\n' + idea.filmIt : '',
-        idea.overlay ? 'OVERLAY: ' + idea.overlay : '',
-        idea.cta ? 'CTA: ' + idea.cta : '',
-        idea.hookTemplate ? 'HOOK TEMPLATE: ' + idea.hookTemplate : '',
-        idea.variationNote || idea.sourceAdaptation || ''
-      ].filter(Boolean).join('\n\n'),
       funnel_stage: stage || '',
+      post_type: 'short_video',
+      content_structure: {
+        hook: idea.hook || '',
+        hookTemplate: idea.hookTemplate || '',
+        hookId: idea.hookId || '',
+        script: idea.script || '',
+        overlay: idea.overlay || '',
+        caption: idea.caption || '',
+        filmIt: idea.filmIt || '',
+        cta: idea.cta || '',
+        platform: idea.platform || '',
+        length: idea.length || '',
+        funnelStage: idea.funnelStage || '',
+        pillar: idea.pillar || '',
+        lane: idea.lane || '',
+        generatedFrom: 'ideation_tab'
+      }
     });
+    if (btn) { btn.textContent = 'Saved ✓'; btn.style.opacity = '0.5'; }
     toast('Saved to calendar', 'ok');
-  } catch (e) { toast('Save failed: ' + e.message); }
+  } catch (e) {
+    console.error('Save idea error:', e);
+    if (btn) { btn.disabled = false; btn.textContent = 'Save →'; }
+    toast('Save failed: ' + e.message);
+  }
 }
 
 async function saveAllIdeationIdeas() {
@@ -4315,18 +4333,27 @@ async function saveAllIdeationIdeas() {
     try {
       const stage = (idea.funnelStage || '').replace('ToFu','tof').replace('MoFu','mof').replace('BoFu','bof').toLowerCase();
       await api('POST', '/api/posts', {
-        title: idea.title || 'Untitled idea',
+        post_goal: idea.title || 'Untitled idea',
         status: 'idea',
         platform: idea.platform || '',
-        caption: [idea.hook, idea.script, idea.caption].filter(Boolean).join('\n\n'),
-        notes: [
-          idea.filmIt ? 'FILM IT:\n' + idea.filmIt : '',
-          idea.overlay ? 'OVERLAY: ' + idea.overlay : '',
-          idea.cta ? 'CTA: ' + idea.cta : '',
-          idea.hookTemplate ? 'HOOK TEMPLATE: ' + idea.hookTemplate : '',
-          idea.variationNote || idea.sourceAdaptation || ''
-        ].filter(Boolean).join('\n\n'),
         funnel_stage: stage || '',
+        post_type: 'short_video',
+        content_structure: {
+          hook: idea.hook || '',
+          hookTemplate: idea.hookTemplate || '',
+          hookId: idea.hookId || '',
+          script: idea.script || '',
+          overlay: idea.overlay || '',
+          caption: idea.caption || '',
+          filmIt: idea.filmIt || '',
+          cta: idea.cta || '',
+          platform: idea.platform || '',
+          length: idea.length || '',
+          funnelStage: idea.funnelStage || '',
+          pillar: idea.pillar || '',
+          lane: idea.lane || '',
+          generatedFrom: 'ideation_tab'
+        }
       });
       saved++;
     } catch (e) { console.error(e); }
