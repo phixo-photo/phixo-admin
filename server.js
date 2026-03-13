@@ -2908,6 +2908,16 @@ app.get('/api/hooks/random', requireAuth, async (req, res) => {
   }
 });
 
+app.post('/api/hooks/reset-used', requireAuth, async (req, res) => {
+  const before = USED_HOOK_IDS.size;
+  USED_HOOK_IDS.clear();
+  res.json({ ok: true, cleared: before });
+});
+
+app.get('/api/hooks/used-count', requireAuth, async (req, res) => {
+  res.json({ used: USED_HOOK_IDS.size, max: MAX_USED_HISTORY });
+});
+
 // One-time import of hooks from hooks_data.txt
 app.post('/api/hooks/import', requireAuth, async (req, res) => {
   try {
