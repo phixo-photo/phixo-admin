@@ -2372,8 +2372,10 @@ function renderPostBuilder(post){
           <div>
             <h3>Search Hooks</h3>
             <div id="hook-count-display" style="font-size:11px;color:var(--muted);margin-top:4px">Loading count...</div>
+            <div id="hook-used-display" style="font-size:11px;color:var(--muted);margin-top:2px">Loading used count...</div>
           </div>
           <div style="display:flex;gap:8px;align-items:center">
+            <button class="btn-link" onclick="resetUsedHooks()" style="font-size:11px" title="Clear the list of recently used hooks so they can appear again">Reset used</button>
             <button class="btn-link" onclick="reimportHooks()" style="font-size:11px">Re-import</button>
             <button onclick="toggleHookSearch()">✕</button>
           </div>
@@ -2638,6 +2640,22 @@ async function loadHookCount() {
     document.getElementById('hook-count-display').textContent = `${data.count} hooks in database`;
   } catch(e) {
     document.getElementById('hook-count-display').textContent = '';
+  }
+  try {
+    const u = await api('GET', '/api/hooks/used-count');
+    const el = document.getElementById('hook-used-display');
+    if (el) el.textContent = u.used === 0 ? 'No hooks used yet' : `${u.used} of ${u.max} recently used (won't repeat)`;
+  } catch(e) {}
+}
+
+async function resetUsedHooks() {
+  try {
+    const r = await api('POST', '/api/hooks/reset-used');
+    toast(`Cleared ${r.cleared} used hooks — full library available again`, 'ok');
+    const el = document.getElementById('hook-used-display');
+    if (el) el.textContent = 'No hooks used yet';
+  } catch(e) {
+    toast('Reset failed: ' + e.message);
   }
 }
 
