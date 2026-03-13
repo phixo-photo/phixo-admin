@@ -2803,6 +2803,26 @@ async function deletePost(id){
   catch(err){toast(err.message,'err');}
 }
 
+async function exportToDoc(id){
+  const btn = event.target;
+  const orig = btn.textContent;
+  btn.textContent = '⏳ Exporting...';
+  btn.disabled = true;
+  try {
+    const r = await api('POST', `/api/posts/${id}/export-to-docs`);
+    if (r.docUrl) {
+      window.open(r.docUrl, '_blank');
+      toast('Doc created — opening now');
+      // Refresh builder to show the Open Doc button
+      await openPostBuilder(id);
+    }
+  } catch(err) {
+    toast(err.message || 'Export failed', 'err');
+    btn.textContent = orig;
+    btn.disabled = false;
+  }
+}
+
 // ═══ HOOKS ═══
 async function openHooks(){loadHooks();openModal('m-hooks');}
 async function loadHooks(){
