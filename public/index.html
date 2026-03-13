@@ -2249,6 +2249,8 @@ function renderPostBuilder(post){
           </select>
           <input type="date" value="${post.post_date||''}" onchange="updatePost('post_date',this.value)" class="mini-select">
           <button class="btn btn-danger btn-sm" onclick="deletePost(${post.id})" style="margin-left:auto">Delete</button>
+          <button class="btn btn-sm" onclick="exportToDoc(${post.id})" style="background:var(--accent);color:#fff;margin-left:6px" title="Export as Ready to Shoot Google Doc">📄 Export to Drive</button>
+          ${cs.shootDocUrl ? `<a href="${cs.shootDocUrl}" target="_blank" class="btn btn-sm" style="background:#34a853;color:#fff;margin-left:4px;text-decoration:none">📂 Open Doc</a>` : ''}
         </div>
       </div>
       
