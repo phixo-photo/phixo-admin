@@ -1485,7 +1485,7 @@ app.post('/api/posts/:id/export-to-docs', requireAuth, async (req, res) => {
     const docs = getDocs(req);
 
     // 1. Find or create the "Phixo / Shoot Docs" folder
-    const folderName = 'Phixo Shoot Docs';
+    const folderName = 'Social Media script';
     let folderId;
     const folderSearch = await drive.files.list({
       q: `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
