@@ -188,6 +188,7 @@ async function initDb() {
     await pool.query(`ALTER TABLE prospects ADD COLUMN IF NOT EXISTS posing_notes TEXT`);
     
     // v3.44: Post builder redesign
+    await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS post_goal TEXT`);
     await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS post_type VARCHAR(50) DEFAULT 'photo'`);
     await pool.query(`ALTER TABLE posts ADD COLUMN IF NOT EXISTS content_structure JSONB DEFAULT '{}'`);
     
