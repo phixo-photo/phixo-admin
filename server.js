@@ -433,10 +433,22 @@ function getDrive(req) {
   return google.drive({ version: 'v3', auth });
 }
 
+function getDocs(req) {
+  const auth = new google.auth.OAuth2(
+    process.env.GOOGLE_CLIENT_ID, process.env.GOOGLE_CLIENT_SECRET, process.env.GOOGLE_REDIRECT_URI
+  );
+  auth.setCredentials(req.session.tokens);
+  auth.on('tokens', (tokens) => {
+    if (tokens.refresh_token) req.session.tokens.refresh_token = tokens.refresh_token;
+    req.session.tokens.access_token = tokens.access_token;
+    req.session.tokens.expiry_date = tokens.expiry_date;
+  });
+  return google.docs({ version: 'v1', auth });
+}
 app.get('/auth/login', (req, res) => {
   const url = oauth2Client.generateAuthUrl({
     access_type: 'offline',
-    scope: ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/userinfo.email'],
+    scope: ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/documents', 'https://www.googleapis.com/auth/userinfo.email'],
     prompt: 'consent'
   });
   res.redirect(url);
@@ -1459,6 +1471,154 @@ app.patch('/api/posts/:id', requireAuth, async (req, res) => {
     const r = await pool.query(`UPDATE posts SET ${sets.join(',')},updated_at=NOW() WHERE id=$${vals.length} RETURNING *`, vals);
     res.json(r.rows[0]);
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Export post to Google Doc (Ready to Shoot package)
+app.post('/api/posts/:id/export-to-docs', requireAuth, async (req, res) => {
+  try {
+    const postRes = await pool.query('SELECT * FROM posts WHERE id=$1', [req.params.id]);
+    if (!postRes.rows.length) return res.status(404).json({ error: 'Post not found' });
+    const post = postRes.rows[0];
+    const cs = post.content_structure || {};
+
+    const drive = getDrive(req);
+    const docs = getDocs(req);
+
+    // 1. Find or create the "Phixo / Shoot Docs" folder
+    const folderName = 'Phixo Shoot Docs';
+    let folderId;
+    const folderSearch = await drive.files.list({
+      q: `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
+      fields: 'files(id)'
+    });
+    if (folderSearch.data.files.length) {
+      folderId = folderSearch.data.files[0].id;
+    } else {
+      const newFolder = await drive.files.create({
+        requestBody: { name: folderName, mimeType: 'application/vnd.google-apps.folder' },
+        fields: 'id'
+      });
+      folderId = newFolder.data.id;
+    }
+
+    // 2. Create a blank Google Doc inside that folder
+    const docTitle = `${post.post_goal || 'Untitled Post'} — ${new Date().toLocaleDateString('en-CA')}`;
+    const createRes = await docs.documents.create({
+      requestBody: { title: docTitle }
+    });
+    const docId = createRes.data.documentId;
+    const docUrl = `https://docs.google.com/document/d/${docId}/edit`;
+
+    // Move doc to the folder
+    const fileData = await drive.files.get({ fileId: docId, fields: 'parents' });
+    const prevParents = (fileData.data.parents || []).join(',');
+    await drive.files.update({
+      fileId: docId,
+      addParents: folderId,
+      removeParents: prevParents,
+      fields: 'id, parents'
+    });
+
+    // 3. Build batchUpdate requests to insert formatted content
+    const requests = [];
+    let cursor = 1; // tracks insert index (doc starts at index 1)
+
+    // Helper: insert text at cursor, advance cursor
+    function insertText(text, style) {
+      requests.push({
+        insertText: { location: { index: cursor }, text }
+      });
+      const end = cursor + text.length;
+      if (style) {
+        if (style === 'HEADING_1' || style === 'HEADING_2' || style === 'HEADING_3') {
+          requests.push({
+            updateParagraphStyle: {
+              range: { startIndex: cursor, endIndex: end },
+              paragraphStyle: { namedStyleType: style },
+              fields: 'namedStyleType'
+            }
+          });
+        }
+        if (style === 'bold') {
+          requests.push({
+            updateTextStyle: {
+              range: { startIndex: cursor, endIndex: end - 1 },
+              textStyle: { bold: true },
+              fields: 'bold'
+            }
+          });
+        }
+        if (style === 'mono') {
+          requests.push({
+            updateTextStyle: {
+              range: { startIndex: cursor, endIndex: end - 1 },
+              textStyle: { weightedFontFamily: { fontFamily: 'Courier New' }, fontSize: { magnitude: 10, unit: 'PT' } },
+              fields: 'weightedFontFamily,fontSize'
+            }
+          });
+        }
+        if (style === 'muted') {
+          requests.push({
+            updateTextStyle: {
+              range: { startIndex: cursor, endIndex: end - 1 },
+              textStyle: { foregroundColor: { color: { rgbColor: { red: 0.5, green: 0.5, blue: 0.5 } } }, fontSize: { magnitude: 10, unit: 'PT' } },
+              fields: 'foregroundColor,fontSize'
+            }
+          });
+        }
+      }
+      cursor = end;
+    }
+
+    // Meta header line
+    const metaParts = [
+      post.platform || '',
+      post.funnel_stage ? post.funnel_stage.toUpperCase() : '',
+      post.post_date || ''
+    ].filter(Boolean);
+    if (metaParts.length) {
+      insertText(metaParts.join('  ·  ') + '\n', 'muted');
+      insertText('\n', null);
+    }
+
+    // Sections
+    const sections = [
+      { heading: 'HOOK', value: cs.hook, style: 'HEADING_1' },
+      { heading: 'Hook Template', value: cs.hookTemplate, style: null, italic: true },
+      { heading: 'SCRIPT', value: cs.script, style: 'HEADING_2' },
+      { heading: 'ON-SCREEN TEXT', value: cs.overlay, style: 'HEADING_2' },
+      { heading: 'FILM IT', value: cs.filmIt, style: 'HEADING_2', mono: true },
+      { heading: 'CAPTION DRAFT', value: cs.caption, style: 'HEADING_2' },
+      { heading: 'CTA', value: cs.cta, style: 'HEADING_2' },
+    ];
+
+    for (const sec of sections) {
+      if (!sec.value || String(sec.value).trim() === '') continue;
+      if (sec.style) {
+        insertText(sec.heading + '\n', sec.style);
+      } else {
+        // sub-label, no heading style
+        insertText(sec.heading + '\n', 'bold');
+      }
+      insertText(String(sec.value).trim() + '\n', sec.mono ? 'mono' : null);
+      insertText('\n', null);
+    }
+
+    await docs.documents.batchUpdate({
+      documentId: docId,
+      requestBody: { requests }
+    });
+
+    // 4. Save doc URL back to the post
+    await pool.query(`UPDATE posts SET content_structure = content_structure || $1::jsonb, updated_at=NOW() WHERE id=$2`,
+      [JSON.stringify({ shootDocUrl: docUrl, shootDocId: docId }), post.id]
+    );
+
+    res.json({ ok: true, docUrl, docId });
+  } catch (err) {
+    console.error('Export to docs error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Cleanup untitled/empty posts (MUST come before /api/posts/:id route)
