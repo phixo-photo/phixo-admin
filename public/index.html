@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/public/styles.css">
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -433,7 +434,26 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 .bc-used-btn.marked{border-color:var(--accent);color:var(--accent);background:rgba(184,103,62,.1)}
 .fmt-platform{margin-bottom:28px}
 .fmt-plat-name{font-size:16px;font-weight:800;margin-bottom:8px;padding-bottom:8px;border-bottom:2px solid var(--border)}
-@media(max-width:900px){.wf-grid{grid-template-columns:repeat(4,1fr)}.stat-row{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:900px){
+  .wf-grid{grid-template-columns:repeat(4,1fr)}
+  .stat-row{grid-template-columns:repeat(3,1fr)}
+}
+@media(max-width:768px){
+  body{flex-direction:column}
+  #nav{position:relative;width:100%;min-height:auto;flex-direction:row;align-items:center;padding:8px 12px;overflow-x:auto}
+  #main{margin-left:0}
+  .view{padding:20px 16px}
+  .card-grid,
+  .block-grid,
+  .pose-grid,
+  .kanban,
+  .month-grid,
+  .pb-cols,
+  .type-grid,
+  .content-type-grid{grid-template-columns:1fr}
+  .pb-preview-col,
+  .pb-sidebar{position:static}
+}
 
 /* ── IDEATION ─────────────────────────────────────────── */
 .ideate-mode{background:var(--surface);border:2px solid var(--border);border-radius:var(--r);padding:16px 20px;text-align:center;cursor:pointer;font-family:inherit;transition:all .15s;flex:1;max-width:200px}
@@ -473,32 +493,32 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 </style>
 </head>
 <body>
-<nav id="nav">
+<nav id="nav" role="navigation" aria-label="Main">
   <div class="nav-logo">Phixo <span>Admin</span></div>
-  <div class="nav-section">Clients</div>
-  <button class="nb on" data-view="pipeline" onclick="showView('pipeline',this)"><span class="ico">👤</span> Pipeline</button>
+  <div class="nav-section">Client Work</div>
+  <button class="nb on" data-view="pipeline" onclick="showView('pipeline',this)"><span class="ico">👤</span> Client Pipeline</button>
   <button class="nb" onclick="openNewClient()"><span class="ico">＋</span> New Client</button>
-  <button class="nb" data-view="discovery" onclick="showView('discovery',this)"><span class="ico">🔭</span> Discovery</button>
+  <button class="nb" data-view="discovery" onclick="showView('discovery',this)"><span class="ico">🔭</span> Discovery Targets</button>
   <button class="nb" onclick="openNewProspect()"><span class="ico">＋</span> New Target</button>
-  <div class="nav-section">Research</div>
-  <button class="nb" data-view="research" onclick="showView('research',this)"><span class="ico">📚</span> All Blocks</button>
+  <div class="nav-section">Research Library</div>
+  <button class="nb" data-view="research" onclick="showView('research',this)"><span class="ico">📚</span> Research Library</button>
   <button class="nb" onclick="openAddBlock()"><span class="ico">＋</span> Add Block</button>
-  <div class="nav-section">Content</div>
-  <button class="nb" data-view="calendar" onclick="showView('calendar',this)"><span class="ico">📅</span> Calendar</button>
+  <div class="nav-section">Content &amp; Strategy</div>
+  <button class="nb" data-view="calendar" onclick="showView('calendar',this)"><span class="ico">📅</span> Content Calendar</button>
   <button class="nb" onclick="openNewPost()"><span class="ico">✏️</span> New Post</button>
-  <button class="nb" data-view="strategy" onclick="showView('strategy',this)"><span class="ico">🗺</span> Strategy Hub</button>
+  <button class="nb" data-view="strategy" onclick="showView('strategy',this)"><span class="ico">🗺</span> Strategy &amp; Workflows</button>
   <div class="nav-foot">
     <span><span class="dot"></span>Connected</span>
     <a href="/auth/logout">Sign out</a>
   </div>
 </nav>
 <button id="ask-fab" onclick="openAskLibrary()" title="Ask your library" style="position:fixed;bottom:24px;right:24px;z-index:200;background:var(--accent);color:#fff;border:none;border-radius:50%;width:52px;height:52px;font-size:22px;cursor:pointer;box-shadow:0 4px 16px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;transition:transform .15s" onmouseenter="this.style.transform='scale(1.1)'" onmouseleave="this.style.transform='scale(1)'">🧠</button>
-<div id="main">
-<div id="v-pipeline" class="view on">
-  <div class="ph"><h1>Client <em>pipeline</em></h1><p>Active leads, bookings, and deliveries.</p></div>
+<main id="main">
+<section id="v-pipeline" class="view on" aria-labelledby="pipeline-heading">
+  <div class="ph"><h1 id="pipeline-heading">Client <em>pipeline</em></h1><p>See every active client from first inquiry through delivery in one place.</p></div>
   <div class="tb">
-    <input type="text" id="pl-search" placeholder="Search clients..." oninput="debouncedLoad('loadPipeline')">
-    <select id="pl-status" onchange="loadPipeline()" style="width:140px">
+    <input type="text" id="pl-search" placeholder="Search clients by name or notes..." oninput="debouncedLoad('loadPipeline');savePipelineFilters()">
+    <select id="pl-status" onchange="savePipelineFilters();loadPipeline()" style="width:140px">
       <option value="">All statuses</option>
       <option value="lead">Lead</option><option value="booked">Booked</option>
       <option value="shot">Shot</option><option value="delivered">Delivered</option>
@@ -507,16 +527,16 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
     <button class="btn btn-dark btn-sm" onclick="openNewClient()">+ New Client</button>
   </div>
   <div id="pipeline-grid" class="card-grid"></div>
-</div>
-<div id="v-client-file" class="view">
+</section>
+<section id="v-client-file" class="view" aria-label="Client file">
   <button class="back-btn" onclick="showView('pipeline')">← Pipeline</button>
   <div id="cf-body"></div>
-</div>
-<div id="v-discovery" class="view">
-  <div class="ph"><h1>Discovery <em>board</em></h1><p>Who do you want to shoot next?</p></div>
+</section>
+<section id="v-discovery" class="view" aria-labelledby="discovery-heading">
+  <div class="ph"><h1 id="discovery-heading">Discovery <em>board</em></h1><p>Track warm prospects before they become clients — from “watching” to outreach.</p></div>
   <div class="tb">
-    <input type="text" id="disc-search" placeholder="Search targets..." oninput="debouncedLoad('loadDiscovery')">
-    <select id="disc-status" onchange="loadDiscovery()" style="width:150px">
+    <input type="text" id="disc-search" placeholder="Search targets by handle, notes, or tags..." oninput="debouncedLoad('loadDiscovery');saveDiscoveryFilters()">
+    <select id="disc-status" onchange="saveDiscoveryFilters();loadDiscovery()" style="width:150px">
       <option value="">All statuses</option>
       <option value="watching">Watching</option><option value="outreach-ready">Outreach Ready</option>
       <option value="contacted">Contacted</option><option value="not-a-fit">Not a Fit</option>
@@ -525,12 +545,12 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
     <button class="btn btn-dark btn-sm" onclick="openNewProspect()">+ New Target</button>
   </div>
   <div id="discovery-grid" class="card-grid"></div>
-</div>
-<div id="v-prospect-file" class="view">
+</section>
+<section id="v-prospect-file" class="view" aria-label="Prospect file">
   <button class="back-btn" onclick="showView('discovery')">← Discovery</button>
   <div id="pf-body"></div>
-</div>
-<div id="v-research" class="view">
+</section>
+<section id="v-research" class="view" aria-label="Research library">
   <div class="ph"><h1>Research <em>library</em></h1><p>Every block — poses, memes, SFX, articles, notes. One place.</p></div>
   
   <!-- Research Tabs -->
@@ -606,8 +626,8 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
     
     <div id="research-grid" class="block-grid"></div>
   </div>
-</div>
-<div id="v-calendar" class="view">
+</section>
+<section id="v-calendar" class="view" aria-label="Content calendar">
   <div class="ph"><h1>Content <em>calendar</em></h1><p>Idea to posted — assemble posts from your research blocks.</p></div>
   <div class="tb">
     <div style="display:flex;gap:8px;align-items:center">
@@ -641,12 +661,12 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
     </div>
     <div class="month-grid" id="month-grid"></div>
   </div>
-</div>
-<div id="v-post-builder" class="view">
+</section>
+<section id="v-post-builder" class="view" aria-label="Post builder">
   <button class="back-btn" onclick="showView('calendar')">← Calendar</button>
   <div id="pb-body"></div>
-</div>
-<div id="v-strategy" class="view">
+</section>
+<section id="v-strategy" class="view" aria-label="Content strategy hub">
   <div class="ph"><h1>Content <em>strategy hub</em></h1><p>Brand anchor, weekly workflow, content bank, and format reference — all in one place.</p></div>
 
   <!-- SUB-NAV TABS -->
@@ -1081,8 +1101,8 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
     <div id="formats-body"></div>
   </div>
 
-</div>
-</div>
+</section>
+</main>
 <!-- MODALS -->
 <div class="mbg off" id="m-client"><div class="modal">
   <div class="mh"><h2>New Client</h2><button class="mx" onclick="closeM('m-client')">✕</button></div>
@@ -1339,17 +1359,24 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
 <div class="mbg off" id="m-hooks"><div class="modal">
   <div class="mh"><h2>Hook Library</h2><button class="mx" onclick="closeM('m-hooks')">✕</button></div>
   <div class="mb">
-    <div style="display:flex;gap:8px;margin-bottom:10px">
-      <input type="text" id="hook-search" placeholder="Search hooks..." oninput="loadHooks()" style="flex:1">
-      <select id="hook-cat" onchange="loadHooks()" style="width:140px">
-        <option value="">All categories</option>
-        <option value="story">Story</option><option value="contrarian">Contrarian</option>
-        <option value="mistake">Mistake</option><option value="educational">Educational</option>
-        <option value="curiosity">Curiosity</option><option value="if-then">If-Then</option>
-        <option value="before-after">Before/After</option><option value="question">Question</option>
-        <option value="number-list">Number List</option>
-      </select>
-      <button class="btn btn-ghost btn-sm" onclick="ingestHooksPdf()" id="hooks-ingest-btn">↻ PDF</button>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:10px">
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="text" id="hook-search" placeholder="Search hooks by text, ID, or notes..." oninput="debouncedHookSearch()" style="flex:1">
+        <select id="hook-cat" onchange="loadHooks()" style="width:160px">
+          <option value="">All categories</option>
+          <option value="EDUCATIONAL">Educational</option>
+          <option value="STORY">Story</option>
+          <option value="CONTRARIAN">Contrarian</option>
+          <option value="MISTAKE">Mistake</option>
+          <option value="CURIOSITY">Curiosity</option>
+          <option value="IF_THEN">If-Then</option>
+          <option value="BEFORE_AFTER">Before/After</option>
+          <option value="QUESTION">Question</option>
+          <option value="NUMBER_LIST">Number List</option>
+        </select>
+        <button class="btn btn-ghost btn-sm" onclick="ingestHooksPdf()" id="hooks-ingest-btn">↻ PDF</button>
+      </div>
+      <div style="font-size:11px;color:var(--muted)">Tip: type a few words from your idea (e.g. “age 30 money rules”) or paste a Hook ID like <code>EDU_0010</code>.</div>
     </div>
     <div id="hooks-list" style="max-height:400px;overflow-y:auto;border:1px solid var(--border);border-radius:8px"></div>
     <div style="margin-top:10px;display:flex;justify-content:flex-end">
@@ -1403,6 +1430,36 @@ function showView(name,navEl){
   else if(name==='discovery')loadDiscovery();
   else if(name==='calendar')loadCalendar();
   else if(name==='strategy'){renderBank();renderWeekly();renderFormats();}
+}
+
+// Persist simple filters so returning users see the same view
+function savePipelineFilters(){
+  const search=document.getElementById('pl-search')?.value||'';
+  const status=document.getElementById('pl-status')?.value||'';
+  try{localStorage.setItem('phixo_pipeline_filters',JSON.stringify({search,status}));}catch(e){}
+}
+function restorePipelineFilters(){
+  let stored=null;
+  try{stored=JSON.parse(localStorage.getItem('phixo_pipeline_filters')||'null');}catch(e){}
+  if(!stored)return;
+  const s=document.getElementById('pl-search');
+  const st=document.getElementById('pl-status');
+  if(s)s.value=stored.search||'';
+  if(st)st.value=stored.status||'';
+}
+function saveDiscoveryFilters(){
+  const search=document.getElementById('disc-search')?.value||'';
+  const status=document.getElementById('disc-status')?.value||'';
+  try{localStorage.setItem('phixo_discovery_filters',JSON.stringify({search,status}));}catch(e){}
+}
+function restoreDiscoveryFilters(){
+  let stored=null;
+  try{stored=JSON.parse(localStorage.getItem('phixo_discovery_filters')||'null');}catch(e){}
+  if(!stored)return;
+  const s=document.getElementById('disc-search');
+  const st=document.getElementById('disc-status');
+  if(s)s.value=stored.search||'';
+  if(st)st.value=stored.status||'';
 }
 
 // ── Ask Library ──────────────────────────────────────────────────────────────
@@ -1472,6 +1529,12 @@ function switchTab(group,tab,btn){
 }
 document.querySelectorAll('.mbg').forEach(bg=>bg.addEventListener('click',e=>{if(e.target===bg)bg.classList.add('off');}));
 
+// Restore saved filters on initial load so users return to the same pipeline / discovery view
+try{
+  restorePipelineFilters();
+  restoreDiscoveryFilters();
+}catch(e){}
+
 // ═══ PIPELINE ═══
 async function loadPipeline(){
   const p=new URLSearchParams();
@@ -1518,8 +1581,13 @@ async function openClientFile(id){
   CID=id;
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
   document.getElementById('v-client-file').classList.add('on');
-  const c=await api('GET','/api/clients/'+id);
-  renderClientFile(c);
+  try{
+    const c=await api('GET','/api/clients/'+id);
+    renderClientFile(c);
+  }catch(err){
+    toast('Could not load client file: '+err.message,'err');
+    showView('pipeline');
+  }
 }
 function renderClientFile(c){
   const metaParts=[c.platform,c.session_type,c.session_date].filter(Boolean);
@@ -2838,9 +2906,14 @@ async function loadHooks(){
   }
   list.innerHTML=hooks.map(h=>`
     <div class="hook-item" onclick="useHook(${JSON.stringify(h.text)})">
-      <div class="hook-cat">${h.category||'general'}</div>
-      ${esc(h.text)}
+      <div class="hook-cat">${esc(h.id||h.hook_id||'')}${(h.category||h.category_name)?' · '+esc((h.category||h.category_name).toString()):''}</div>
+      ${esc(h.text || h.hook_template || '')}
     </div>`).join('');
+}
+let hookSearchTimer;
+function debouncedHookSearch(){
+  clearTimeout(hookSearchTimer);
+  hookSearchTimer=setTimeout(()=>loadHooks(),250);
 }
 async function ingestHooksPdf(){
   const btn=document.getElementById('hooks-ingest-btn');

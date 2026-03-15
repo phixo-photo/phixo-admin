@@ -19,6 +19,31 @@ A private web app that lives at admin.phixo.ca. It reads client conversations (t
 
 ---
 
+## Local development
+
+You can also run this app locally before deploying:
+
+1. Make sure you have Node.js 20+ installed
+2. In your project folder, install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+   This will also run a small postinstall script that downloads the `yt-dlp` binary via `scripts/install-deps.js`. It’s used for video-related features in the Strategy / Ideation tools.
+
+3. Start the server:
+
+   ```bash
+   node server.js
+   ```
+
+4. Open the app at `http://localhost:3000` (or whatever port you’ve configured in `server.js`)
+
+Make sure the same environment variables listed above are set in your local shell (or a `.env` file loaded by your process manager) so Google / Anthropic integrations work as expected.
+
+---
+
 ## Step 2: Set environment variables in Railway
 
 In your Railway project → Variables tab, add these:
