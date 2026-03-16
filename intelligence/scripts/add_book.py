@@ -65,59 +65,81 @@ def main():
     parser.add_argument("--log-path", help="Optional path to JSONL ingest log")
     args = parser.parse_args()
 
-    if not os.path.isfile(args.pdf_path):
-        print(f"File not found: {args.pdf_path}", file=sys.stderr)
-        sys.exit(1)
+    try:
+        if not os.path.isfile(args.pdf_path):
+            msg = f"File not found: {args.pdf_path}"
+            print(msg, file=sys.stderr)
+            log_status(args.job_id, args.log_path, "error", stage="precheck", message=msg, returncode=1)
+            sys.exit(1)
 
-    if not os.environ.get("OPENAI_API_KEY"):
-        print("Set OPENAI_API_KEY.", file=sys.stderr)
-        sys.exit(1)
+        if not os.environ.get("OPENAI_API_KEY"):
+            msg = "OPENAI_API_KEY is not set."
+            print(msg, file=sys.stderr)
+            log_status(args.job_id, args.log_path, "error", stage="precheck", message=msg, returncode=1)
+            sys.exit(1)
 
-    source_slug = slug(args.source)
-    chunk_json = os.path.join(PROJECT_ROOT, args.out_dir, f"{source_slug}.json")
+        source_slug = slug(args.source)
+        chunk_json = os.path.join(PROJECT_ROOT, args.out_dir, f"{source_slug}.json")
 
-    log_status(args.job_id, args.log_path, "running", source=args.source, author=args.author, topic=args.topic)
+        log_status(args.job_id, args.log_path, "running", source=args.source, author=args.author, topic=args.topic)
 
-    # 1. Chunk the PDF
-    chunk_cmd = [
-        sys.executable,
-        os.path.join(SCRIPT_DIR, "chunk_elements.py"),
-        args.pdf_path,
-        "--source", args.source,
-        "--author", args.author,
-        "--topic", args.topic,
-        "--chunk-size", str(args.chunk_size),
-        "--overlap", str(args.overlap),
-        "--out-dir", os.path.join(PROJECT_ROOT, args.out_dir),
-    ]
-    print("Step 1/2: Chunking PDF...")
-    r = subprocess.run(chunk_cmd, cwd=PROJECT_ROOT)
-    if r.returncode != 0:
-        log_status(args.job_id, args.log_path, "error", stage="chunk", returncode=r.returncode)
-        sys.exit(r.returncode)
+        # 1. Chunk the PDF
+        chunk_cmd = [
+            sys.executable,
+            os.path.join(SCRIPT_DIR, "chunk_elements.py"),
+            args.pdf_path,
+            "--source", args.source,
+            "--author", args.author,
+            "--topic", args.topic,
+            "--chunk-size", str(args.chunk_size),
+            "--overlap", str(args.overlap),
+            "--out-dir", os.path.join(PROJECT_ROOT, args.out_dir),
+        ]
+        print("Step 1/2: Chunking PDF...")
+        r = subprocess.run(chunk_cmd, cwd=PROJECT_ROOT)
+        if r.returncode != 0:
+            log_status(
+                args.job_id,
+                args.log_path,
+                "error",
+                stage="chunk",
+                message="chunk_elements.py failed",
+                returncode=r.returncode,
+            )
+            sys.exit(r.returncode)
 
-    if not os.path.isfile(chunk_json):
-        msg = f"Chunk file not created: {chunk_json}"
-        print(msg, file=sys.stderr)
-        log_status(args.job_id, args.log_path, "error", stage="chunk", message=msg)
-        sys.exit(1)
+        if not os.path.isfile(chunk_json):
+            msg = f"Chunk file not created: {chunk_json}"
+            print(msg, file=sys.stderr)
+            log_status(args.job_id, args.log_path, "error", stage="chunk", message=msg, returncode=1)
+            sys.exit(1)
 
-    # 2. Embed and store (upsert into existing collection)
-    embed_cmd = [
-        sys.executable,
-        os.path.join(SCRIPT_DIR, "embed_and_store.py"),
-        chunk_json,
-        "--collection", args.collection,
-        "--db-path", os.path.join(PROJECT_ROOT, args.db_path),
-    ]
-    print("Step 2/2: Embedding and storing in ChromaDB...")
-    r = subprocess.run(embed_cmd, cwd=PROJECT_ROOT)
-    if r.returncode != 0:
-        log_status(args.job_id, args.log_path, "error", stage="embed", returncode=r.returncode)
-        sys.exit(r.returncode)
+        # 2. Embed and store (upsert into existing collection)
+        embed_cmd = [
+            sys.executable,
+            os.path.join(SCRIPT_DIR, "embed_and_store.py"),
+            chunk_json,
+            "--collection", args.collection,
+            "--db-path", os.path.join(PROJECT_ROOT, args.db_path),
+        ]
+        print("Step 2/2: Embedding and storing in ChromaDB...")
+        r = subprocess.run(embed_cmd, cwd=PROJECT_ROOT)
+        if r.returncode != 0:
+            log_status(
+                args.job_id,
+                args.log_path,
+                "error",
+                stage="embed",
+                message="embed_and_store.py failed",
+                returncode=r.returncode,
+            )
+            sys.exit(r.returncode)
 
-    log_status(args.job_id, args.log_path, "success", source=args.source, author=args.author, topic=args.topic)
-    print(f"Done. '{args.source}' is in the knowledge base. Ask questions with scripts/ask.py")
+        log_status(args.job_id, args.log_path, "success", source=args.source, author=args.author, topic=args.topic)
+        print(f"Done. '{args.source}' is in the knowledge base. Ask questions with scripts/ask.py")
+    except Exception as e:
+        log_status(args.job_id, args.log_path, "error", stage="exception", message=str(e), returncode=1)
+        raise
 
 
 if __name__ == "__main__":
