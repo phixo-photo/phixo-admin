@@ -1,7 +1,10 @@
 # Phase 1 — ingestion, chunking, embed + store
+# NOTE: Docker image on Railway was timing out because
+# unstructured[pdf] pulls in huge GPU / torch dependencies.
+# For the deployed admin app we use the lighter core package.
 # Install with: pip install -r requirements.txt
 
-unstructured[pdf]>=0.16.0
+unstructured>=0.16.0
 tiktoken>=0.5.0
 chromadb>=0.4.0
 openai>=1.0.0
