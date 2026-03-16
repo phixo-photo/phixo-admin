@@ -7,6 +7,7 @@ const path = require('path');
 const { Pool } = require('pg');
 const { Readable } = require('stream');
 const fs = require('fs');
+const { spawn } = require('child_process');
 
 // Optional dependencies for document reading
 let pdfParse, mammoth;
@@ -20,6 +21,12 @@ try {
 
 const app = express();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200 * 1024 * 1024 } });
+
+// Shared data paths (for RAG pipeline, uploads, ChromaDB, etc.)
+// When deployed on Railway, mount a volume and set DATA_PATH to that mount point (e.g. /data).
+const DATA_PATH = process.env.DATA_PATH || path.join(__dirname, '..', 'phixo-intelligence', 'data');
+// Location of the Python RAG pipeline (phixo-intelligence repo or copied folder)
+const INTELLIGENCE_DIR = process.env.INTELLIGENCE_DIR || path.join(__dirname, '..', 'phixo-intelligence');
 
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '15mb' }));
@@ -1003,6 +1010,75 @@ app.post('/api/blocks/upload', requireAuth, upload.single('file'), async (req, r
     res.status(500).json({ error: err.message });
   } finally {
     try { if (require('fs').existsSync(tmpFile)) require('fs').unlinkSync(tmpFile); } catch(e) {}
+  }
+});
+
+// ═══════════════════════════════════════════════════
+// PHOTOGRAPHY KNOWLEDGE BASE — RAG ingest (PDF → Python pipeline)
+// ═══════════════════════════════════════════════════
+
+app.post('/api/knowledge/ingest-pdf', requireAuth, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    if (req.file.mimetype !== 'application/pdf') {
+      return res.status(400).json({ error: 'Only PDF files are supported right now' });
+    }
+    const { source, author, topic } = req.body;
+    if (!source || !author) {
+      return res.status(400).json({ error: 'Source and author are required' });
+    }
+
+    // Ensure data directories exist
+    try {
+      fs.mkdirSync(DATA_PATH, { recursive: true });
+      fs.mkdirSync(path.join(DATA_PATH, 'uploads'), { recursive: true });
+      fs.mkdirSync(path.join(DATA_PATH, 'chunks'), { recursive: true });
+      fs.mkdirSync(path.join(DATA_PATH, 'chromadb'), { recursive: true });
+    } catch (e) {
+      console.error('Failed to ensure DATA_PATH directories:', e.message);
+    }
+
+    // Save the PDF to a temporary uploads folder under DATA_PATH
+    const safeName = (req.file.originalname || 'book.pdf').replace(/[^a-zA-Z0-9_.-]+/g, '_');
+    const shortId = Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e6).toString(36);
+    const uploadPath = path.join(DATA_PATH, 'uploads', `${shortId}-${safeName}`);
+    fs.writeFileSync(uploadPath, req.file.buffer);
+
+    // Spawn the Python pipeline in the background: add_book.py
+    const topicValue = topic || 'general';
+    const pyArgs = [
+      path.join(INTELLIGENCE_DIR, 'scripts', 'add_book.py'),
+      uploadPath,
+      '--source', source,
+      '--author', author,
+      '--topic', topicValue,
+      '--out-dir', path.join(DATA_PATH, 'chunks'),
+      '--db-path', path.join(DATA_PATH, 'chromadb'),
+    ];
+
+    try {
+      const child = spawn('python3', pyArgs, {
+        cwd: INTELLIGENCE_DIR,
+        detached: true,
+        stdio: 'ignore',
+        env: {
+          ...process.env,
+          OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+        },
+      });
+      child.unref();
+    } catch (e) {
+      console.error('Failed to spawn add_book.py:', e.message);
+      return res.status(500).json({ error: 'Failed to start background ingest job' });
+    }
+
+    return res.status(202).json({
+      message: 'Book queued for processing. This may take a few minutes.',
+      jobId: shortId,
+    });
+  } catch (err) {
+    console.error('Knowledge ingest error:', err.message, err.stack);
+    return res.status(500).json({ error: err.message });
   }
 });
 

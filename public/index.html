@@ -609,6 +609,42 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
       <button class="btn btn-ghost btn-xs" onclick="applyResearchPreset('lighting_tips')">Lighting tips</button>
       <button class="btn btn-ghost btn-xs" onclick="applyResearchPreset('bts_only')">BTS only</button>
     </div>
+
+    <!-- Photography Knowledge Base (RAG) ingest -->
+    <div class="scard" style="margin:20px;margin-top:10px">
+      <div class="scard-body">
+        <h3 style="font-size:16px;margin-bottom:8px;font-family:var(--caslon)">📖 Add to Photography Knowledge Base</h3>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:10px">Upload a PDF book or guide you own, set its title and author, and the AI knowledge base will ingest it in the background.</p>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 1fr auto;gap:10px;align-items:end">
+          <div>
+            <label>PDF file</label>
+            <input type="file" id="kb-file" accept=".pdf,application/pdf">
+          </div>
+          <div>
+            <label>Source title</label>
+            <input type="text" id="kb-source" placeholder="Light Science and Magic">
+          </div>
+          <div>
+            <label>Author</label>
+            <input type="text" id="kb-author" placeholder="Fil Hunter, Steven Biver, Paul Fuqua">
+          </div>
+          <div>
+            <label>Topic</label>
+            <select id="kb-topic">
+              <option value="general">General</option>
+              <option value="lighting">Lighting</option>
+              <option value="posing">Posing</option>
+              <option value="gear">Gear</option>
+              <option value="color_theory">Color theory</option>
+              <option value="client_psychology">Client psychology</option>
+              <option value="business">Business</option>
+            </select>
+          </div>
+          <button class="btn btn-dark btn-sm" id="kb-upload-btn" onclick="uploadKnowledgePdf()">Ingest PDF →</button>
+        </div>
+        <div id="kb-upload-status" style="margin-top:6px;font-size:12px;color:var(--muted)"></div>
+      </div>
+    </div>
     
     <!-- Generate Ideas from Reference Videos -->
     <div class="scard" style="margin:20px;background:linear-gradient(135deg, rgba(184,103,62,0.05) 0%, rgba(184,103,62,0.02) 100%)">
@@ -3170,6 +3206,53 @@ async function cleanupDeleted(){
     toast('Cleanup failed: '+err.message,'err');
   }
   finally{btn.disabled=false;btn.textContent='🗑️ Clean Up';}
+}
+
+// ═══ PHOTOGRAPHY KNOWLEDGE BASE (RAG) INGEST ═══
+async function uploadKnowledgePdf(){
+  const fileInput = document.getElementById('kb-file');
+  const sourceEl = document.getElementById('kb-source');
+  const authorEl = document.getElementById('kb-author');
+  const topicEl = document.getElementById('kb-topic');
+  const btn = document.getElementById('kb-upload-btn');
+  const status = document.getElementById('kb-upload-status');
+
+  const file = fileInput.files && fileInput.files[0];
+  if (!file) { toast('Select a PDF file', 'err'); return; }
+  if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) {
+    toast('Only PDF files are supported right now', 'err'); return;
+  }
+  const source = sourceEl.value.trim();
+  const author = authorEl.value.trim();
+  const topic = (topicEl.value || 'general');
+  if (!source || !author) {
+    toast('Source and author are required', 'err'); return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Ingesting...';
+  status.style.display = 'block';
+  status.textContent = 'Uploading and queuing for background ingest...';
+
+  try {
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('source', source);
+    fd.append('author', author);
+    fd.append('topic', topic);
+    const res = await fetch('/api/knowledge/ingest-pdf', { method: 'POST', body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Upload failed');
+    status.textContent = data.message || 'Queued for processing. This may take a few minutes.';
+    toast('Book queued for ingest', 'ok');
+  } catch (err) {
+    console.error('KB ingest error', err);
+    status.textContent = err.message;
+    toast(err.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Ingest PDF →';
+  }
 }
 
 async function syncClients(){
