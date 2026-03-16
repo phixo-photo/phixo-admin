@@ -45,6 +45,14 @@ def log_status(job_id: str | None, log_path: str | None, status: str, **extra):
         # Logging must never break the ingest
         print(f"[ingest-log] failed to write status: {e}", file=sys.stderr)
 
+def _tail(s: str | None, limit: int = 2500) -> str:
+    if not s:
+        return ""
+    s = s.strip()
+    if len(s) <= limit:
+        return s
+    return s[-limit:]
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -96,14 +104,15 @@ def main():
             "--out-dir", os.path.join(PROJECT_ROOT, args.out_dir),
         ]
         print("Step 1/2: Chunking PDF...")
-        r = subprocess.run(chunk_cmd, cwd=PROJECT_ROOT)
+        r = subprocess.run(chunk_cmd, cwd=PROJECT_ROOT, text=True, capture_output=True)
         if r.returncode != 0:
+            detail = _tail(r.stderr) or _tail(r.stdout) or ""
             log_status(
                 args.job_id,
                 args.log_path,
                 "error",
                 stage="chunk",
-                message="chunk_elements.py failed",
+                message=("chunk_elements.py failed" + (f": {detail}" if detail else "")),
                 returncode=r.returncode,
             )
             sys.exit(r.returncode)
@@ -123,14 +132,15 @@ def main():
             "--db-path", os.path.join(PROJECT_ROOT, args.db_path),
         ]
         print("Step 2/2: Embedding and storing in ChromaDB...")
-        r = subprocess.run(embed_cmd, cwd=PROJECT_ROOT)
+        r = subprocess.run(embed_cmd, cwd=PROJECT_ROOT, text=True, capture_output=True)
         if r.returncode != 0:
+            detail = _tail(r.stderr) or _tail(r.stdout) or ""
             log_status(
                 args.job_id,
                 args.log_path,
                 "error",
                 stage="embed",
-                message="embed_and_store.py failed",
+                message=("embed_and_store.py failed" + (f": {detail}" if detail else "")),
                 returncode=r.returncode,
             )
             sys.exit(r.returncode)
