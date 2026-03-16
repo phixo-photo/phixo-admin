@@ -27,6 +27,21 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200
 const DATA_PATH = process.env.DATA_PATH || path.join(__dirname, '..', 'phixo-intelligence', 'data');
 // Location of the Python RAG pipeline (phixo-intelligence repo or copied folder)
 const INTELLIGENCE_DIR = process.env.INTELLIGENCE_DIR || path.join(__dirname, '..', 'phixo-intelligence');
+// Simple JSONL log for ingestion jobs (PDF → chunks → ChromaDB)
+const INGEST_LOG_PATH = path.join(DATA_PATH, 'ingest-log.jsonl');
+
+function appendIngestLog(entry) {
+  try {
+    fs.mkdirSync(path.dirname(INGEST_LOG_PATH), { recursive: true });
+    const payload = {
+      time: new Date().toISOString(),
+      ...entry,
+    };
+    fs.appendFileSync(INGEST_LOG_PATH, JSON.stringify(payload) + '\n');
+  } catch (err) {
+    console.error('Failed to append ingest log:', err.message);
+  }
+}
 
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '15mb' }));
@@ -1044,6 +1059,17 @@ app.post('/api/knowledge/ingest-pdf', requireAuth, upload.single('file'), async 
     const uploadPath = path.join(DATA_PATH, 'uploads', `${shortId}-${safeName}`);
     fs.writeFileSync(uploadPath, req.file.buffer);
 
+    // Log that this ingest job has been queued
+    appendIngestLog({
+      jobId: shortId,
+      status: 'queued',
+      source,
+      author,
+      topic: topicValue,
+      filename: safeName,
+      queuedAt: new Date().toISOString(),
+    });
+
     // Spawn the Python pipeline in the background: add_book.py
     const topicValue = topic || 'general';
     const pyArgs = [
@@ -1054,6 +1080,8 @@ app.post('/api/knowledge/ingest-pdf', requireAuth, upload.single('file'), async 
       '--topic', topicValue,
       '--out-dir', path.join(DATA_PATH, 'chunks'),
       '--db-path', path.join(DATA_PATH, 'chromadb'),
+      '--job-id', shortId,
+      '--log-path', INGEST_LOG_PATH,
     ];
 
     try {
@@ -1144,6 +1172,35 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Knowledge chat error:', err.message, err.stack);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Recent ingestion status (simple view over the JSONL log)
+app.get('/api/knowledge/ingest-status', requireAuth, (req, res) => {
+  try {
+    if (!fs.existsSync(INGEST_LOG_PATH)) {
+      return res.json({ jobs: [] });
+    }
+    const raw = fs.readFileSync(INGEST_LOG_PATH, 'utf8');
+    const lines = raw.split('\n').map(l => l.trim()).filter(Boolean);
+    const byJob = {};
+    for (const line of lines) {
+      try {
+        const ev = JSON.parse(line);
+        if (!ev.jobId) continue;
+        const existing = byJob[ev.jobId] || {};
+        byJob[ev.jobId] = { ...existing, ...ev };
+      } catch (e) {
+        // ignore malformed log lines
+      }
+    }
+    const jobs = Object.values(byJob)
+      .sort((a, b) => (b.queuedAt || b.time || '').localeCompare(a.queuedAt || a.time || ''))
+      .slice(0, 20);
+    return res.json({ jobs });
+  } catch (err) {
+    console.error('ingest-status error:', err.message);
+    return res.status(500).json({ error: 'Failed to read ingest status' });
   }
 });
 

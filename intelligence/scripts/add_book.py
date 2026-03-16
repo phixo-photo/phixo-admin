@@ -13,6 +13,8 @@ Usage:
 """
 
 import argparse
+import datetime
+import json
 import os
 import re
 import subprocess
@@ -24,6 +26,24 @@ PROJECT_ROOT = os.path.dirname(SCRIPT_DIR)
 
 def slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")
+
+
+def log_status(job_id: str | None, log_path: str | None, status: str, **extra):
+    if not job_id or not log_path:
+        return
+    try:
+        os.makedirs(os.path.dirname(log_path), exist_ok=True)
+        payload = {
+            "jobId": job_id,
+            "status": status,
+            "time": datetime.datetime.utcnow().isoformat() + "Z",
+            **extra,
+        }
+        with open(log_path, "a", encoding="utf-8") as f:
+            f.write(json.dumps(payload) + "\n")
+    except Exception as e:
+        # Logging must never break the ingest
+        print(f"[ingest-log] failed to write status: {e}", file=sys.stderr)
 
 
 def main():
@@ -41,6 +61,8 @@ def main():
     parser.add_argument("--out-dir", default="data/chunks", help="Where to write chunk JSON")
     parser.add_argument("--db-path", default="data/chromadb", help="ChromaDB path")
     parser.add_argument("--collection", "-c", default="phixo_kb", help="ChromaDB collection name")
+    parser.add_argument("--job-id", help="Optional ingest job id for logging")
+    parser.add_argument("--log-path", help="Optional path to JSONL ingest log")
     args = parser.parse_args()
 
     if not os.path.isfile(args.pdf_path):
@@ -53,6 +75,8 @@ def main():
 
     source_slug = slug(args.source)
     chunk_json = os.path.join(PROJECT_ROOT, args.out_dir, f"{source_slug}.json")
+
+    log_status(args.job_id, args.log_path, "running", source=args.source, author=args.author, topic=args.topic)
 
     # 1. Chunk the PDF
     chunk_cmd = [
@@ -69,10 +93,13 @@ def main():
     print("Step 1/2: Chunking PDF...")
     r = subprocess.run(chunk_cmd, cwd=PROJECT_ROOT)
     if r.returncode != 0:
+        log_status(args.job_id, args.log_path, "error", stage="chunk", returncode=r.returncode)
         sys.exit(r.returncode)
 
     if not os.path.isfile(chunk_json):
-        print(f"Chunk file not created: {chunk_json}", file=sys.stderr)
+        msg = f"Chunk file not created: {chunk_json}"
+        print(msg, file=sys.stderr)
+        log_status(args.job_id, args.log_path, "error", stage="chunk", message=msg)
         sys.exit(1)
 
     # 2. Embed and store (upsert into existing collection)
@@ -86,8 +113,10 @@ def main():
     print("Step 2/2: Embedding and storing in ChromaDB...")
     r = subprocess.run(embed_cmd, cwd=PROJECT_ROOT)
     if r.returncode != 0:
+        log_status(args.job_id, args.log_path, "error", stage="embed", returncode=r.returncode)
         sys.exit(r.returncode)
 
+    log_status(args.job_id, args.log_path, "success", source=args.source, author=args.author, topic=args.topic)
     print(f"Done. '{args.source}' is in the knowledge base. Ask questions with scripts/ask.py")
 
 
