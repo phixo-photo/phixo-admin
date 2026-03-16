@@ -1053,6 +1053,7 @@ app.post('/api/knowledge/ingest-pdf', requireAuth, upload.single('file'), async 
       console.error('Failed to ensure DATA_PATH directories:', e.message);
     }
 
+    const topicValue = topic || 'general';
     // Save the PDF to a temporary uploads folder under DATA_PATH
     const safeName = (req.file.originalname || 'book.pdf').replace(/[^a-zA-Z0-9_.-]+/g, '_');
     const shortId = Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e6).toString(36);
@@ -1071,7 +1072,6 @@ app.post('/api/knowledge/ingest-pdf', requireAuth, upload.single('file'), async 
     });
 
     // Spawn the Python pipeline in the background: add_book.py
-    const topicValue = topic || 'general';
     const pyArgs = [
       path.join(INTELLIGENCE_DIR, 'scripts', 'add_book.py'),
       uploadPath,
