@@ -1082,6 +1082,71 @@ app.post('/api/knowledge/ingest-pdf', requireAuth, upload.single('file'), async 
   }
 });
 
+// Chat with the photography knowledge base (Python ask.py → Claude)
+app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
+  try {
+    const { question } = req.body;
+    if (!question || !question.trim()) {
+      return res.status(400).json({ error: 'Question required' });
+    }
+    if (!process.env.OPENAI_API_KEY || !process.env.ANTHROPIC_API_KEY) {
+      return res.status(500).json({ error: 'OPENAI_API_KEY and ANTHROPIC_API_KEY must be set' });
+    }
+
+    // Ensure DB path exists
+    const dbPath = path.join(DATA_PATH, 'chromadb');
+    if (!fs.existsSync(dbPath)) {
+      return res.status(400).json({ error: 'Knowledge base is empty. Ingest at least one book first.' });
+    }
+
+    const pyArgs = [
+      path.join(INTELLIGENCE_DIR, 'scripts', 'ask.py'),
+      question,
+      '--db-path', dbPath,
+    ];
+
+    const child = spawn('python3', pyArgs, {
+      cwd: INTELLIGENCE_DIR,
+      env: {
+        ...process.env,
+        OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+      },
+    });
+
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+
+    child.on('close', (code) => {
+      if (code !== 0) {
+        console.error('ask.py error:', stderr || stdout);
+        return res.status(500).json({ error: 'Knowledge chat failed', detail: stderr || stdout });
+      }
+
+      // Simple extraction: take everything between the "Answer" header and "Sources:" if present
+      let answer = stdout;
+      const answerIndex = stdout.indexOf('Answer');
+      if (answerIndex !== -1) {
+        const afterAnswer = stdout.slice(answerIndex + 'Answer'.length);
+        const sepIndex = afterAnswer.indexOf('Sources:');
+        answer = sepIndex !== -1 ? afterAnswer.slice(0, sepIndex).trim() : afterAnswer.trim();
+      }
+      let sources = [];
+      const sourcesMatch = stdout.match(/Sources:\s*(.+)/);
+      if (sourcesMatch && sourcesMatch[1]) {
+        sources = sourcesMatch[1].split(',').map(s => s.trim()).filter(Boolean);
+      }
+
+      res.json({ answer, sources, raw: stdout });
+    });
+  } catch (err) {
+    console.error('Knowledge chat error:', err.message, err.stack);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // Ingest URL — fetch content, AI summary, create block
 app.post('/api/blocks/ingest-url', requireAuth, async (req, res) => {
   try {

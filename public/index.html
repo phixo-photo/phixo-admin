@@ -1547,10 +1547,32 @@ function restoreDiscoveryFilters(){
   if(st)st.value=stored.status||'';
 }
 
-// ── Ask Library ──────────────────────────────────────────────────────────────
+// ── Ask Library / Photography KB ────────────────────────────────────────────
+let _askMode = 'library'; // 'library' or 'kb'
+
+function setAskMode(mode){
+  _askMode = mode;
+  const libBtn = document.getElementById('ask-mode-library');
+  const kbBtn = document.getElementById('ask-mode-kb');
+  const descLib = document.getElementById('ask-desc-library');
+  const descKb = document.getElementById('ask-desc-kb');
+  if (mode === 'library') {
+    libBtn.classList.add('on');
+    kbBtn.classList.remove('on');
+    descLib.style.display = 'block';
+    descKb.style.display = 'none';
+  } else {
+    kbBtn.classList.add('on');
+    libBtn.classList.remove('on');
+    descLib.style.display = 'none';
+    descKb.style.display = 'block';
+  }
+}
+
 function openAskLibrary(){
   document.getElementById('ask-input').value='';
   openModal('m-ask-library');
+  setAskMode(_askMode || 'library');
   setTimeout(()=>document.getElementById('ask-input').focus(),100);
 }
 
@@ -1601,6 +1623,61 @@ async function askLibrary(){
     status.style.display='none';
   }
   btn.disabled=false; btn.textContent='Ask →';
+}
+
+async function askKnowledgeBase(){
+  const q = document.getElementById('ask-input').value.trim();
+  if(!q) return;
+  const btn = document.getElementById('ask-btn');
+  const status = document.getElementById('ask-status');
+  const history = document.getElementById('ask-history');
+  btn.disabled=true; btn.textContent='Thinking...';
+  status.style.display='block'; status.textContent='Step 1: Retrieving relevant chunks from your books...\nStep 2: Asking Claude with that context...';
+  history.style.display='flex';
+
+  const userMsg = document.createElement('div');
+  userMsg.style.cssText='align-self:flex-end;background:var(--accent);color:#fff;border-radius:12px 12px 2px 12px;padding:10px 14px;font-size:13px;max-width:85%;line-height:1.6';
+  userMsg.textContent=q;
+  history.appendChild(userMsg);
+  history.scrollTop=history.scrollHeight;
+  document.getElementById('ask-input').value='';
+
+  try {
+    const res = await fetch('/api/knowledge/chat', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ question:q })
+    });
+    const r = await res.json();
+    if (!res.ok) throw new Error(r.error || 'Knowledge chat failed');
+
+    const aiMsg = document.createElement('div');
+    aiMsg.style.cssText='align-self:flex-start;background:var(--surface-2);border-radius:2px 12px 12px 12px;padding:12px 14px;font-size:13px;max-width:90%;line-height:1.7;white-space:pre-wrap;border:1px solid var(--border)';
+    aiMsg.textContent = r.answer || (r.raw || '').trim();
+
+    if (r.sources && r.sources.length){
+      const srcs = document.createElement('div');
+      srcs.style.cssText='margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:6px';
+      srcs.innerHTML='<span style="font-size:10px;color:var(--muted);width:100%;font-weight:600;letter-spacing:.4px;text-transform:uppercase">Sources</span>' +
+        r.sources.map(s=>`<span style="background:var(--surface-3);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--text)">${esc(s)}</span>`).join('');
+      aiMsg.appendChild(srcs);
+    }
+    history.appendChild(aiMsg);
+    history.scrollTop=history.scrollHeight;
+  } catch(err){
+    toast(err.message,'err');
+    status.textContent='Error: '+err.message;
+  } finally {
+    btn.disabled=false; btn.textContent='Ask →';
+  }
+}
+
+async function submitAsk(){
+  if (_askMode === 'kb') {
+    await askKnowledgeBase();
+  } else {
+    await askLibrary();
+  }
 }
 function closeM(id){document.getElementById(id).classList.add('off');}
 function openModal(id){document.getElementById(id).classList.remove('off');}
@@ -3232,7 +3309,7 @@ async function uploadKnowledgePdf(){
   btn.disabled = true;
   btn.textContent = 'Ingesting...';
   status.style.display = 'block';
-  status.textContent = 'Uploading and queuing for background ingest...';
+  status.textContent = 'Step 1/2: Uploading PDF and queuing for ingest...';
 
   try {
     const fd = new FormData();
@@ -3243,7 +3320,8 @@ async function uploadKnowledgePdf(){
     const res = await fetch('/api/knowledge/ingest-pdf', { method: 'POST', body: fd });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || 'Upload failed');
-    status.textContent = data.message || 'Queued for processing. This may take a few minutes.';
+    status.textContent = (data.message || 'Queued for processing. This may take a few minutes.') +
+      ' (Step 2/2: Chunking and embedding will run in the background.)';
     toast('Book queued for ingest', 'ok');
   } catch (err) {
     console.error('KB ingest error', err);
@@ -4841,14 +4919,19 @@ function cancelRestyle(idx) {
 </script>
 <!-- Ask Library Modal -->
 <div class="mbg off" id="m-ask-library">
-  <div class="modal" style="max-width:680px">
+  <div class="modal" style="max-width:720px">
     <div class="mh"><h2>Ask your Library 🧠</h2><button class="mx" onclick="closeM('m-ask-library')">✕</button></div>
-    <div class="mb" style="display:flex;flex-direction:column;gap:12px">
-      <p style="font-size:13px;color:var(--muted);margin:0">Ask anything — Claude reads your actual research blocks, transcripts, and notes to answer. No hallucination, citations included.</p>
+    <div class="mb" style="display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;gap:6px;font-size:11px;border-bottom:1px solid var(--border);padding-bottom:6px">
+        <button class="btn btn-ghost btn-xs" id="ask-mode-library" onclick="setAskMode('library')" style="font-weight:600">Blocks Library</button>
+        <button class="btn btn-ghost btn-xs" id="ask-mode-kb" onclick="setAskMode('kb')">Photography KB (books)</button>
+      </div>
+      <p id="ask-desc-library" style="font-size:13px;color:var(--muted);margin:0">Ask anything — Claude reads your actual research blocks, transcripts, and notes to answer. No hallucination, citations included.</p>
+      <p id="ask-desc-kb" style="font-size:13px;color:var(--muted);margin:0;display:none">Ask photography questions — Claude answers using your ingested books and guides from the Photography Knowledge Base (RAG pipeline).</p>
       <div id="ask-history" style="display:none;max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-bottom:4px"></div>
       <div style="display:flex;gap:8px">
-        <textarea id="ask-input" placeholder="e.g. What posing tips do I have for nervous clients? What did that Canva video say about composition?" style="flex:1;min-height:72px;resize:vertical;font-size:13px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:inherit" onkeydown="if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){askLibrary();return false}"></textarea>
-        <button class="btn btn-dark" id="ask-btn" onclick="askLibrary()" style="align-self:flex-end;white-space:nowrap">Ask →</button>
+        <textarea id="ask-input" placeholder="e.g. What posing tips do I have for nervous clients? What does my window light chapter say about Rembrandt lighting?" style="flex:1;min-height:72px;resize:vertical;font-size:13px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:inherit" onkeydown="if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){submitAsk();return false}"></textarea>
+        <button class="btn btn-dark" id="ask-btn" onclick="submitAsk()" style="align-self:flex-end;white-space:nowrap">Ask →</button>
       </div>
       <div id="ask-status" style="font-size:11px;color:var(--muted);display:none"></div>
     </div>
