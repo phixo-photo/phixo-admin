@@ -1189,6 +1189,7 @@ app.get('/api/knowledge/ingest-status', requireAuth, (req, res) => {
         const ev = JSON.parse(line);
         if (!ev.jobId) continue;
         const existing = byJob[ev.jobId] || {};
+        // Merge, but keep any previously known fields if the new event omits them
         byJob[ev.jobId] = { ...existing, ...ev };
       } catch (e) {
         // ignore malformed log lines

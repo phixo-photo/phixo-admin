@@ -3354,7 +3354,15 @@ async function refreshIngestStatus(){
       const when = j.queuedAt || j.time || '';
       const label = j.source || j.filename || j.jobId;
       const status = (j.status || '').toUpperCase();
-      return `<div><strong>${status}</strong> – ${label} <span style="opacity:.7">${when}</span></div>`;
+      let extra = '';
+      if (j.status === 'error') {
+        const bits = [];
+        if (j.stage) bits.push(`stage: ${j.stage}`);
+        if (j.message) bits.push(j.message);
+        if (j.returncode !== undefined) bits.push(`code ${j.returncode}`);
+        if (bits.length) extra = ` <span style="color:#b54;opacity:.9">(${bits.join(' – ')})</span>`;
+      }
+      return `<div><strong>${status}</strong> – ${label} <span style="opacity:.7">${when}</span>${extra}</div>`;
     }).join('');
     container.innerHTML = rows;
 
