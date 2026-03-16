@@ -5,6 +5,7 @@
 # Install with: pip install -r requirements.txt
 
 unstructured>=0.16.0
+pdfminer.six>=20260107
 tiktoken>=0.5.0
 chromadb>=0.4.0
 openai>=1.0.0
