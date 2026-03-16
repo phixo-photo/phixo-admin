@@ -3341,6 +3341,13 @@ let kbIngestPoll = null;
 async function refreshIngestStatus(){
   const container = document.getElementById('kb-ingest-list');
   if (!container) return;
+  const esc = (s) => String(s ?? '')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'","&#39;");
+  const oneLine = (s) => String(s ?? '').replace(/\s+/g,' ').trim();
   try{
     const res = await fetch('/api/knowledge/ingest-status');
     if (!res.ok) throw new Error('Failed to load ingest status');
@@ -3358,11 +3365,11 @@ async function refreshIngestStatus(){
       if (j.status === 'error') {
         const bits = [];
         if (j.stage) bits.push(`stage: ${j.stage}`);
-        if (j.message) bits.push(j.message);
+        if (j.message) bits.push(oneLine(j.message));
         if (j.returncode !== undefined) bits.push(`code ${j.returncode}`);
-        if (bits.length) extra = ` <span style="color:#b54;opacity:.9">(${bits.join(' – ')})</span>`;
+        if (bits.length) extra = ` <span style="color:#b54;opacity:.9">(${esc(bits.join(' – '))})</span>`;
       }
-      return `<div><strong>${status}</strong> – ${label} <span style="opacity:.7">${when}</span>${extra}</div>`;
+      return `<div><strong>${esc(status)}</strong> – ${esc(label)} <span style="opacity:.7">${esc(when)}</span>${extra}</div>`;
     }).join('');
     container.innerHTML = rows;
 

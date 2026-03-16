@@ -106,7 +106,7 @@ def main():
         print("Step 1/2: Chunking PDF...")
         r = subprocess.run(chunk_cmd, cwd=PROJECT_ROOT, text=True, capture_output=True)
         if r.returncode != 0:
-            detail = _tail(r.stderr) or _tail(r.stdout) or ""
+            detail = _tail(r.stderr) or _tail(r.stdout) or "no output captured"
             log_status(
                 args.job_id,
                 args.log_path,
@@ -134,7 +134,7 @@ def main():
         print("Step 2/2: Embedding and storing in ChromaDB...")
         r = subprocess.run(embed_cmd, cwd=PROJECT_ROOT, text=True, capture_output=True)
         if r.returncode != 0:
-            detail = _tail(r.stderr) or _tail(r.stdout) or ""
+            detail = _tail(r.stderr) or _tail(r.stdout) or "no output captured"
             log_status(
                 args.job_id,
                 args.log_path,
