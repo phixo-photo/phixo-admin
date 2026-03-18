@@ -20,6 +20,7 @@ import os
 import re
 import sys
 import datetime
+import signal
 import warnings
 
 warnings.filterwarnings("ignore", message=".*[Ff]ont[Bb]ox.*")
@@ -135,6 +136,28 @@ def describe_image_with_claude(image_bytes: bytes, media_type: str, model: str =
     except Exception:
         usage = {}
     return text, usage
+
+
+class _Timeout(Exception):
+    pass
+
+
+def _alarm_handler(signum, frame):
+    raise _Timeout("vision_timeout")
+
+
+def describe_image_with_timeout(image_bytes: bytes, media_type: str, timeout_s: int = 180) -> tuple[str, dict]:
+    """
+    Hard timeout wrapper so ingest can't hang forever on a single vision request.
+    Only works reliably on Unix main thread (Railway/Linux is fine).
+    """
+    old = signal.signal(signal.SIGALRM, _alarm_handler)
+    try:
+        signal.alarm(int(timeout_s))
+        return describe_image_with_claude(image_bytes, media_type)
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, old)
 
 
 def _read_json(path: str) -> dict | None:
@@ -302,6 +325,17 @@ def main():
                     pix = fitz.Pixmap(doc, xref)
                     if pix.n >= 5:  # CMYK or with alpha
                         pix = fitz.Pixmap(fitz.csRGB, pix)
+                    # Downscale very large images to speed up vision calls (and reduce payload size).
+                    # Keep aspect ratio; target max dimension ~1400px.
+                    try:
+                        max_dim = 1400
+                        w0, h0 = int(pix.width), int(pix.height)
+                        scale = max(w0 / max_dim, h0 / max_dim) if max(w0, h0) > max_dim else 1.0
+                        if scale > 1.0:
+                            m = fitz.Matrix(1.0 / scale, 1.0 / scale)
+                            pix = fitz.Pixmap(pix, 0, m)
+                    except Exception:
+                        pass
                     pix.save(out_path)
                 except Exception:
                     # Fallback: write raw bytes from extract_image (may not be png)
@@ -321,10 +355,22 @@ def main():
                         "image_path": rel_image_path,
                         "page_number": page_number,
                         "book_slug": source_slug,
+                        "width": w,
+                        "height": h,
                     })
                     with open(out_path, "rb") as f:
                         img_bytes = f.read()
-                    desc_text, usage = describe_image_with_claude(img_bytes, "image/png")
+                    try:
+                        desc_text, usage = describe_image_with_timeout(img_bytes, "image/png", timeout_s=180)
+                    except _Timeout:
+                        append_ingest_log(args.log_path, args.job_id, {
+                            "status": "vision_timeout",
+                            "image_path": rel_image_path,
+                            "page_number": page_number,
+                            "book_slug": source_slug,
+                            "timeout_s": 180,
+                        })
+                        continue
                     if not desc_text:
                         continue
                     described_images += 1
