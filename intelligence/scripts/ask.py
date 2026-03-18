@@ -13,13 +13,42 @@ Usage:
 import argparse
 import os
 import sys
+import json
 
 EMBED_MODEL = "text-embedding-3-small"
 # Use current Haiku (Claude 4.5 Haiku); see https://docs.anthropic.com/en/docs/about-claude/model-deprecations
 DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5"
 
 SYSTEM_PROMPT = """You are a portrait photography expert. Answer the question using only the excerpts from photography books provided below.
-Rules: do NOT use Markdown. No '#', no '##', no '*', no '-' bullets, no numbered markdown lists. Use plain text with short paragraphs and simple sentences. If you want structure, use plain labels like 'Step 1:' / 'Tip:' / 'Avoid:'. If the excerpts don't cover what's asked, say so. When you use a specific idea from the text, mention the source (book title) in passing. Keep the answer clear and practical."""
+
+Return ONLY valid JSON with this schema (no markdown, no extra text):
+{
+  "answerText": string,
+  "poseDiagram": null | {
+    "cameraFacing": "top",
+    "poseShape": "V" | "C" | "Triangles" | "Unknown",
+    "weightShift": "left_leg" | "right_leg" | "unknown",
+    "torsoAngle": "toward_camera" | "away_from_camera" | "slight" | "unknown",
+    "hipAngle": "toward_camera" | "away_from_camera" | "slight" | "unknown",
+    "frontFootDirection": "toward_camera" | "away_from_camera" | "side" | "unknown",
+    "backFootDirection": "toward_camera" | "away_from_camera" | "side" | "unknown"
+  },
+  "lightingDiagram": null | {
+    "cameraFacing": "top",
+    "lightTypes": array of strings,
+    "positions": array of strings,
+    "angles": array of strings,
+    "modifiers": array of strings
+  },
+  "sources": array of strings
+}
+
+Rules:
+1) Do not use markdown. answerText must be plain text with short paragraphs.
+2) If posing is relevant, fill poseDiagram. Otherwise poseDiagram must be null.
+3) If lighting is relevant, fill lightingDiagram. Otherwise lightingDiagram must be null.
+4) If the excerpts do not cover what's asked, say so in answerText.
+5) When you use a specific idea from the text, it must be supported by the excerpts and you should list the book title in sources."""
 
 
 def main():
@@ -94,15 +123,40 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
         messages=[{"role": "user", "content": user_content}],
     )
 
-    answer = message.content[0].text
-    print()
-    print("=" * 60)
-    print("Answer")
-    print("=" * 60)
-    print(answer)
-    print()
-    print("Sources:", ", ".join(sources))
-    print()
+    raw = message.content[0].text
+
+    # Be defensive: even with "JSON only" prompts, models sometimes wrap or prefix text.
+    # Try strict JSON first, then extract the first {...} block.
+    payload = None
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        first_brace = raw.find('{')
+        last_brace = raw.rfind('}')
+        if first_brace != -1 and last_brace != -1 and last_brace > first_brace:
+            try:
+                payload = json.loads(raw[first_brace:last_brace + 1])
+            except Exception:
+                payload = None
+
+    if not payload or not isinstance(payload, dict):
+        payload = {
+            "answerText": raw,
+            "poseDiagram": None,
+            "lightingDiagram": None,
+            "sources": sources,
+        }
+
+    if "sources" not in payload or not isinstance(payload.get("sources"), list):
+        payload["sources"] = sources
+
+    # Normalize diagram fields: missing keys -> null.
+    if "poseDiagram" not in payload:
+        payload["poseDiagram"] = None
+    if "lightingDiagram" not in payload:
+        payload["lightingDiagram"] = None
+
+    print(json.dumps(payload, ensure_ascii=False))
 
 
 if __name__ == "__main__":
