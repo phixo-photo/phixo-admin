@@ -20,7 +20,6 @@ import os
 import re
 import sys
 import datetime
-import signal
 import warnings
 
 warnings.filterwarnings("ignore", message=".*[Ff]ont[Bb]ox.*")
@@ -241,10 +240,26 @@ def main():
 
         print("Extracting embedded images (PyMuPDF)...")
         doc = fitz.open(args.pdf_path)
+        append_ingest_log(args.log_path, args.job_id, {
+            "status": "image_doc_start",
+            "page_count": len(doc),
+            "book_slug": source_slug,
+        })
         for page_index in range(len(doc)):
             page = doc[page_index]
+            append_ingest_log(args.log_path, args.job_id, {
+                "status": "image_page_start",
+                "page_number": page_index + 1,
+                "book_slug": source_slug,
+            })
             # list of tuples; first element is xref
             imgs = page.get_images(full=True) or []
+            append_ingest_log(args.log_path, args.job_id, {
+                "status": "image_page_images",
+                "page_number": page_index + 1,
+                "image_count": len(imgs),
+                "book_slug": source_slug,
+            })
             for img_idx, img in enumerate(imgs):
                 xref = img[0]
                 page_number = page_index + 1
@@ -292,9 +307,23 @@ def main():
                         })
                     continue
 
+                append_ingest_log(args.log_path, args.job_id, {
+                    "status": "image_extract_start",
+                    "image_path": rel_image_path,
+                    "page_number": page_number,
+                    "book_slug": source_slug,
+                })
                 extracted = doc.extract_image(xref) or {}
                 w = int(extracted.get("width") or 0)
                 h = int(extracted.get("height") or 0)
+                append_ingest_log(args.log_path, args.job_id, {
+                    "status": "image_extract_done",
+                    "image_path": rel_image_path,
+                    "page_number": page_number,
+                    "book_slug": source_slug,
+                    "width": w,
+                    "height": h,
+                })
                 if w and h and (w < 50 or h < 50):
                     skipped_small += 1
                     append_ingest_log(args.log_path, args.job_id, {
@@ -311,6 +340,12 @@ def main():
                 # Save image as PNG (more reliable for downstream serving)
                 os.makedirs(book_images_dir, exist_ok=True)
                 try:
+                    append_ingest_log(args.log_path, args.job_id, {
+                        "status": "pixmap_start",
+                        "image_path": rel_image_path,
+                        "page_number": page_number,
+                        "book_slug": source_slug,
+                    })
                     pix = fitz.Pixmap(doc, xref)
                     if pix.n >= 5:  # CMYK or with alpha
                         pix = fitz.Pixmap(fitz.csRGB, pix)
@@ -336,6 +371,13 @@ def main():
                         continue
 
                 extracted_images += 1
+                append_ingest_log(args.log_path, args.job_id, {
+                    "status": "pixmap_done",
+                    "image_path": rel_image_path,
+                    "page_number": page_number,
+                    "book_slug": source_slug,
+                    "out_path": os.path.basename(out_path),
+                })
 
                 # Vision describe (one-time ingest cost)
                 try:
@@ -414,6 +456,14 @@ def main():
                         "message": str(e),
                     })
                     continue
+            append_ingest_log(args.log_path, args.job_id, {
+                "status": "image_page_done",
+                "page_number": page_index + 1,
+                "saved_images": extracted_images,
+                "described_images": described_images,
+                "skipped_small": skipped_small,
+                "book_slug": source_slug,
+            })
     except Exception as e:
         append_ingest_log(args.log_path, args.job_id, {
             "status": "image_extract_error",
