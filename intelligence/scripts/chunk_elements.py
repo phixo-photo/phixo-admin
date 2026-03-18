@@ -299,12 +299,113 @@ def main():
                             "book_slug": source_slug,
                         })
                     else:
+                        # If the image file exists but the description sidecar is missing/empty,
+                        # regenerate the vision description so we don't silently skip image chunks.
                         append_ingest_log(args.log_path, args.job_id, {
-                            "status": "image_exists",
+                            "status": "image_missing_description",
                             "image_path": rel_image_path,
                             "page_number": page_number,
                             "book_slug": source_slug,
                         })
+
+                        try:
+                            # Load the existing PNG and downscale if needed to keep vision fast.
+                            pix = fitz.Pixmap(out_path)
+                            if pix.n >= 5:
+                                pix = fitz.Pixmap(fitz.csRGB, pix)
+                            w = int(pix.width)
+                            h = int(pix.height)
+                            if w and h and (w < 50 or h < 50):
+                                skipped_small += 1
+                                append_ingest_log(args.log_path, args.job_id, {
+                                    "status": "vision_skip",
+                                    "reason": "too_small",
+                                    "width": w,
+                                    "height": h,
+                                    "image_path": rel_image_path,
+                                    "page_number": page_number,
+                                    "book_slug": source_slug,
+                                })
+                                continue
+
+                            # Downscale large images.
+                            try:
+                                max_dim = 1400
+                                w0, h0 = int(pix.width), int(pix.height)
+                                scale = max(w0 / max_dim, h0 / max_dim) if max(w0, h0) > max_dim else 1.0
+                                if scale > 1.0:
+                                    m = fitz.Matrix(1.0 / scale, 1.0 / scale)
+                                    pix = fitz.Pixmap(pix, 0, m)
+                            except Exception:
+                                pass
+
+                            # Overwrite with the downscaled PNG so the vision input is bounded.
+                            pix.save(out_path)
+                            with open(out_path, "rb") as f:
+                                img_bytes = f.read()
+
+                            append_ingest_log(args.log_path, args.job_id, {
+                                "status": "vision_start",
+                                "image_path": rel_image_path,
+                                "page_number": page_number,
+                                "book_slug": source_slug,
+                                "width": w,
+                                "height": h,
+                            })
+                            desc_text, usage = describe_image_with_claude(img_bytes, "image/png", timeout_s=180)
+                            if not desc_text:
+                                continue
+                            described_images += 1
+                            _write_json(sidecar_path, {
+                                "description": desc_text,
+                                "usage": usage,
+                                "image_path": rel_image_path,
+                                "page_number": page_number,
+                                "book_slug": source_slug,
+                                "created_at": _utc_iso(),
+                                "model": "claude-haiku-4-5",
+                            })
+                            append_ingest_log(args.log_path, args.job_id, {
+                                "status": "vision_call",
+                                "image_path": rel_image_path,
+                                "page_number": page_number,
+                                "book_slug": source_slug,
+                                "approx_tokens": usage,
+                            })
+                            append_ingest_log(args.log_path, args.job_id, {
+                                "status": "vision_done",
+                                "image_path": rel_image_path,
+                                "page_number": page_number,
+                                "book_slug": source_slug,
+                            })
+
+                            chunk_id = f"{source_slug}_image_{page_number:04d}_{img_idx:04d}"
+                            chunks_with_meta.append({
+                                "chunk_id": chunk_id,
+                                "text": desc_text,
+                                "metadata": {
+                                    "chunk_id": chunk_id,
+                                    "chunk_type": "image",
+                                    "image_path": rel_image_path,
+                                    "page_number": page_number,
+                                    "book_slug": source_slug,
+                                    "source_document": args.source,
+                                    "author": args.author,
+                                    "chapter": "unknown",
+                                    "topic_category": args.topic,
+                                    "content_type": "reference_image",
+                                    "copyright_status": "copyrighted_private",
+                                },
+                            })
+                        except Exception as e:
+                            append_ingest_log(args.log_path, args.job_id, {
+                                "status": "vision_from_existing_error",
+                                "image_path": rel_image_path,
+                                "page_number": page_number,
+                                "book_slug": source_slug,
+                                "message": str(e),
+                            })
+                        continue
                     continue
 
                 append_ingest_log(args.log_path, args.job_id, {
