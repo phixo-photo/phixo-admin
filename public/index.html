@@ -5117,7 +5117,7 @@ function cancelRestyle(idx) {
       <p id="ask-desc-kb" style="font-size:13px;color:var(--muted);margin:0;display:none">Ask photography questions — Claude answers using your ingested books and guides from the Photography Knowledge Base (RAG pipeline).</p>
       <div id="ask-history" style="display:none;max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-bottom:4px"></div>
       <div style="display:flex;gap:8px">
-        <textarea id="ask-input" placeholder="e.g. What posing tips do I have for nervous clients? What does my window light chapter say about Rembrandt lighting?" style="flex:1;min-height:72px;resize:vertical;font-size:13px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:inherit" onkeydown="if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){submitAsk();return false}"></textarea>
+        <textarea id="ask-input" placeholder="e.g. What posing tips do I have for nervous clients? What does my window light chapter say about Rembrandt lighting?" style="flex:1;min-height:72px;resize:vertical;font-size:13px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:inherit" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){submitAsk();return false}"></textarea>
         <button class="btn btn-dark" id="ask-btn" onclick="submitAsk()" style="align-self:flex-end;white-space:nowrap">Ask →</button>
       </div>
       <div id="ask-status" style="font-size:11px;color:var(--muted);display:none"></div>
