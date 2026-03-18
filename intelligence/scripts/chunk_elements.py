@@ -132,7 +132,7 @@ def main():
             },
         })
 
-    print(f"Created {len(chunks_with_meta)} chunks from {len(elements)} elements.")
+    print(f"Created {len(chunks_with_meta)} chunks.")
 
     if not args.no_write:
         os.makedirs(args.out_dir, exist_ok=True)
