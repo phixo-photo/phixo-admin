@@ -1674,6 +1674,43 @@ async function askKnowledgeBase(){
       const torsoDir = arrowToward(torso);
       const hipDir = arrowToward(hip);
       const wStroke = 'var(--accent)';
+      const stroke = 'rgba(0,0,0,0.26)';
+
+      // Map qualitative directions to simple angled leg arrows.
+      // Diagram convention:
+      // - toward_camera  => angled UP (toward camera icon)
+      // - away_from_camera => angled DOWN (away from camera)
+      // - side => horizontal-ish
+      const legPath = (dir, which) => {
+        // Keep left leg anchored around x=185, right leg around x=235.
+        const isLeft = which === 'left';
+        const baseX = isLeft ? 185 : 235;
+        const baseY = 215;
+        if (dir === 'toward_camera') {
+          return `M${baseX},${baseY} C ${baseX-5},${baseY-40} ${baseX+5},${baseY-40} ${baseX},${baseY-70} `;
+        }
+        if (dir === 'away_from_camera') {
+          return `M${baseX},${baseY} C ${baseX-5},${baseY+25} ${baseX+5},${baseY+25} ${baseX},${baseY+55} `;
+        }
+        if (dir === 'side') {
+          const endX = isLeft ? 150 : 270;
+          return `M${baseX},${baseY} L${endX},${baseY+8} `;
+        }
+        // unknown/default (neutral)
+        return `M${baseX},${baseY} C ${baseX-10},${baseY+30} ${baseX+10},${baseY+30} ${baseX},${baseY+60} `;
+      };
+
+      // Arrowheads for direction visualization (simple triangles).
+      const arrowHead = (dir, which) => {
+        const isLeft = which === 'left';
+        const x = isLeft ? 175 : 245;
+        const y = dir === 'toward_camera' ? 145 : dir === 'away_from_camera' ? 280 : 230;
+        const rot = dir === 'side' ? (isLeft ? 25 : -25) : (dir === 'toward_camera' ? -70 : 70);
+        return `<g transform="translate(${x},${y}) rotate(${rot})">
+          <polygon points="0,0 -8,-10 0,-20" fill="var(--accent)" opacity="0.75"/>
+        </g>`;
+      };
+
       // Camera icon at top; person centered.
       return `
         <div style="margin-top:10px">
@@ -1698,10 +1735,16 @@ async function askKnowledgeBase(){
               ` : `
                 <path d="M165,165 C195,135 225,135 255,165" stroke="rgba(0,0,0,0.18)" stroke-width="28" fill="none" stroke-linecap="round"/>
               `}
-              <!-- Legs (feet directions placeholders) -->
-              <g opacity="0.85">
-                <path d="M185,215 C175,245 175,265 160,275" stroke="rgba(0,0,0,0.25)" stroke-width="10" fill="none" stroke-linecap="round"/>
-                <path d="M235,215 C245,245 245,265 260,275" stroke="rgba(0,0,0,0.25)" stroke-width="10" fill="none" stroke-linecap="round"/>
+              <!-- Legs: actually reflect front/back foot directions -->
+              <g opacity="0.9">
+                <!-- Back foot (default: more visible/anchored) -->
+                <path d="${legPath(backFoot, 'left')}" stroke="rgba(0,0,0,0.25)" stroke-width="10" fill="none" stroke-linecap="round"/>
+                <path d="${legPath(backFoot, 'right')}" stroke="rgba(0,0,0,0.25)" stroke-width="10" fill="none" stroke-linecap="round"/>
+                <!-- Front foot highlight (accent) -->
+                <path d="${legPath(frontFoot, 'left')}" stroke="var(--accent)" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.85"/>
+                <path d="${legPath(frontFoot, 'right')}" stroke="var(--accent)" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.85"/>
+                ${arrowHead(frontFoot, 'left')}
+                ${arrowHead(frontFoot, 'right')}
               </g>
             </g>
             <!-- Torso/hip direction arrows (qualitative) -->
