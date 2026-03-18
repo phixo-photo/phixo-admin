@@ -1205,6 +1205,27 @@ app.get('/api/knowledge/ingest-status', requireAuth, (req, res) => {
   }
 });
 
+// Wipe the local knowledge base artifacts (uploads, chunks, chromadb, and ingest log)
+app.post('/api/knowledge/clean-kb', requireAuth, async (req, res) => {
+  try {
+    const dirs = ['uploads', 'chunks', 'chromadb'];
+    for (const d of dirs) {
+      const full = path.join(DATA_PATH, d);
+      if (fs.existsSync(full)) {
+        fs.rmSync(full, { recursive: true, force: true });
+      }
+      fs.mkdirSync(full, { recursive: true });
+    }
+
+    if (fs.existsSync(INGEST_LOG_PATH)) fs.rmSync(INGEST_LOG_PATH, { force: true });
+
+    return res.json({ ok: true, cleaned: true });
+  } catch (err) {
+    console.error('clean-kb error:', err.message);
+    return res.status(500).json({ error: 'Failed to clean knowledge base', detail: err.message });
+  }
+});
+
 // Ingest URL — fetch content, AI summary, create block
 app.post('/api/blocks/ingest-url', requireAuth, async (req, res) => {
   try {

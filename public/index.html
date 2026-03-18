@@ -644,6 +644,12 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
         </div>
         <div id="kb-upload-status" style="margin-top:6px;font-size:12px;color:var(--muted)"></div>
         <div id="kb-ingest-list" style="margin-top:8px;font-size:11px;color:var(--muted);border-top:1px dashed var(--border);padding-top:6px"></div>
+        <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-ghost btn-sm" onclick="cleanKnowledgeBase()" title="Wipe chunks/chromadb/uploads and restart ingest">
+            🧹 Clean KB (wipe)
+          </button>
+          <span style="font-size:11px;color:var(--muted)">Clears local RAG storage on this volume.</span>
+        </div>
       </div>
     </div>
     
@@ -3385,6 +3391,19 @@ async function refreshIngestStatus(){
   }catch(err){
     console.error('ingest-status error',err);
     container.textContent = 'Unable to load ingest status.';
+  }
+}
+
+async function cleanKnowledgeBase(){
+  const btn = document.activeElement;
+  try{
+    const res = await api('POST','/api/knowledge/clean-kb',{});
+    toast('Cleaned knowledge base. Upload PDFs again.', 'ok');
+    const container = document.getElementById('kb-ingest-list');
+    if (container) container.textContent = 'No recent ingests yet.';
+  } catch(err){
+    console.error('cleanKnowledgeBase error', err);
+    toast('Failed to clean KB: ' + err.message, 'err');
   }
 }
 
