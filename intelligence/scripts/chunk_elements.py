@@ -98,7 +98,12 @@ def append_ingest_log(log_path: str | None, job_id: str | None, payload: dict):
         return
 
 
-def describe_image_with_claude(image_bytes: bytes, media_type: str, model: str = "claude-haiku-4-5") -> tuple[str, dict]:
+def describe_image_with_claude(
+    image_bytes: bytes,
+    media_type: str,
+    model: str = "claude-haiku-4-5",
+    timeout_s: int = 180,
+) -> tuple[str, dict]:
     """
     Returns (description_text, usage_dict).
     usage_dict may include input_tokens/output_tokens if available.
@@ -111,7 +116,13 @@ def describe_image_with_claude(image_bytes: bytes, media_type: str, model: str =
         "and any technique being demonstrated. Be specific and spatial."
     )
     b64 = base64.b64encode(image_bytes).decode("utf-8")
-    client = anthropic.Anthropic()
+    # IMPORTANT: enforce a real network timeout at the HTTP layer.
+    # (signal.alarm() may not interrupt blocked I/O in some environments.)
+    try:
+        client = anthropic.Anthropic(timeout=float(timeout_s), max_retries=0)
+    except TypeError:
+        # Older SDKs may not support these kwargs.
+        client = anthropic.Anthropic()
     msg = client.messages.create(
         model=model,
         max_tokens=700,
@@ -136,28 +147,6 @@ def describe_image_with_claude(image_bytes: bytes, media_type: str, model: str =
     except Exception:
         usage = {}
     return text, usage
-
-
-class _Timeout(Exception):
-    pass
-
-
-def _alarm_handler(signum, frame):
-    raise _Timeout("vision_timeout")
-
-
-def describe_image_with_timeout(image_bytes: bytes, media_type: str, timeout_s: int = 180) -> tuple[str, dict]:
-    """
-    Hard timeout wrapper so ingest can't hang forever on a single vision request.
-    Only works reliably on Unix main thread (Railway/Linux is fine).
-    """
-    old = signal.signal(signal.SIGALRM, _alarm_handler)
-    try:
-        signal.alarm(int(timeout_s))
-        return describe_image_with_claude(image_bytes, media_type)
-    finally:
-        signal.alarm(0)
-        signal.signal(signal.SIGALRM, old)
 
 
 def _read_json(path: str) -> dict | None:
@@ -361,14 +350,15 @@ def main():
                     with open(out_path, "rb") as f:
                         img_bytes = f.read()
                     try:
-                        desc_text, usage = describe_image_with_timeout(img_bytes, "image/png", timeout_s=180)
-                    except _Timeout:
+                        desc_text, usage = describe_image_with_claude(img_bytes, "image/png", timeout_s=180)
+                    except Exception as te:
                         append_ingest_log(args.log_path, args.job_id, {
                             "status": "vision_timeout",
                             "image_path": rel_image_path,
                             "page_number": page_number,
                             "book_slug": source_slug,
                             "timeout_s": 180,
+                            "message": str(te),
                         })
                         continue
                     if not desc_text:
