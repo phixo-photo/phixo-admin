@@ -18,7 +18,8 @@ EMBED_MODEL = "text-embedding-3-small"
 # Use current Haiku (Claude 4.5 Haiku); see https://docs.anthropic.com/en/docs/about-claude/model-deprecations
 DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5"
 
-SYSTEM_PROMPT = """You are a portrait photography expert. Answer the question using only the excerpts from photography books provided below. Explain the reasoning and the "why" where the text supports it. If the excerpts don't cover what's asked, say so. When you use a specific idea from the text, mention the source (book title) in passing. Keep the answer clear and practical."""
+SYSTEM_PROMPT = """You are a portrait photography expert. Answer the question using only the excerpts from photography books provided below.
+Rules: do NOT use Markdown. No '#', no '##', no '*', no '-' bullets, no numbered markdown lists. Use plain text with short paragraphs and simple sentences. If you want structure, use plain labels like 'Step 1:' / 'Tip:' / 'Avoid:'. If the excerpts don't cover what's asked, say so. When you use a specific idea from the text, mention the source (book title) in passing. Keep the answer clear and practical."""
 
 
 def main():

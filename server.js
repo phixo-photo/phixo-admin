@@ -1167,6 +1167,19 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
         sources = sourcesMatch[1].split(',').map(s => s.trim()).filter(Boolean);
       }
 
+      // Convert common Markdown-ish output into plain text
+      const toPlain = (s) => {
+        if (typeof s !== 'string') return '';
+        return s
+          .replace(/^#{1,6}\s+/gm, '') // remove markdown headings
+          .replace(/\*\*(.*?)\*\*/g, '$1') // bold -> plain
+          .replace(/^\s*[-*]\s+/gm, '• ') // bullets -> dots
+          .replace(/^\s*\d+\.\s+/gm, (m) => m) // keep numbered lists as-is
+          .replace(/[`>]/g, '') // strip code/quote markers
+          .trim();
+      };
+      answer = toPlain(answer);
+
       res.json({ answer, sources, raw: stdout });
     });
   } catch (err) {
