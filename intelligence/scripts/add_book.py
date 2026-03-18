@@ -103,6 +103,10 @@ def main():
             "--overlap", str(args.overlap),
             "--out-dir", os.path.join(PROJECT_ROOT, args.out_dir),
         ]
+        if args.job_id:
+            chunk_cmd.extend(["--job-id", args.job_id])
+        if args.log_path:
+            chunk_cmd.extend(["--log-path", args.log_path])
         print("Step 1/2: Chunking PDF...")
         r = subprocess.run(chunk_cmd, cwd=PROJECT_ROOT, text=True, capture_output=True)
         if r.returncode != 0:

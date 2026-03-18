@@ -1816,6 +1816,28 @@ async function askKnowledgeBase(){
         r.sources.map(s=>`<span style="background:var(--surface-3);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--text)">${esc(s)}</span>`).join('');
       aiMsg.appendChild(srcs);
     }
+    // If a reference image was retrieved, render it below sources (above diagrams).
+    if (r.referenceImage && r.referenceImage.path) {
+      const wrap = document.createElement('div');
+      wrap.style.cssText='margin-top:10px';
+
+      const img = document.createElement('img');
+      img.alt = 'Reference image';
+      img.loading = 'lazy';
+      img.style.cssText='width:100%;max-width:520px;height:auto;border-radius:10px;border:1px solid var(--border);background:var(--bg);display:block';
+      img.src = '/api/knowledge/images/' + String(r.referenceImage.path).replace(/^\\/+/, '');
+
+      wrap.appendChild(img);
+
+      if (r.referenceImage.description) {
+        const cap = document.createElement('div');
+        cap.style.cssText='margin-top:6px;font-size:11px;color:var(--muted);line-height:1.5';
+        cap.textContent = String(r.referenceImage.description);
+        wrap.appendChild(cap);
+      }
+
+      aiMsg.appendChild(wrap);
+    }
     // If pose diagram exists, render it below the answer text.
     if (r.poseDiagram) {
       aiMsg.insertAdjacentHTML('beforeend', renderPoseDiagram(r.poseDiagram));

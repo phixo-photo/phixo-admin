@@ -24,6 +24,7 @@ SYSTEM_PROMPT = """You are a portrait photography expert. Answer the question us
 Return ONLY valid JSON with this schema (no markdown, no extra text):
 {
   "answerText": string,
+  "referenceImage": null,
   "poseDiagram": null | {
     "cameraFacing": "top",
     "poseShape": "V" | "C" | "Triangles" | "Unknown",
@@ -47,8 +48,9 @@ Rules:
 1) Do not use markdown. answerText must be plain text with short paragraphs.
 2) If posing is relevant, fill poseDiagram. Otherwise poseDiagram must be null.
 3) If lighting is relevant, fill lightingDiagram. Otherwise lightingDiagram must be null.
-4) If the excerpts do not cover what's asked, say so in answerText.
-5) When you use a specific idea from the text, it must be supported by the excerpts and you should list the book title in sources."""
+4) referenceImage must be null (the system will attach an image if one is retrieved).
+5) If the excerpts do not cover what's asked, say so in answerText.
+6) When you use a specific idea from the text, it must be supported by the excerpts and you should list the book title in sources."""
 
 
 def main():
@@ -89,17 +91,25 @@ def main():
     results = collection.query(
         query_embeddings=[query_embedding],
         n_results=args.top,
-        include=["documents", "metadatas"],
+        include=["documents", "metadatas", "distances"],
     )
 
     docs = results["documents"][0]
     metadatas = results["metadatas"][0]
+    distances = results.get("distances", [[]])[0] or []
     sources = list({m.get("source_document", "?") for m in metadatas})
 
     context_parts = []
-    for i, (doc, meta) in enumerate(zip(docs, metadatas), 1):
-        title = meta.get("source_document", "Unknown")
-        context_parts.append(f"[Excerpt {i} — {title}]\n{doc}")
+    image_candidates = []
+    excerpt_index = 1
+    for doc, meta, dist in zip(docs, metadatas, distances):
+        ctype = (meta or {}).get("chunk_type", "text")
+        if ctype == "image":
+            image_candidates.append((dist, doc, meta))
+            continue
+        title = (meta or {}).get("source_document", "Unknown")
+        context_parts.append(f"[Excerpt {excerpt_index} — {title}]\n{doc}")
+        excerpt_index += 1
     context = "\n\n---\n\n".join(context_parts)
 
     user_content = f"""Here are excerpts from photography books:
@@ -142,6 +152,7 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
     if not payload or not isinstance(payload, dict):
         payload = {
             "answerText": raw,
+            "referenceImage": None,
             "poseDiagram": None,
             "lightingDiagram": None,
             "sources": sources,
@@ -151,10 +162,30 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
         payload["sources"] = sources
 
     # Normalize diagram fields: missing keys -> null.
+    if "referenceImage" not in payload:
+        payload["referenceImage"] = None
     if "poseDiagram" not in payload:
         payload["poseDiagram"] = None
     if "lightingDiagram" not in payload:
         payload["lightingDiagram"] = None
+
+    # Attach best reference image (if retrieved). Chroma distances: lower is more similar.
+    ref = None
+    if image_candidates:
+        image_candidates.sort(key=lambda t: (t[0] is None, t[0]))
+        best_dist, best_doc, best_meta = image_candidates[0]
+        if isinstance(best_meta, dict):
+            img_path = best_meta.get("image_path")
+            page = best_meta.get("page_number")
+            book = best_meta.get("book_slug")
+            if img_path:
+                ref = {
+                    "path": img_path,
+                    "description": best_doc,
+                    "page": page,
+                    "book": book,
+                }
+    payload["referenceImage"] = ref
 
     print(json.dumps(payload, ensure_ascii=False))
 

@@ -47,6 +47,10 @@ app.set('trust proxy', 1);
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Public static serving for extracted knowledge-base images:
+// /api/knowledge/images/<book_slug>/<filename>
+app.use('/api/knowledge/images', express.static(path.join(DATA_PATH, 'images')));
 app.use(cookieSession({
   name: 'phixo-session',
   secret: process.env.SESSION_SECRET || 'phixo-secret-v3',
@@ -1049,6 +1053,7 @@ app.post('/api/knowledge/ingest-pdf', requireAuth, upload.single('file'), async 
       fs.mkdirSync(path.join(DATA_PATH, 'uploads'), { recursive: true });
       fs.mkdirSync(path.join(DATA_PATH, 'chunks'), { recursive: true });
       fs.mkdirSync(path.join(DATA_PATH, 'chromadb'), { recursive: true });
+      fs.mkdirSync(path.join(DATA_PATH, 'images'), { recursive: true });
     } catch (e) {
       console.error('Failed to ensure DATA_PATH directories:', e.message);
     }
@@ -1185,6 +1190,7 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
 
       let answer = payload.answerText || '';
       let sources = Array.isArray(payload.sources) ? payload.sources : [];
+      const referenceImage = payload.referenceImage ?? null;
       const poseDiagram = payload.poseDiagram ?? null;
       const lightingDiagram = payload.lightingDiagram ?? null;
 
@@ -1201,7 +1207,7 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
       };
       answer = toPlain(answer);
 
-      res.json({ answer, sources, poseDiagram, lightingDiagram, raw: stdout });
+      res.json({ answer, sources, referenceImage, poseDiagram, lightingDiagram, raw: stdout });
     });
   } catch (err) {
     console.error('Knowledge chat error:', err.message, err.stack);
