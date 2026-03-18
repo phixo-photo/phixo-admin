@@ -316,6 +316,12 @@ def main():
 
                 # Vision describe (one-time ingest cost)
                 try:
+                    append_ingest_log(args.log_path, args.job_id, {
+                        "status": "vision_start",
+                        "image_path": rel_image_path,
+                        "page_number": page_number,
+                        "book_slug": source_slug,
+                    })
                     with open(out_path, "rb") as f:
                         img_bytes = f.read()
                     desc_text, usage = describe_image_with_claude(img_bytes, "image/png")
@@ -337,6 +343,12 @@ def main():
                         "page_number": page_number,
                         "book_slug": source_slug,
                         "approx_tokens": usage,
+                    })
+                    append_ingest_log(args.log_path, args.job_id, {
+                        "status": "vision_done",
+                        "image_path": rel_image_path,
+                        "page_number": page_number,
+                        "book_slug": source_slug,
                     })
 
                     chunk_id = f"{source_slug}_image_{page_number:04d}_{img_idx:04d}"
