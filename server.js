@@ -1153,19 +1153,40 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
         return res.status(500).json({ error: 'Knowledge chat failed', detail: stderr || stdout });
       }
 
-      // Simple extraction: take everything between the "Answer" header and "Sources:" if present
-      let answer = stdout;
-      const answerIndex = stdout.indexOf('Answer');
-      if (answerIndex !== -1) {
-        const afterAnswer = stdout.slice(answerIndex + 'Answer'.length);
-        const sepIndex = afterAnswer.indexOf('Sources:');
-        answer = sepIndex !== -1 ? afterAnswer.slice(0, sepIndex).trim() : afterAnswer.trim();
+      let payload;
+      const extractJson = (s) => {
+        if (typeof s !== 'string') return null;
+        const firstBrace = s.indexOf('{');
+        const lastBrace = s.lastIndexOf('}');
+        if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) return null;
+        return s.slice(firstBrace, lastBrace + 1);
+      };
+      try {
+        payload = JSON.parse(stdout);
+      } catch (e) {
+        // Back-compat: fall back to plain text + regex parsing if Claude returned non-JSON.
+        const jsonMaybe = extractJson(stdout);
+        if (jsonMaybe) {
+          try {
+            payload = JSON.parse(jsonMaybe);
+          } catch (e2) {
+            payload = null;
+          }
+        }
       }
-      let sources = [];
-      const sourcesMatch = stdout.match(/Sources:\s*(.+)/);
-      if (sourcesMatch && sourcesMatch[1]) {
-        sources = sourcesMatch[1].split(',').map(s => s.trim()).filter(Boolean);
+
+      if (!payload || typeof payload !== 'object') {
+        payload = { answerText: stdout, sources: [], poseDiagram: null, lightingDiagram: null };
+        const sourcesMatch = stdout.match(/Sources:\s*(.+)/);
+        if (sourcesMatch && sourcesMatch[1]) {
+          payload.sources = sourcesMatch[1].split(',').map(s => s.trim()).filter(Boolean);
+        }
       }
+
+      let answer = payload.answerText || '';
+      let sources = Array.isArray(payload.sources) ? payload.sources : [];
+      const poseDiagram = payload.poseDiagram ?? null;
+      const lightingDiagram = payload.lightingDiagram ?? null;
 
       // Convert common Markdown-ish output into plain text
       const toPlain = (s) => {
@@ -1180,7 +1201,7 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
       };
       answer = toPlain(answer);
 
-      res.json({ answer, sources, raw: stdout });
+      res.json({ answer, sources, poseDiagram, lightingDiagram, raw: stdout });
     });
   } catch (err) {
     console.error('Knowledge chat error:', err.message, err.stack);
