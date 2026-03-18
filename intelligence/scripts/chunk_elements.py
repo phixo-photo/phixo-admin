@@ -94,11 +94,17 @@ def main():
     if encoder is None:
         print("Warning: tiktoken not installed; using character-based approximate chunking. Install with: pip install tiktoken", file=sys.stderr)
 
-    print("Loading PDF and extracting elements...")
-    from unstructured.partition.pdf import partition_pdf
+    print("Loading PDF and extracting text (lightweight)...")
+    # IMPORTANT:
+    # We intentionally avoid `unstructured.partition.pdf` here because it can pull in
+    # heavy dependencies (cv2 / unstructured-inference) that may not be available
+    # on Railway and often fail with missing system libs like `libxcb.so.1`.
+    #
+    # For our Phase 1 pipeline we only need text to chunk + embed.
+    from pdfminer.high_level import extract_text
 
-    elements = partition_pdf(filename=args.pdf_path, strategy="auto")
-    full_text = "\n\n".join((el.text or "").strip() for el in elements if (el.text or "").strip())
+    full_text = extract_text(args.pdf_path) or ""
+    full_text = "\n\n".join(line.strip() for line in full_text.splitlines() if line.strip())
     if not full_text.strip():
         print("No text extracted from PDF.", file=sys.stderr)
         sys.exit(1)
