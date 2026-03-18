@@ -1658,8 +1658,112 @@ async function askKnowledgeBase(){
     const r = await res.json();
     if (!res.ok) throw new Error(r.error || 'Knowledge chat failed');
 
+    const esc = (s) => String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
+    const renderPoseDiagram = (pd) => {
+      if (!pd) return '';
+      // Simple, non-photoreal top-down SVG with arrows + weight shading.
+      const shape = pd.poseShape || 'Unknown';
+      const weight = pd.weightShift || 'unknown';
+      const torso = pd.torsoAngle || 'unknown';
+      const hip = pd.hipAngle || 'unknown';
+      const frontFoot = pd.frontFootDirection || 'unknown';
+      const backFoot = pd.backFootDirection || 'unknown';
+      const shadeLeft = weight === 'left_leg';
+      const shadeRight = weight === 'right_leg';
+      const arrowToward = (d) => d === 'toward_camera' ? 'toward' : d === 'away_from_camera' ? 'away' : 'slight';
+      const torsoDir = arrowToward(torso);
+      const hipDir = arrowToward(hip);
+      const wStroke = 'var(--accent)';
+      // Camera icon at top; person centered.
+      return `
+        <div style="margin-top:10px">
+          <div style="font-size:10px;color:var(--muted);font-weight:800;letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px">Top-down Pose Diagram</div>
+          <svg viewBox="0 0 420 320" width="100%" height="auto" style="background:var(--bg);border:1px solid var(--border);border-radius:10px">
+            <!-- Camera at top -->
+            <g transform="translate(200,15)">
+              <rect x="-20" y="0" width="40" height="30" rx="6" fill="#111" opacity="0.9"/>
+              <polygon points="-10,30 10,30 0,52" fill="#111" opacity="0.9"/>
+              <circle cx="0" cy="15" r="6" fill="#fff" opacity="0.85"/>
+              <path d="M-10,52 L-35,80" stroke="${wStroke}" stroke-width="3" fill="none" opacity="0.8"/>
+            </g>
+            <!-- Weight shading -->
+            <rect x="70" y="150" width="120" height="95" rx="18" fill="${shadeLeft ? 'rgba(184,103,62,0.22)' : 'rgba(0,0,0,0)'}"/>
+            <rect x="230" y="150" width="120" height="95" rx="18" fill="${shadeRight ? 'rgba(184,103,62,0.22)' : 'rgba(0,0,0,0)'}"/>
+            <!-- Person silhouette -->
+            <g transform="translate(0,0)">
+              <ellipse cx="210" cy="105" rx="44" ry="34" fill="rgba(0,0,0,0.14)"/>
+              <!-- Torso/shape -->
+              ${shape === 'V' || shape === 'Triangles' ? `
+                <polygon points="150,165 210,125 270,165" fill="rgba(0,0,0,0.18)"/>
+              ` : `
+                <path d="M165,165 C195,135 225,135 255,165" stroke="rgba(0,0,0,0.18)" stroke-width="28" fill="none" stroke-linecap="round"/>
+              `}
+              <!-- Legs (feet directions placeholders) -->
+              <g opacity="0.85">
+                <path d="M185,215 C175,245 175,265 160,275" stroke="rgba(0,0,0,0.25)" stroke-width="10" fill="none" stroke-linecap="round"/>
+                <path d="M235,215 C245,245 245,265 260,275" stroke="rgba(0,0,0,0.25)" stroke-width="10" fill="none" stroke-linecap="round"/>
+              </g>
+            </g>
+            <!-- Torso/hip direction arrows (qualitative) -->
+            <g opacity="0.9">
+              <text x="34" y="66" font-size="12" fill="var(--muted)" font-weight="700">Torso: ${esc(torsoDir)}</text>
+              <text x="34" y="84" font-size="12" fill="var(--muted)" font-weight="700">Hip: ${esc(hipDir)}</text>
+              <path d="M210,130 L210,175" stroke="${wStroke}" stroke-width="3" fill="none" opacity="0.7"/>
+              <path d="M210,175 L210,220" stroke="${wStroke}" stroke-width="3" fill="none" opacity="0.55"/>
+            </g>
+            <!-- Foot direction labels -->
+            <g opacity="0.95">
+              <text x="34" y="260" font-size="12" fill="var(--muted)" font-weight="700">Front foot: ${esc(frontFoot)}</text>
+              <text x="34" y="278" font-size="12" fill="var(--muted)" font-weight="700">Back foot: ${esc(backFoot)}</text>
+            </g>
+          </svg>
+        </div>
+      `;
+    };
+    const renderLightingDiagram = (ld) => {
+      if (!ld) return '';
+      const lightTypes = Array.isArray(ld.lightTypes) ? ld.lightTypes : [];
+      const positions = Array.isArray(ld.positions) ? ld.positions : [];
+      const angles = Array.isArray(ld.angles) ? ld.angles : [];
+      // Simple illustrative diagram: camera at top + person + generic light icons.
+      return `
+        <div style="margin-top:10px">
+          <div style="font-size:10px;color:var(--muted);font-weight:800;letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px">Lighting Schematic</div>
+          <svg viewBox="0 0 420 320" width="100%" height="auto" style="background:var(--bg);border:1px solid var(--border);border-radius:10px">
+            <g transform="translate(200,15)">
+              <rect x="-20" y="0" width="40" height="30" rx="6" fill="#111" opacity="0.9"/>
+              <polygon points="-10,30 10,30 0,52" fill="#111" opacity="0.9"/>
+              <circle cx="0" cy="15" r="6" fill="#fff" opacity="0.85"/>
+            </g>
+            <!-- Person placeholder -->
+            <ellipse cx="210" cy="105" rx="44" ry="34" fill="rgba(0,0,0,0.14)"/>
+            <polygon points="165,165 210,135 255,165" fill="rgba(0,0,0,0.18)"/>
+            <path d="M185,215 C175,245 175,265 160,275" stroke="rgba(0,0,0,0.25)" stroke-width="10" fill="none" stroke-linecap="round"/>
+            <path d="M235,215 C245,245 245,265 260,275" stroke="rgba(0,0,0,0.25)" stroke-width="10" fill="none" stroke-linecap="round"/>
+            <!-- Lights: place generic icons around perimeter -->
+            ${lightTypes.slice(0,5).map((t,i)=>{
+              const x = i%2===0 ? 85 : 335;
+              const y = 120 + i*28;
+              return `
+                <g transform="translate(${x},${y})">
+                  <rect x="-20" y="-10" width="40" height="20" rx="6" fill="rgba(184,103,62,0.18)" stroke="var(--border)"/>
+                  <text x="0" y="5" text-anchor="middle" font-size="10" fill="var(--text)" font-weight="700">${esc(t).slice(0,10)}</text>
+                  <path d="M0,0 C ${i%2===0 ? 80 : -80}, 10 ${i%2===0 ? 120 : -120}, 40 0, 70" stroke="var(--accent)" stroke-width="2" opacity="0.6" fill="none" />
+                </g>
+              `;
+            }).join('')}
+            <!-- Legend -->
+            <g opacity="0.95">
+              <text x="34" y="275" font-size="12" fill="var(--muted)" font-weight="700">Key: ${esc(lightTypes[0] || '—')}</text>
+            </g>
+          </svg>
+        </div>
+      `;
+    };
+
     const aiMsg = document.createElement('div');
     aiMsg.style.cssText='align-self:flex-start;background:var(--surface-2);border-radius:2px 12px 12px 12px;padding:12px 14px;font-size:13px;max-width:90%;line-height:1.7;white-space:pre-wrap;border:1px solid var(--border)';
+    // r.answer is already plain text from server post-processing
     aiMsg.textContent = r.answer || (r.raw || '').trim();
 
     if (r.sources && r.sources.length){
@@ -1669,6 +1773,15 @@ async function askKnowledgeBase(){
         r.sources.map(s=>`<span style="background:var(--surface-3);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--text)">${esc(s)}</span>`).join('');
       aiMsg.appendChild(srcs);
     }
+    // If pose diagram exists, render it below the answer text.
+    if (r.poseDiagram) {
+      aiMsg.insertAdjacentHTML('beforeend', renderPoseDiagram(r.poseDiagram));
+    }
+    // If lighting diagram exists, render it below pose (show both).
+    if (r.lightingDiagram) {
+      aiMsg.insertAdjacentHTML('beforeend', renderLightingDiagram(r.lightingDiagram));
+    }
+
     history.appendChild(aiMsg);
     history.scrollTop=history.scrollHeight;
   } catch(err){
