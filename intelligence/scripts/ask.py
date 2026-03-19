@@ -27,30 +27,15 @@ Return ONLY valid JSON with this schema (no markdown, no extra text):
 {
   "answerText": string,
   "referenceImage": null,
-  "poseDiagram": null | {
-    "cameraFacing": "top",
-    "poseShape": "V" | "C" | "Triangles" | "Unknown",
-    "weightShift": "left_leg" | "right_leg" | "unknown",
-    "torsoAngle": "toward_camera" | "away_from_camera" | "slight" | "unknown",
-    "hipAngle": "toward_camera" | "away_from_camera" | "slight" | "unknown",
-    "frontFootDirection": "toward_camera" | "away_from_camera" | "side" | "unknown",
-    "backFootDirection": "toward_camera" | "away_from_camera" | "side" | "unknown"
-  },
-  "lightingDiagram": null | {
-    "cameraFacing": "top",
-    "lightTypes": array of strings,
-    "positions": array of strings,
-    "angles": array of strings,
-    "modifiers": array of strings
-  },
+  "pageImages": array of objects,
   "sources": array of strings
 }
 
 Rules:
 1) Do not use markdown. answerText must be plain text with short paragraphs.
-2) If posing is relevant, fill poseDiagram. Otherwise poseDiagram must be null.
-3) If lighting is relevant, fill lightingDiagram. Otherwise lightingDiagram must be null.
-4) referenceImage must be null (the system will attach an image if one is retrieved).
+2) Use clean flowing paragraphs, never bullets or numbered lists.
+3) Never include diagrams, SVG instructions, or generated visuals.
+4) referenceImage must be null and pageImages must be an empty array (the system attaches real page images after retrieval).
 5) If the excerpts do not cover what's asked, say so in answerText.
 6) When you use a specific idea from the text, it must be supported by the excerpts and you should list the book title in sources."""
 
@@ -181,23 +166,17 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
             "answerText": raw,
             "referenceImage": None,
             "pageImages": [],
-            "poseDiagram": None,
-            "lightingDiagram": None,
             "sources": sources,
         }
 
     if "sources" not in payload or not isinstance(payload.get("sources"), list):
         payload["sources"] = sources
 
-    # Normalize diagram fields: missing keys -> null.
+    # Normalize expected response fields.
     if "referenceImage" not in payload:
         payload["referenceImage"] = None
     if "pageImages" not in payload or not isinstance(payload.get("pageImages"), list):
         payload["pageImages"] = []
-    if "poseDiagram" not in payload:
-        payload["poseDiagram"] = None
-    if "lightingDiagram" not in payload:
-        payload["lightingDiagram"] = None
 
     # Pull images from disk that belong to pages where retrieved text chunks came from.
     page_images = []

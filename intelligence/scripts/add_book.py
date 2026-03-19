@@ -149,7 +149,20 @@ def main():
             )
             sys.exit(r.returncode)
 
-        log_status(args.job_id, args.log_path, "success", source=args.source, author=args.author, topic=args.topic)
+        completed_at = datetime.datetime.utcnow().isoformat() + "Z"
+        completion_line = f"INGEST_COMPLETE - {args.source} - {completed_at}"
+        log_status(
+            args.job_id,
+            args.log_path,
+            "INGEST_COMPLETE",
+            source=args.source,
+            author=args.author,
+            topic=args.topic,
+            completedAt=completed_at,
+            message=completion_line,
+        )
+        # Keep a terminal line that mirrors what the UI should show.
+        print(completion_line)
         print(f"Done. '{args.source}' is in the knowledge base. Ask questions with scripts/ask.py")
     except Exception as e:
         log_status(args.job_id, args.log_path, "error", stage="exception", message=str(e), returncode=1)

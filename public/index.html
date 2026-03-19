@@ -645,6 +645,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
         <div id="kb-upload-status" style="margin-top:6px;font-size:12px;color:var(--muted)"></div>
         <div id="kb-ingest-list" style="margin-top:8px;font-size:11px;color:var(--muted);border-top:1px dashed var(--border);padding-top:6px"></div>
         <div style="margin-top:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-dark btn-sm" onclick="openAskLibrary()">💬 Open Photography KB Chat</button>
           <button class="btn btn-ghost btn-sm" onclick="cleanKnowledgeBase()" title="Wipe chunks/chromadb/uploads and restart ingest">
             🧹 Clean KB (wipe)
           </button>
@@ -699,6 +700,28 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
     </div>
     
     <div id="research-grid" class="block-grid"></div>
+  </div>
+</section>
+<section id="v-kb-chat" class="view" aria-label="Photography KB chat">
+  <button class="back-btn" onclick="showView('research')">← Research library</button>
+  <div class="ph"><h1>Photography <em>KB Chat</em></h1><p>Ask your ingested books. Clean text answers with page-matched real images.</p></div>
+  <div style="padding:0 20px 20px">
+    <div class="scard">
+      <div class="scard-body" style="display:flex;flex-direction:column;gap:10px;min-height:68vh">
+        <div style="display:flex;gap:6px;font-size:11px;border-bottom:1px solid var(--border);padding-bottom:6px">
+          <button class="btn btn-ghost btn-xs" id="ask-mode-library" onclick="setAskMode('library')" style="font-weight:600">Blocks Library</button>
+          <button class="btn btn-ghost btn-xs" id="ask-mode-kb" onclick="setAskMode('kb')">Photography KB (books)</button>
+        </div>
+        <p id="ask-desc-library" style="font-size:13px;color:var(--muted);margin:0">Ask anything from your saved research blocks, transcripts, and notes.</p>
+        <p id="ask-desc-kb" style="font-size:13px;color:var(--muted);margin:0;display:none">Ask photography questions using your ingested books and guides.</p>
+        <div id="ask-history" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-bottom:4px"></div>
+        <div style="display:flex;gap:8px">
+          <textarea id="ask-input" placeholder="e.g. What posing tips help nervous clients? What does the window light chapter recommend for Rembrandt lighting?" style="flex:1;min-height:90px;resize:vertical;font-size:13px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:inherit" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){submitAsk();return false}"></textarea>
+          <button class="btn btn-dark" id="ask-btn" onclick="submitAsk()" style="align-self:flex-end;white-space:nowrap">Ask →</button>
+        </div>
+        <div id="ask-status" style="font-size:11px;color:var(--muted);display:none"></div>
+      </div>
+    </div>
   </div>
 </section>
 <section id="v-calendar" class="view" aria-label="Content calendar">
@@ -1578,8 +1601,8 @@ function setAskMode(mode){
 
 function openAskLibrary(){
   document.getElementById('ask-input').value='';
-  openModal('m-ask-library');
-  setAskMode(_askMode || 'library');
+  showView('kb-chat');
+  setAskMode('kb');
   setTimeout(()=>document.getElementById('ask-input').focus(),100);
 }
 
@@ -1613,7 +1636,7 @@ async function askLibrary(){
       const srcs = document.createElement('div');
       srcs.style.cssText='margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:6px';
       srcs.innerHTML='<span style="font-size:10px;color:var(--muted);width:100%;font-weight:600;letter-spacing:.4px;text-transform:uppercase">Sources</span>' +
-        r.sources.map(s=>`<button onclick="openBlockDetail(${s.id});closeM('m-ask-library')" style="background:var(--surface-3);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;cursor:pointer;color:var(--text)">${esc(s.title)}</button>`).join('');
+        r.sources.map(s=>`<button onclick="openBlockDetail(${s.id})" style="background:var(--surface-3);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;cursor:pointer;color:var(--text)">${esc(s.title)}</button>`).join('');
       aiMsg.appendChild(srcs);
     }
 
@@ -1659,155 +1682,47 @@ async function askKnowledgeBase(){
     if (!res.ok) throw new Error(r.error || 'Knowledge chat failed');
 
     const esc = (s) => String(s ?? '').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
-    const renderPoseDiagram = (pd) => {
-      if (!pd) return '';
-      // Simple, non-photoreal top-down SVG with arrows + weight shading.
-      const shape = pd.poseShape || 'Unknown';
-      const weight = pd.weightShift || 'unknown';
-      const torso = pd.torsoAngle || 'unknown';
-      const hip = pd.hipAngle || 'unknown';
-      const frontFoot = pd.frontFootDirection || 'unknown';
-      const backFoot = pd.backFootDirection || 'unknown';
-      const shadeLeft = weight === 'left_leg';
-      const shadeRight = weight === 'right_leg';
-      const arrowToward = (d) => d === 'toward_camera' ? 'toward' : d === 'away_from_camera' ? 'away' : 'slight';
-      const torsoDir = arrowToward(torso);
-      const hipDir = arrowToward(hip);
-      const wStroke = 'var(--accent)';
-      const stroke = 'rgba(0,0,0,0.26)';
-
-      // Map qualitative directions to simple angled leg arrows.
-      // Diagram convention:
-      // - toward_camera  => angled UP (toward camera icon)
-      // - away_from_camera => angled DOWN (away from camera)
-      // - side => horizontal-ish
-      const legPath = (dir, which) => {
-        // Keep left leg anchored around x=185, right leg around x=235.
-        const isLeft = which === 'left';
-        const baseX = isLeft ? 185 : 235;
-        const baseY = 215;
-        if (dir === 'toward_camera') {
-          return `M${baseX},${baseY} C ${baseX-5},${baseY-40} ${baseX+5},${baseY-40} ${baseX},${baseY-70} `;
-        }
-        if (dir === 'away_from_camera') {
-          return `M${baseX},${baseY} C ${baseX-5},${baseY+25} ${baseX+5},${baseY+25} ${baseX},${baseY+55} `;
-        }
-        if (dir === 'side') {
-          const endX = isLeft ? 150 : 270;
-          return `M${baseX},${baseY} L${endX},${baseY+8} `;
-        }
-        // unknown/default (neutral)
-        return `M${baseX},${baseY} C ${baseX-10},${baseY+30} ${baseX+10},${baseY+30} ${baseX},${baseY+60} `;
-      };
-
-      // Arrowheads for direction visualization (simple triangles).
-      const arrowHead = (dir, which) => {
-        const isLeft = which === 'left';
-        const x = isLeft ? 175 : 245;
-        const y = dir === 'toward_camera' ? 145 : dir === 'away_from_camera' ? 280 : 230;
-        const rot = dir === 'side' ? (isLeft ? 25 : -25) : (dir === 'toward_camera' ? -70 : 70);
-        return `<g transform="translate(${x},${y}) rotate(${rot})">
-          <polygon points="0,0 -8,-10 0,-20" fill="var(--accent)" opacity="0.75"/>
-        </g>`;
-      };
-
-      // Camera icon at top; person centered.
-      return `
-        <div style="margin-top:10px">
-          <div style="font-size:10px;color:var(--muted);font-weight:800;letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px">Top-down Pose Diagram</div>
-          <svg viewBox="0 0 420 320" width="100%" height="auto" style="background:var(--bg);border:1px solid var(--border);border-radius:10px">
-            <!-- Camera at top -->
-            <g transform="translate(200,15)">
-              <rect x="-20" y="0" width="40" height="30" rx="6" fill="#111" opacity="0.9"/>
-              <polygon points="-10,30 10,30 0,52" fill="#111" opacity="0.9"/>
-              <circle cx="0" cy="15" r="6" fill="#fff" opacity="0.85"/>
-              <path d="M-10,52 L-35,80" stroke="${wStroke}" stroke-width="3" fill="none" opacity="0.8"/>
-            </g>
-            <!-- Weight shading -->
-            <rect x="70" y="150" width="120" height="95" rx="18" fill="${shadeLeft ? 'rgba(184,103,62,0.22)' : 'rgba(0,0,0,0)'}"/>
-            <rect x="230" y="150" width="120" height="95" rx="18" fill="${shadeRight ? 'rgba(184,103,62,0.22)' : 'rgba(0,0,0,0)'}"/>
-            <!-- Person silhouette -->
-            <g transform="translate(0,0)">
-              <ellipse cx="210" cy="105" rx="44" ry="34" fill="rgba(0,0,0,0.14)"/>
-              <!-- Torso/shape -->
-              ${shape === 'V' || shape === 'Triangles' ? `
-                <polygon points="150,165 210,125 270,165" fill="rgba(0,0,0,0.18)"/>
-              ` : `
-                <path d="M165,165 C195,135 225,135 255,165" stroke="rgba(0,0,0,0.18)" stroke-width="28" fill="none" stroke-linecap="round"/>
-              `}
-              <!-- Legs: actually reflect front/back foot directions -->
-              <g opacity="0.9">
-                <!-- Back foot (default: more visible/anchored) -->
-                <path d="${legPath(backFoot, 'left')}" stroke="rgba(0,0,0,0.25)" stroke-width="10" fill="none" stroke-linecap="round"/>
-                <path d="${legPath(backFoot, 'right')}" stroke="rgba(0,0,0,0.25)" stroke-width="10" fill="none" stroke-linecap="round"/>
-                <!-- Front foot highlight (accent) -->
-                <path d="${legPath(frontFoot, 'left')}" stroke="var(--accent)" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.85"/>
-                <path d="${legPath(frontFoot, 'right')}" stroke="var(--accent)" stroke-width="3" fill="none" stroke-linecap="round" opacity="0.85"/>
-                ${arrowHead(frontFoot, 'left')}
-                ${arrowHead(frontFoot, 'right')}
-              </g>
-            </g>
-            <!-- Torso/hip direction arrows (qualitative) -->
-            <g opacity="0.9">
-              <text x="34" y="66" font-size="12" fill="var(--muted)" font-weight="700">Torso: ${esc(torsoDir)}</text>
-              <text x="34" y="84" font-size="12" fill="var(--muted)" font-weight="700">Hip: ${esc(hipDir)}</text>
-              <path d="M210,130 L210,175" stroke="${wStroke}" stroke-width="3" fill="none" opacity="0.7"/>
-              <path d="M210,175 L210,220" stroke="${wStroke}" stroke-width="3" fill="none" opacity="0.55"/>
-            </g>
-            <!-- Foot direction labels -->
-            <g opacity="0.95">
-              <text x="34" y="260" font-size="12" fill="var(--muted)" font-weight="700">Front foot: ${esc(frontFoot)}</text>
-              <text x="34" y="278" font-size="12" fill="var(--muted)" font-weight="700">Back foot: ${esc(backFoot)}</text>
-            </g>
-          </svg>
-        </div>
-      `;
+    const formatParagraphs = (text) => String(text || '')
+      .split(/\n{2,}/)
+      .map(p => p.replace(/\s+/g, ' ').trim())
+      .filter(Boolean);
+    const makeImageUrl = (imgPath) => {
+      let p = String(imgPath || '');
+      while (p.startsWith('/')) p = p.slice(1);
+      return '/api/knowledge/images/' + p;
     };
-    const renderLightingDiagram = (ld) => {
-      if (!ld) return '';
-      const lightTypes = Array.isArray(ld.lightTypes) ? ld.lightTypes : [];
-      const positions = Array.isArray(ld.positions) ? ld.positions : [];
-      const angles = Array.isArray(ld.angles) ? ld.angles : [];
-      // Simple illustrative diagram: camera at top + person + generic light icons.
-      return `
-        <div style="margin-top:10px">
-          <div style="font-size:10px;color:var(--muted);font-weight:800;letter-spacing:.6px;text-transform:uppercase;margin-bottom:6px">Lighting Schematic</div>
-          <svg viewBox="0 0 420 320" width="100%" height="auto" style="background:var(--bg);border:1px solid var(--border);border-radius:10px">
-            <g transform="translate(200,15)">
-              <rect x="-20" y="0" width="40" height="30" rx="6" fill="#111" opacity="0.9"/>
-              <polygon points="-10,30 10,30 0,52" fill="#111" opacity="0.9"/>
-              <circle cx="0" cy="15" r="6" fill="#fff" opacity="0.85"/>
-            </g>
-            <!-- Person placeholder -->
-            <ellipse cx="210" cy="105" rx="44" ry="34" fill="rgba(0,0,0,0.14)"/>
-            <polygon points="165,165 210,135 255,165" fill="rgba(0,0,0,0.18)"/>
-            <path d="M185,215 C175,245 175,265 160,275" stroke="rgba(0,0,0,0.25)" stroke-width="10" fill="none" stroke-linecap="round"/>
-            <path d="M235,215 C245,245 245,265 260,275" stroke="rgba(0,0,0,0.25)" stroke-width="10" fill="none" stroke-linecap="round"/>
-            <!-- Lights: place generic icons around perimeter -->
-            ${lightTypes.slice(0,5).map((t,i)=>{
-              const x = i%2===0 ? 85 : 335;
-              const y = 120 + i*28;
-              return `
-                <g transform="translate(${x},${y})">
-                  <rect x="-20" y="-10" width="40" height="20" rx="6" fill="rgba(184,103,62,0.18)" stroke="var(--border)"/>
-                  <text x="0" y="5" text-anchor="middle" font-size="10" fill="var(--text)" font-weight="700">${esc(t).slice(0,10)}</text>
-                  <path d="M0,0 C ${i%2===0 ? 80 : -80}, 10 ${i%2===0 ? 120 : -120}, 40 0, 70" stroke="var(--accent)" stroke-width="2" opacity="0.6" fill="none" />
-                </g>
-              `;
-            }).join('')}
-            <!-- Legend -->
-            <g opacity="0.95">
-              <text x="34" y="275" font-size="12" fill="var(--muted)" font-weight="700">Key: ${esc(lightTypes[0] || '—')}</text>
-            </g>
-          </svg>
-        </div>
-      `;
+    const renderInlineImage = (meta) => {
+      const url = makeImageUrl(meta.path);
+      const pageLabel = meta.page ? `Page ${meta.page}` : 'Reference image';
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer" style="display:block;margin:10px 0 14px;text-decoration:none">
+        <img src="${url}" alt="${esc(pageLabel)}" loading="lazy" style="width:100%;max-width:620px;height:auto;border-radius:10px;border:1px solid var(--border);background:var(--bg);display:block">
+        <div style="margin-top:6px;font-size:11px;color:var(--muted)">${esc(pageLabel)}${meta.book ? ` · ${esc(meta.book)}` : ''}</div>
+      </a>`;
     };
 
     const aiMsg = document.createElement('div');
-    aiMsg.style.cssText='align-self:flex-start;background:var(--surface-2);border-radius:2px 12px 12px 12px;padding:12px 14px;font-size:13px;max-width:90%;line-height:1.7;white-space:pre-wrap;border:1px solid var(--border)';
-    // r.answer is already plain text from server post-processing
-    aiMsg.textContent = r.answer || (r.raw || '').trim();
+    aiMsg.style.cssText='align-self:flex-start;background:var(--surface-2);border-radius:2px 12px 12px 12px;padding:12px 14px;font-size:13px;max-width:92%;line-height:1.75;border:1px solid var(--border)';
+    const paragraphs = formatParagraphs(r.answer || (r.raw || '').trim());
+    const dedupedImages = [];
+    const seen = new Set();
+    [r.referenceImage, ...(Array.isArray(r.pageImages) ? r.pageImages : [])].forEach((imgMeta) => {
+      if (!imgMeta || !imgMeta.path) return;
+      const key = String(imgMeta.path);
+      if (seen.has(key)) return;
+      seen.add(key);
+      dedupedImages.push(imgMeta);
+    });
+    const splitPoints = Math.max(1, paragraphs.length);
+    let html = '';
+    paragraphs.forEach((p, idx) => {
+      html += `<p style="margin:0 0 12px;white-space:normal">${esc(p)}</p>`;
+      const targetImageIndex = Math.floor(((idx + 1) * dedupedImages.length) / splitPoints) - 1;
+      if (targetImageIndex >= 0 && targetImageIndex < dedupedImages.length) {
+        html += renderInlineImage(dedupedImages[targetImageIndex]);
+      }
+    });
+    if (!paragraphs.length && dedupedImages.length) html += renderInlineImage(dedupedImages[0]);
+    aiMsg.innerHTML = html;
 
     if (r.sources && r.sources.length){
       const srcs = document.createElement('div');
@@ -1816,62 +1731,6 @@ async function askKnowledgeBase(){
         r.sources.map(s=>`<span style="background:var(--surface-3);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--text)">${esc(s)}</span>`).join('');
       aiMsg.appendChild(srcs);
     }
-    // If a reference image was retrieved, render it below sources (above diagrams).
-    if (r.referenceImage && r.referenceImage.path) {
-      const wrap = document.createElement('div');
-      wrap.style.cssText='margin-top:10px';
-
-      const img = document.createElement('img');
-      img.alt = 'Reference image';
-      img.loading = 'lazy';
-      img.style.cssText='width:100%;max-width:520px;height:auto;border-radius:10px;border:1px solid var(--border);background:var(--bg);display:block';
-      let p = String(r.referenceImage.path || '');
-      while (p.startsWith('/')) p = p.slice(1);
-      img.src = '/api/knowledge/images/' + p;
-
-      wrap.appendChild(img);
-
-      if (r.referenceImage.description) {
-        const cap = document.createElement('div');
-        cap.style.cssText='margin-top:6px;font-size:11px;color:var(--muted);line-height:1.5';
-        cap.textContent = String(r.referenceImage.description);
-        wrap.appendChild(cap);
-      }
-
-      aiMsg.appendChild(wrap);
-    }
-    // If page-matched images were retrieved, show them under the answer.
-    if (r.pageImages && r.pageImages.length) {
-      const gallery = document.createElement('div');
-      gallery.style.cssText='margin-top:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px';
-      const seen = new Set([r.referenceImage && r.referenceImage.path ? String(r.referenceImage.path) : '']);
-      r.pageImages.forEach(imgMeta => {
-        if (!imgMeta || !imgMeta.path) return;
-        const path = String(imgMeta.path);
-        if (seen.has(path)) return;
-        seen.add(path);
-        const cell = document.createElement('div');
-        const img = document.createElement('img');
-        let p = path;
-        while (p.startsWith('/')) p = p.slice(1);
-        img.src = '/api/knowledge/images/' + p;
-        img.alt = 'Page reference image';
-        img.loading = 'lazy';
-        img.style.cssText='width:100%;height:auto;border-radius:8px;border:1px solid var(--border);background:var(--bg);display:block';
-        cell.appendChild(img);
-        gallery.appendChild(cell);
-      });
-      if (gallery.children.length) aiMsg.appendChild(gallery);
-    }
-    // If pose diagram exists, render it below the answer text.
-    if (r.poseDiagram) {
-      aiMsg.insertAdjacentHTML('beforeend', renderPoseDiagram(r.poseDiagram));
-    }
-    // If lighting diagram exists, render it below pose (show both).
-    if (r.lightingDiagram) {
-      aiMsg.insertAdjacentHTML('beforeend', renderLightingDiagram(r.lightingDiagram));
-    }
-
     history.appendChild(aiMsg);
     history.scrollTop=history.scrollHeight;
   } catch(err){
@@ -3532,6 +3391,9 @@ async function uploadKnowledgePdf(){
     if (!res.ok) throw new Error(data.error || 'Upload failed');
     status.textContent = (data.message || 'Queued for processing. This may take a few minutes.') +
       ' (Step 2/2: Chunking and embedding will run in the background.)';
+    currentKbJobId = data.jobId || null;
+    currentKbSource = source;
+    kbCompletionNotified = false;
     toast('Book queued for ingest', 'ok');
     // Refresh ingest status list so you can see this job
     refreshIngestStatus();
@@ -3546,6 +3408,9 @@ async function uploadKnowledgePdf(){
 }
 
 let kbIngestPoll = null;
+let currentKbJobId = null;
+let currentKbSource = null;
+let kbCompletionNotified = false;
 
 async function refreshIngestStatus(){
   const container = document.getElementById('kb-ingest-list');
@@ -3582,8 +3447,24 @@ async function refreshIngestStatus(){
     }).join('');
     container.innerHTML = rows;
 
-    // If anything is still queued/running, keep polling for updates
-    const hasActive = jobs.some(j => j.status === 'queued' || j.status === 'running');
+    const uploadStatus = document.getElementById('kb-upload-status');
+    const activeJob = jobs.find(j => currentKbJobId && j.jobId === currentKbJobId);
+    if (activeJob && uploadStatus) {
+      const normalized = String(activeJob.status || '').toUpperCase();
+      if ((normalized === 'INGEST_COMPLETE' || normalized === 'SUCCESS') && !kbCompletionNotified) {
+        kbCompletionNotified = true;
+        const ts = activeJob.completedAt || activeJob.time || new Date().toISOString();
+        const title = activeJob.source || currentKbSource || 'Book';
+        uploadStatus.textContent = `INGEST_COMPLETE - ${title} - ${ts}\nProcessing complete. Book is ready to query.`;
+        toast('Processing complete. Book is ready to query.', 'ok');
+      } else if (normalized === 'ERROR') {
+        uploadStatus.textContent = activeJob.message ? `Ingest failed: ${activeJob.message}` : 'Ingest failed.';
+      }
+    }
+
+    // Keep polling until a terminal status is reached.
+    const isTerminal = (s) => ['INGEST_COMPLETE', 'SUCCESS', 'ERROR'].includes(String(s || '').toUpperCase());
+    const hasActive = jobs.some(j => !isTerminal(j.status));
     if (hasActive && !kbIngestPoll){
       kbIngestPoll = setInterval(refreshIngestStatus, 8000);
     }
@@ -3880,62 +3761,6 @@ async function summarizeBlock(id){
 }
 
 loadPipeline();
-
-// ── Ask Library ──────────────────────────────────────────────────────────────
-function openAskLibrary(){
-  document.getElementById('ask-input').value='';
-  openModal('m-ask-library');
-  setTimeout(()=>document.getElementById('ask-input').focus(),100);
-}
-
-async function askLibrary(){
-  const q = document.getElementById('ask-input').value.trim();
-  if(!q) return;
-  const btn = document.getElementById('ask-btn');
-  const status = document.getElementById('ask-status');
-  const history = document.getElementById('ask-history');
-  btn.disabled=true; btn.textContent='Thinking...';
-  status.style.display='block'; status.textContent='Reading your library...';
-  history.style.display='flex';
-
-  // Add user message
-  const userMsg = document.createElement('div');
-  userMsg.style.cssText='align-self:flex-end;background:var(--accent);color:#fff;border-radius:12px 12px 2px 12px;padding:10px 14px;font-size:13px;max-width:85%;line-height:1.6';
-  userMsg.textContent=q;
-  history.appendChild(userMsg);
-  history.scrollTop=history.scrollHeight;
-  document.getElementById('ask-input').value='';
-
-  try {
-    const r = await api('POST','/api/library/ask',{question:q});
-    
-    // Add AI answer
-    const aiMsg = document.createElement('div');
-    aiMsg.style.cssText='align-self:flex-start;background:var(--surface-2);border-radius:2px 12px 12px 12px;padding:12px 14px;font-size:13px;max-width:90%;line-height:1.7;white-space:pre-wrap;border:1px solid var(--border)';
-    aiMsg.textContent=r.answer;
-
-    if(r.sources && r.sources.length){
-      const srcs = document.createElement('div');
-      srcs.style.cssText='margin-top:10px;padding-top:8px;border-top:1px solid var(--border);display:flex;flex-wrap:wrap;gap:6px';
-      srcs.innerHTML='<span style="font-size:10px;color:var(--muted);width:100%;font-weight:600;letter-spacing:.4px;text-transform:uppercase">Sources</span>' +
-        r.sources.map(s=>`<button onclick="openBlockDetail(${s.id});closeM('m-ask-library')" style="background:var(--surface-3);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;cursor:pointer;color:var(--text)">${esc(s.title)}</button>`).join('');
-      aiMsg.appendChild(srcs);
-    }
-
-    const meta = document.createElement('div');
-    meta.style.cssText='font-size:10px;color:var(--muted);margin-top:6px';
-    meta.textContent=`↑ Based on ${r.block_count} blocks in your library`;
-    aiMsg.appendChild(meta);
-
-    history.appendChild(aiMsg);
-    history.scrollTop=history.scrollHeight;
-    status.style.display='none';
-  } catch(err){
-    toast(err.message,'err');
-    status.style.display='none';
-  }
-  btn.disabled=false; btn.textContent='Ask →';
-}
 
 // ═════════════════════════════════════════════════
 // COLLEGE REVIEW FUNCTIONS (v3.37)
@@ -5194,25 +5019,5 @@ function cancelRestyle(idx) {
 }
 
 </script>
-<!-- Ask Library Modal -->
-<div class="mbg off" id="m-ask-library">
-  <div class="modal" style="max-width:720px">
-    <div class="mh"><h2>Ask your Library 🧠</h2><button class="mx" onclick="closeM('m-ask-library')">✕</button></div>
-    <div class="mb" style="display:flex;flex-direction:column;gap:10px">
-      <div style="display:flex;gap:6px;font-size:11px;border-bottom:1px solid var(--border);padding-bottom:6px">
-        <button class="btn btn-ghost btn-xs" id="ask-mode-library" onclick="setAskMode('library')" style="font-weight:600">Blocks Library</button>
-        <button class="btn btn-ghost btn-xs" id="ask-mode-kb" onclick="setAskMode('kb')">Photography KB (books)</button>
-      </div>
-      <p id="ask-desc-library" style="font-size:13px;color:var(--muted);margin:0">Ask anything — Claude reads your actual research blocks, transcripts, and notes to answer. No hallucination, citations included.</p>
-      <p id="ask-desc-kb" style="font-size:13px;color:var(--muted);margin:0;display:none">Ask photography questions — Claude answers using your ingested books and guides from the Photography Knowledge Base (RAG pipeline).</p>
-      <div id="ask-history" style="display:none;max-height:380px;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-bottom:4px"></div>
-      <div style="display:flex;gap:8px">
-        <textarea id="ask-input" placeholder="e.g. What posing tips do I have for nervous clients? What does my window light chapter say about Rembrandt lighting?" style="flex:1;min-height:72px;resize:vertical;font-size:13px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:inherit" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){submitAsk();return false}"></textarea>
-        <button class="btn btn-dark" id="ask-btn" onclick="submitAsk()" style="align-self:flex-end;white-space:nowrap">Ask →</button>
-      </div>
-      <div id="ask-status" style="font-size:11px;color:var(--muted);display:none"></div>
-    </div>
-  </div>
-</div>
 </body>
 </html>

@@ -1222,7 +1222,7 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
       }
 
       if (!payload || typeof payload !== 'object') {
-        payload = { answerText: stdout, sources: [], pageImages: [], poseDiagram: null, lightingDiagram: null };
+        payload = { answerText: stdout, sources: [], pageImages: [] };
         const sourcesMatch = stdout.match(/Sources:\s*(.+)/);
         if (sourcesMatch && sourcesMatch[1]) {
           payload.sources = sourcesMatch[1].split(',').map(s => s.trim()).filter(Boolean);
@@ -1233,8 +1233,6 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
       let sources = Array.isArray(payload.sources) ? payload.sources : [];
       const referenceImage = payload.referenceImage ?? null;
       const pageImages = Array.isArray(payload.pageImages) ? payload.pageImages : [];
-      const poseDiagram = payload.poseDiagram ?? null;
-      const lightingDiagram = payload.lightingDiagram ?? null;
 
       // Convert common Markdown-ish output into plain text
       const toPlain = (s) => {
@@ -1242,14 +1240,14 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
         return s
           .replace(/^#{1,6}\s+/gm, '') // remove markdown headings
           .replace(/\*\*(.*?)\*\*/g, '$1') // bold -> plain
-          .replace(/^\s*[-*]\s+/gm, '• ') // bullets -> dots
-          .replace(/^\s*\d+\.\s+/gm, (m) => m) // keep numbered lists as-is
+          .replace(/^\s*[-*]\s+/gm, '') // flatten bullet markers
+          .replace(/^\s*\d+\.\s+/gm, '') // flatten numbered markers
           .replace(/[`>]/g, '') // strip code/quote markers
           .trim();
       };
       answer = toPlain(answer);
 
-      res.json({ answer, sources, referenceImage, pageImages, poseDiagram, lightingDiagram, raw: stdout });
+      res.json({ answer, sources, referenceImage, pageImages, raw: stdout });
     });
   } catch (err) {
     console.error('Knowledge chat error:', err.message, err.stack);
