@@ -11,9 +11,11 @@ Usage:
 """
 
 import argparse
+import glob
 import os
 import sys
 import json
+import re
 
 EMBED_MODEL = "text-embedding-3-small"
 # Use current Haiku (Claude 4.5 Haiku); see https://docs.anthropic.com/en/docs/about-claude/model-deprecations
@@ -51,6 +53,10 @@ Rules:
 4) referenceImage must be null (the system will attach an image if one is retrieved).
 5) If the excerpts do not cover what's asked, say so in answerText.
 6) When you use a specific idea from the text, it must be supported by the excerpts and you should list the book title in sources."""
+
+
+def slug(s: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", str(s).lower()).strip("-")
 
 
 def main():
@@ -100,13 +106,11 @@ def main():
     sources = list({m.get("source_document", "?") for m in metadatas})
 
     context_parts = []
-    image_candidates = []
     page_matches = []
     excerpt_index = 1
     for doc, meta, dist in zip(docs, metadatas, distances):
         ctype = (meta or {}).get("chunk_type", "text")
         if ctype == "image":
-            image_candidates.append((dist, doc, meta))
             continue
         page_matches.append({
             "page_number": (meta or {}).get("page_number"),
@@ -195,60 +199,31 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
     if "lightingDiagram" not in payload:
         payload["lightingDiagram"] = None
 
-    # Attach best reference image (if retrieved). Chroma distances: lower is more similar.
-    ref = None
-    if image_candidates:
-        image_candidates.sort(key=lambda t: (t[0] is None, t[0]))
-        best_dist, best_doc, best_meta = image_candidates[0]
-        if isinstance(best_meta, dict):
-            img_path = best_meta.get("image_path")
-            page = best_meta.get("page_number")
-            book = best_meta.get("book_slug")
-            if img_path:
-                ref = {
-                    "path": img_path,
-                    "description": best_doc,
-                    "page": page,
-                    "book": book,
-                }
-    payload["referenceImage"] = ref
-
-    # Pull all image chunks that belong to pages where retrieved text chunks came from.
+    # Pull images from disk that belong to pages where retrieved text chunks came from.
     page_images = []
     seen_paths = set()
+    data_root = os.path.dirname(os.path.abspath(args.db_path))
+    images_root = os.path.join(data_root, "images")
     for pm in page_matches:
         page_number = pm.get("page_number")
-        source_document = pm.get("source_document")
+        source_document = str(pm.get("source_document") or "")
         if page_number is None or not source_document:
             continue
-        try:
-            got = collection.get(
-                where={
-                    "$and": [
-                        {"chunk_type": "image"},
-                        {"page_number": int(page_number)},
-                        {"source_document": str(source_document)},
-                    ]
-                },
-                include=["documents", "metadatas"],
-            )
-        except Exception:
-            continue
-        docs_i = got.get("documents", []) or []
-        metas_i = got.get("metadatas", []) or []
-        for doc_i, meta_i in zip(docs_i, metas_i):
-            if not isinstance(meta_i, dict):
+        book_slug = slug(source_document)
+        pattern = os.path.join(images_root, book_slug, f"page{int(page_number):04d}_*.jpg")
+        for img_abs in sorted(glob.glob(pattern)):
+            img_rel = os.path.relpath(img_abs, images_root).replace("\\", "/")
+            if img_rel in seen_paths:
                 continue
-            img_path = meta_i.get("image_path")
-            if not img_path or img_path in seen_paths:
-                continue
-            seen_paths.add(img_path)
+            seen_paths.add(img_rel)
             page_images.append({
-                "path": img_path,
-                "description": doc_i,
-                "page": meta_i.get("page_number"),
-                "book": meta_i.get("book_slug"),
+                "path": img_rel,
+                "description": None,
+                "page": int(page_number),
+                "book": book_slug,
             })
+
+    payload["referenceImage"] = page_images[0] if page_images else None
     payload["pageImages"] = page_images
 
     print(json.dumps(payload, ensure_ascii=False))

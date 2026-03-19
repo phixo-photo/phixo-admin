@@ -13,13 +13,13 @@ Writes chunks to data/chunks/<source_slug>.json by default (use --no-write to on
 """
 
 import argparse
-import base64
 import json
 import logging
 import os
 import re
 import sys
 import datetime
+import traceback
 import warnings
 
 warnings.filterwarnings("ignore", message=".*[Ff]ont[Bb]ox.*")
@@ -97,86 +97,6 @@ def append_ingest_log(log_path: str | None, job_id: str | None, payload: dict):
         return
 
 
-def describe_image_with_claude(
-    image_bytes: bytes,
-    media_type: str,
-    model: str = os.environ.get("AI_MODEL", "claude-haiku-4-5-20251001"),
-    timeout_s: int = 180,
-) -> tuple[str, dict]:
-    """
-    Returns (description_text, usage_dict).
-    usage_dict may include input_tokens/output_tokens if available.
-    """
-    import anthropic
-
-    prompt = (
-        "Describe this photography reference image in detail. "
-        "Include: subject pose, body position, camera angle, lighting if visible, "
-        "and any technique being demonstrated. Be specific and spatial."
-    )
-    b64 = base64.b64encode(image_bytes).decode("utf-8")
-    # IMPORTANT: enforce a real network timeout at the HTTP layer.
-    # (signal.alarm() may not interrupt blocked I/O in some environments.)
-    try:
-        client = anthropic.Anthropic(timeout=float(timeout_s), max_retries=0)
-    except TypeError:
-        # Older SDKs may not support these kwargs.
-        client = anthropic.Anthropic()
-    req_preview = {
-        "model": model,
-        "max_tokens": 700,
-        "media_type": media_type,
-        "image_bytes": len(image_bytes),
-        "prompt_preview": prompt[:240],
-    }
-    print("[AI REQUEST chunk_elements.py]", json.dumps(req_preview, ensure_ascii=False), file=sys.stderr)
-    msg = client.messages.create(
-        model=model,
-        max_tokens=700,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": b64}},
-                    {"type": "text", "text": prompt},
-                ],
-            }
-        ],
-    )
-    text = (msg.content[0].text or "").strip()
-    usage = {}
-    try:
-        if getattr(msg, "usage", None):
-            usage = {
-                "input_tokens": getattr(msg.usage, "input_tokens", None),
-                "output_tokens": getattr(msg.usage, "output_tokens", None),
-            }
-    except Exception:
-        usage = {}
-    resp_preview = {
-        "id": getattr(msg, "id", None),
-        "model": getattr(msg, "model", model),
-        "usage": usage,
-        "text_preview": text[:800],
-    }
-    print("[AI RESPONSE chunk_elements.py]", json.dumps(resp_preview, ensure_ascii=False), file=sys.stderr)
-    return text, usage
-
-
-def _read_json(path: str) -> dict | None:
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return None
-
-
-def _write_json(path: str, payload: dict):
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(payload, f, ensure_ascii=False, indent=2)
-
-
 def main():
     parser = argparse.ArgumentParser(description="Chunk PDF elements into 512/64 token chunks with metadata.")
     parser.add_argument("pdf_path", help="Path to the PDF file")
@@ -245,16 +165,14 @@ def main():
                 },
             })
 
-    # Extract embedded images and create "image chunks" (text=vision-generated description)
+    # Extract embedded images only (no vision calls during ingest).
     data_root = os.path.dirname(os.path.abspath(args.out_dir))
     images_root = os.path.join(data_root, "images")
     book_images_dir = os.path.join(images_root, source_slug)
 
     extracted_images = 0
-    described_images = 0
     skipped_small = 0
-    used_cached = 0
-    already_exists = 0
+    existing_images = 0
 
     try:
         import fitz  # pymupdf
@@ -288,146 +206,15 @@ def main():
                 filename = f"page{page_number:04d}_{img_idx:02d}.jpg"
                 rel_image_path = f"{source_slug}/{filename}"  # relative to DATA_PATH/images/
                 out_path = os.path.join(book_images_dir, filename)
-                sidecar_path = out_path + ".json"
 
                 if os.path.exists(out_path):
-                    already_exists += 1
-                    cached = _read_json(sidecar_path)
-                    if cached and isinstance(cached.get("description"), str) and cached["description"].strip():
-                        used_cached += 1
-                        desc_text = cached["description"].strip()
-                        chunk_id = f"{source_slug}_image_{page_number:04d}_{img_idx:04d}"
-                        chunks_with_meta.append({
-                            "chunk_id": chunk_id,
-                            "text": desc_text,
-                            "metadata": {
-                                "chunk_id": chunk_id,
-                                "chunk_type": "image",
-                                "image_path": rel_image_path,
-                                "page_number": page_number,
-                                "book_slug": source_slug,
-                                "source_document": args.source,
-                                "author": args.author,
-                                "chapter": "unknown",
-                                "topic_category": args.topic,
-                                "content_type": "reference_image",
-                                "copyright_status": "copyrighted_private",
-                            },
-                        })
-                        append_ingest_log(args.log_path, args.job_id, {
-                            "status": "image_cached_used",
-                            "image_path": rel_image_path,
-                            "page_number": page_number,
-                            "book_slug": source_slug,
-                        })
-                    else:
-                        # If the image file exists but the description sidecar is missing/empty,
-                        # regenerate the vision description so we don't silently skip image chunks.
-                        append_ingest_log(args.log_path, args.job_id, {
-                            "status": "image_missing_description",
-                            "image_path": rel_image_path,
-                            "page_number": page_number,
-                            "book_slug": source_slug,
-                        })
-
-                        try:
-                            # Load existing image and convert to RGB if needed.
-                            pix = fitz.Pixmap(out_path)
-                            if pix.n - pix.alpha > 3:
-                                pix = fitz.Pixmap(fitz.csRGB, pix)
-                            w = int(pix.width)
-                            h = int(pix.height)
-                            if w and h and (w < 200 or h < 200):
-                                skipped_small += 1
-                                append_ingest_log(args.log_path, args.job_id, {
-                                    "status": "vision_skip",
-                                    "reason": "too_small",
-                                    "width": w,
-                                    "height": h,
-                                    "image_path": rel_image_path,
-                                    "page_number": page_number,
-                                    "book_slug": source_slug,
-                                })
-                                continue
-
-                            # Downscale large images.
-                            try:
-                                max_dim = 1400
-                                w0, h0 = int(pix.width), int(pix.height)
-                                scale = max(w0 / max_dim, h0 / max_dim) if max(w0, h0) > max_dim else 1.0
-                                if scale > 1.0:
-                                    m = fitz.Matrix(1.0 / scale, 1.0 / scale)
-                                    pix = fitz.Pixmap(pix, 0, m)
-                            except Exception:
-                                pass
-
-                            # Overwrite with the downscaled PNG so the vision input is bounded.
-                            pix.save(out_path)
-                            with open(out_path, "rb") as f:
-                                img_bytes = f.read()
-
-                            append_ingest_log(args.log_path, args.job_id, {
-                                "status": "vision_start",
-                                "image_path": rel_image_path,
-                                "page_number": page_number,
-                                "book_slug": source_slug,
-                                "width": w,
-                                "height": h,
-                            })
-                            desc_text, usage = describe_image_with_claude(img_bytes, "image/jpeg", timeout_s=180)
-                            if not desc_text:
-                                continue
-                            described_images += 1
-                            _write_json(sidecar_path, {
-                                "description": desc_text,
-                                "usage": usage,
-                                "image_path": rel_image_path,
-                                "page_number": page_number,
-                                "book_slug": source_slug,
-                                "created_at": _utc_iso(),
-                                "model": os.environ.get("AI_MODEL", "claude-haiku-4-5-20251001"),
-                            })
-                            append_ingest_log(args.log_path, args.job_id, {
-                                "status": "vision_call",
-                                "image_path": rel_image_path,
-                                "page_number": page_number,
-                                "book_slug": source_slug,
-                                "approx_tokens": usage,
-                            })
-                            append_ingest_log(args.log_path, args.job_id, {
-                                "status": "vision_done",
-                                "image_path": rel_image_path,
-                                "page_number": page_number,
-                                "book_slug": source_slug,
-                            })
-
-                            chunk_id = f"{source_slug}_image_{page_number:04d}_{img_idx:04d}"
-                            chunks_with_meta.append({
-                                "chunk_id": chunk_id,
-                                "text": desc_text,
-                                "metadata": {
-                                    "chunk_id": chunk_id,
-                                    "chunk_type": "image",
-                                    "image_path": rel_image_path,
-                                    "page_number": page_number,
-                                    "book_slug": source_slug,
-                                    "source_document": args.source,
-                                    "author": args.author,
-                                    "chapter": "unknown",
-                                    "topic_category": args.topic,
-                                    "content_type": "reference_image",
-                                    "copyright_status": "copyrighted_private",
-                                },
-                            })
-                        except Exception as e:
-                            append_ingest_log(args.log_path, args.job_id, {
-                                "status": "vision_from_existing_error",
-                                "image_path": rel_image_path,
-                                "page_number": page_number,
-                                "book_slug": source_slug,
-                                "message": str(e),
-                            })
-                        continue
+                    existing_images += 1
+                    append_ingest_log(args.log_path, args.job_id, {
+                        "status": "image_exists",
+                        "image_path": rel_image_path,
+                        "page_number": page_number,
+                        "book_slug": source_slug,
+                    })
                     continue
 
                 append_ingest_log(args.log_path, args.job_id, {
@@ -436,149 +223,49 @@ def main():
                     "page_number": page_number,
                     "book_slug": source_slug,
                 })
-                extracted = doc.extract_image(xref) or {}
-                w = int(extracted.get("width") or 0)
-                h = int(extracted.get("height") or 0)
-                append_ingest_log(args.log_path, args.job_id, {
-                    "status": "image_extract_done",
-                    "image_path": rel_image_path,
-                    "page_number": page_number,
-                    "book_slug": source_slug,
-                    "width": w,
-                    "height": h,
-                })
-                if w and h and (w < 200 or h < 200):
-                    skipped_small += 1
-                    append_ingest_log(args.log_path, args.job_id, {
-                        "status": "vision_skip",
-                        "reason": "too_small",
-                        "width": w,
-                        "height": h,
-                        "image_path": rel_image_path,
-                        "page_number": page_number,
-                        "book_slug": source_slug,
-                    })
-                    continue
-
-                # Save image as JPG using the proven PyMuPDF path.
-                os.makedirs(book_images_dir, exist_ok=True)
                 try:
-                    append_ingest_log(args.log_path, args.job_id, {
-                        "status": "pixmap_start",
-                        "image_path": rel_image_path,
-                        "page_number": page_number,
-                        "book_slug": source_slug,
-                    })
                     pix = fitz.Pixmap(doc, xref)
                     if pix.n - pix.alpha > 3:
                         pix = fitz.Pixmap(fitz.csRGB, pix)
-                    # Downscale very large images to speed up vision calls (and reduce payload size).
-                    # Keep aspect ratio; target max dimension ~1400px.
-                    try:
-                        max_dim = 1400
-                        w0, h0 = int(pix.width), int(pix.height)
-                        scale = max(w0 / max_dim, h0 / max_dim) if max(w0, h0) > max_dim else 1.0
-                        if scale > 1.0:
-                            m = fitz.Matrix(1.0 / scale, 1.0 / scale)
-                            pix = fitz.Pixmap(pix, 0, m)
-                    except Exception:
-                        pass
-                    pix.save(out_path)
-                except Exception:
-                    continue
-
-                extracted_images += 1
-                append_ingest_log(args.log_path, args.job_id, {
-                    "status": "pixmap_done",
-                    "image_path": rel_image_path,
-                    "page_number": page_number,
-                    "book_slug": source_slug,
-                    "out_path": os.path.basename(out_path),
-                })
-
-                # Vision describe (one-time ingest cost)
-                try:
-                    append_ingest_log(args.log_path, args.job_id, {
-                        "status": "vision_start",
-                        "image_path": rel_image_path,
-                        "page_number": page_number,
-                        "book_slug": source_slug,
-                        "width": w,
-                        "height": h,
-                    })
-                    with open(out_path, "rb") as f:
-                        img_bytes = f.read()
-                    try:
-                        desc_text, usage = describe_image_with_claude(img_bytes, "image/jpeg", timeout_s=180)
-                    except Exception as te:
+                    if pix.width < 200 or pix.height < 200:
+                        skipped_small += 1
                         append_ingest_log(args.log_path, args.job_id, {
-                            "status": "vision_timeout",
+                            "status": "image_skip",
+                            "reason": "too_small",
+                            "width": int(pix.width),
+                            "height": int(pix.height),
                             "image_path": rel_image_path,
                             "page_number": page_number,
                             "book_slug": source_slug,
-                            "timeout_s": 180,
-                            "message": str(te),
                         })
                         continue
-                    if not desc_text:
-                        continue
-                    described_images += 1
-                    _write_json(sidecar_path, {
-                        "description": desc_text,
-                        "usage": usage,
-                        "image_path": rel_image_path,
-                        "page_number": page_number,
-                        "book_slug": source_slug,
-                        "created_at": _utc_iso(),
-                        "model": os.environ.get("AI_MODEL", "claude-haiku-4-5-20251001"),
-                    })
+                    os.makedirs(book_images_dir, exist_ok=True)
+                    pix.save(out_path)
+                    extracted_images += 1
                     append_ingest_log(args.log_path, args.job_id, {
-                        "status": "vision_call",
+                        "status": "image_extract_done",
                         "image_path": rel_image_path,
                         "page_number": page_number,
                         "book_slug": source_slug,
-                        "approx_tokens": usage,
-                    })
-                    append_ingest_log(args.log_path, args.job_id, {
-                        "status": "vision_done",
-                        "image_path": rel_image_path,
-                        "page_number": page_number,
-                        "book_slug": source_slug,
-                    })
-
-                    chunk_id = f"{source_slug}_image_{page_number:04d}_{img_idx:04d}"
-                    chunks_with_meta.append({
-                        "chunk_id": chunk_id,
-                        "text": desc_text,
-                        "metadata": {
-                            "chunk_id": chunk_id,
-                            "chunk_type": "image",
-                            "image_path": rel_image_path,
-                            "page_number": page_number,
-                            "book_slug": source_slug,
-                            "source_document": args.source,
-                            "author": args.author,
-                            "chapter": "unknown",
-                            "topic_category": args.topic,
-                            "content_type": "reference_image",
-                            "copyright_status": "copyrighted_private",
-                        },
+                        "width": int(pix.width),
+                        "height": int(pix.height),
                     })
                 except Exception as e:
                     append_ingest_log(args.log_path, args.job_id, {
-                        "status": "vision_error",
+                        "status": "image_extract_error",
                         "image_path": rel_image_path,
                         "page_number": page_number,
                         "book_slug": source_slug,
                         "message": str(e),
+                        "traceback": traceback.format_exc(),
                     })
                     continue
             append_ingest_log(args.log_path, args.job_id, {
                 "status": "image_page_done",
                 "page_number": page_index + 1,
                 "saved_images": extracted_images,
-                "described_images": described_images,
                 "skipped_small": skipped_small,
+                "existing_images": existing_images,
                 "book_slug": source_slug,
             })
     except Exception as e:
@@ -586,6 +273,7 @@ def main():
             "status": "image_extract_error",
             "book_slug": source_slug,
             "message": str(e),
+            "traceback": traceback.format_exc(),
         })
 
     print(f"Created {len(chunks_with_meta)} chunks.")
@@ -597,11 +285,10 @@ def main():
             json.dump(chunks_with_meta, f, indent=2, ensure_ascii=False)
         print(f"Wrote {out_path}")
 
-    if extracted_images or described_images or skipped_small or used_cached or already_exists:
+    if extracted_images or skipped_small or existing_images:
         print(
             "Image summary:",
-            f"saved={extracted_images}, described={described_images}, too_small_skipped={skipped_small},",
-            f"cached_used={used_cached}, already_exists={already_exists}",
+            f"saved={extracted_images}, too_small_skipped={skipped_small}, existing={existing_images}",
         )
 
     # Show first chunk as sample
