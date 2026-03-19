@@ -294,7 +294,7 @@ HOOK DATABASE (ID|Category|Template):
 ${csvText}`;
   let msg;
   try {
-    msg = await anthropic.messages.create({ model:'claude-haiku-4-5-20251001', max_tokens:1500, temperature:1.0, messages:[{role:'user',content:prompt}] });
+    msg = await anthropicCreate({ model:'claude-haiku-4-5-20251001', max_tokens:1500, temperature:1.0, messages:[{role:'user',content:prompt}] }, { label: 'selectAndFillHooksViaHaiku' });
   } catch(e) { console.error('Haiku error:',e.message); return []; }
   const text = msg.content[0].text.trim();
   let returned = [];
@@ -346,6 +346,43 @@ const oauth2Client = new google.auth.OAuth2(
   process.env.GOOGLE_REDIRECT_URI || 'https://admin.phixo.ca/auth/callback'
 );
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+const AI_MODEL = process.env.AI_MODEL || 'claude-haiku-4-5-20251001';
+const AI_LOG_PATH = process.env.AI_LOG_PATH || '';
+
+function logAi(event, payload) {
+  const line = `[AI ${event}] ${JSON.stringify(payload)}`;
+  console.log(line);
+  if (AI_LOG_PATH) {
+    try {
+      fs.appendFileSync(AI_LOG_PATH, line + '\n');
+    } catch (e) {
+      console.error('[AI LOG WRITE ERROR]', e.message);
+    }
+  }
+}
+
+function summarizeAnthropicResponse(resp) {
+  const text = (resp?.content || [])
+    .filter((c) => c && c.type === 'text')
+    .map((c) => c.text || '')
+    .join('\n')
+    .slice(0, 800);
+  return {
+    id: resp?.id,
+    model: resp?.model,
+    stop_reason: resp?.stop_reason,
+    usage: resp?.usage || null,
+    text_preview: text,
+  };
+}
+
+async function anthropicCreate(payload, { label = 'anthropic.messages.create' } = {}) {
+  const req = { ...payload, model: AI_MODEL };
+  logAi('REQUEST', { label, model: req.model, max_tokens: req.max_tokens, system: req.system ? '[present]' : '[none]', messages: req.messages });
+  const resp = await anthropic.messages.create(req);
+  logAi('RESPONSE', { label, ...summarizeAnthropicResponse(resp) });
+  return resp;
+}
 
 // ── PHIXO STRATEGY SYSTEM PROMPT ─────────────────────────────────────────────
 const PHIXO_STRATEGY_SYSTEM = `
@@ -678,7 +715,7 @@ For each idea return (JSON array, in order matching the IDEA numbers above):
 
 Format as JSON array only. No preamble, no markdown fences.`;
 
-    const message = await anthropic.messages.create({
+    const message = await anthropicCreate({
       model: 'claude-sonnet-4-6',
       max_tokens: 4000,
       temperature: 1.0,
@@ -872,7 +909,7 @@ Return as a JSON array only. No preamble, no markdown fences.`;
     }
 
     // ── CALL 2: Sonnet ideates with pre-assigned real hooks ───────────────────
-    const message = await anthropic.messages.create({
+    const message = await anthropicCreate({
       model: 'claude-sonnet-4-6',
       max_tokens: 4000,
       temperature: 1.0,
@@ -1291,7 +1328,7 @@ app.post('/api/blocks/ingest-url', requireAuth, async (req, res) => {
     let title = url; let summary = ''; let suggestedTags = [];
     if (pageText.length > 100) {
       try {
-        const resp = await anthropic.messages.create({
+        const resp = await anthropicCreate({
           model: 'claude-haiku-4-5-20251001',
           max_tokens: 300,
           messages: [{ role: 'user', content: `Extract from this webpage: title (short), 2-sentence summary, and 3-5 relevant tags for a portrait photography business. Return JSON: {"title":"...","summary":"...","tags":["..."]}. Page content: ${pageText.substring(0,2000)}` }]
@@ -1476,7 +1513,7 @@ app.post('/api/clients/:id/analyze', requireAuth, async (req, res) => {
     if (!cr.rows.length) return res.status(404).json({ error: 'Not found' });
     const client = cr.rows[0];
 
-    const response = await anthropic.messages.create({
+    const response = await anthropicCreate({
       model: 'claude-sonnet-4-6',
       max_tokens: 2000,
       messages: [{ role: 'user', content: `Analyze this DM conversation for Ian Green, portrait photographer at Phixo in Montreal.
@@ -1542,7 +1579,7 @@ app.post('/api/clients/:id/analyze-image', requireAuth, upload.single('screensho
   try {
     if (!req.file) return res.status(400).json({ error: 'No file' });
     const base64 = req.file.buffer.toString('base64');
-    const response = await anthropic.messages.create({
+    const response = await anthropicCreate({
       model: 'claude-sonnet-4-6', max_tokens: 2000,
       messages: [{ role: 'user', content: [
         { type: 'image', source: { type: 'base64', media_type: req.file.mimetype, data: base64 } },
@@ -2086,7 +2123,7 @@ app.post('/api/hooks/ingest-pdf', requireAuth, async (req, res) => {
       .replace(/\s+/g, ' ');
 
     // Send to Claude to extract individual hooks
-    const response = await anthropic.messages.create({
+    const response = await anthropicCreate({
       model: 'claude-sonnet-4-6',
       max_tokens: 4000,
       messages: [{ role: 'user', content: `This is raw text from a "1000 Viral Hooks" PDF. Extract as many individual hook templates as you can find. Each hook is a short sentence or phrase (usually under 15 words) designed to start a social media post.
@@ -2123,7 +2160,7 @@ app.post('/api/hooks/:id/variations', requireAuth, async (req, res) => {
     const r = await pool.query('SELECT * FROM hooks WHERE id=$1', [req.params.id]);
     if (!r.rows.length) return res.status(404).json({ error: 'Not found' });
     const hook = r.rows[0];
-    const resp = await anthropic.messages.create({
+    const resp = await anthropicCreate({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 300,
       messages: [{ role: 'user', content: `Generate 3 variations of this social media hook for a portrait photographer named Ian in Montreal. Keep the same structure/pattern but make each variation distinct. Hook: "${hook.text}"
@@ -2393,7 +2430,7 @@ app.post('/api/blocks/ingest-video', requireAuth, async (req, res) => {
 
     // ── Step 6: Summarize with Claude ────────────────────────────────────────
     send('summarize', 'Extracting key points with Claude...');
-    const claudeRes = await anthropic.messages.create({
+    const claudeRes = await anthropicCreate({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 800,
       messages: [{
@@ -2812,7 +2849,7 @@ app.post('/api/drive/sync-clients', requireAuth, async (req, res) => {
         try {
           const fullText = fileContents.join('\n\n').substring(0, 30000); // Limit to 30k chars
           
-          const analysis = await anthropic.messages.create({
+          const analysis = await anthropicCreate({
             model: 'claude-haiku-4-5-20251001',
             max_tokens: 2000,
             messages: [{
@@ -3084,10 +3121,7 @@ app.post('/api/library/ask', requireAuth, async (req, res) => {
 
     const context = contextParts.join('\n\n---\n\n');
 
-    const Anthropic = require('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    const msg = await client.messages.create({
+    const msg = await anthropicCreate({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1500,
       system: `You are a research assistant for Ian, a portrait photographer. You have access to Ian's full research library below.
@@ -3222,7 +3256,7 @@ Return your response as JSON in this exact format, nothing else:
 {"analysis":"one sentence about what makes this hook work","script":"the script text"}
 `;
 
-    const msg = await anthropic.messages.create({
+    const msg = await anthropicCreate({
       model: 'claude-sonnet-4-6',
       max_tokens: 600,
       messages: [{role:'user', content: restylePrompt}]
@@ -3272,8 +3306,7 @@ app.post('/api/blocks/:id/summarize', requireAuth, async (req, res) => {
     }
     if (!content) return res.status(400).json({ error: 'No content to summarize' });
 
-    const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const resp = await claude.messages.create({
+    const resp = await anthropicCreate({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 800,
       messages: [{
@@ -3434,10 +3467,7 @@ app.post('/api/library/ask', requireAuth, async (req, res) => {
 
     const context = contextParts.join('\n\n---\n\n');
 
-    const Anthropic = require('@anthropic-ai/sdk');
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    const msg = await client.messages.create({
+    const msg = await anthropicCreate({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1500,
       system: `You are a research assistant for Ian, a portrait photographer. You have access to Ian's full research library below.
@@ -3572,7 +3602,7 @@ Return your response as JSON in this exact format, nothing else:
 {"analysis":"one sentence about what makes this hook work","script":"the script text"}
 `;
 
-    const msg = await anthropic.messages.create({
+    const msg = await anthropicCreate({
       model: 'claude-sonnet-4-6',
       max_tokens: 600,
       messages: [{role:'user', content: restylePrompt}]
@@ -3651,8 +3681,7 @@ app.post('/api/knowledge/ask', requireAuth, async (req, res) => {
       ].filter(Boolean).join('\n');
     }).join('\n\n---\n\n');
 
-    const claude = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-    const resp = await claude.messages.create({
+    const resp = await anthropicCreate({
       model: 'claude-sonnet-4-6',
       max_tokens: 1200,
       messages: [{
@@ -3709,7 +3738,7 @@ RULES:
 - Keep replies under 5 sentences unless listing hook options.`;
 
     const messages = [...(history||[]), { role: 'user', content: message }];
-    const response = await anthropic.messages.create({
+    const response = await anthropicCreate({
       model: 'claude-sonnet-4-6', max_tokens: 500,
       system, messages
     });

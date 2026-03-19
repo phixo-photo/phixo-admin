@@ -100,7 +100,7 @@ def append_ingest_log(log_path: str | None, job_id: str | None, payload: dict):
 def describe_image_with_claude(
     image_bytes: bytes,
     media_type: str,
-    model: str = "claude-haiku-4-5",
+    model: str = os.environ.get("AI_MODEL", "claude-haiku-4-5-20251001"),
     timeout_s: int = 180,
 ) -> tuple[str, dict]:
     """
@@ -122,6 +122,14 @@ def describe_image_with_claude(
     except TypeError:
         # Older SDKs may not support these kwargs.
         client = anthropic.Anthropic()
+    req_preview = {
+        "model": model,
+        "max_tokens": 700,
+        "media_type": media_type,
+        "image_bytes": len(image_bytes),
+        "prompt_preview": prompt[:240],
+    }
+    print("[AI REQUEST chunk_elements.py]", json.dumps(req_preview, ensure_ascii=False), file=sys.stderr)
     msg = client.messages.create(
         model=model,
         max_tokens=700,
@@ -145,6 +153,13 @@ def describe_image_with_claude(
             }
     except Exception:
         usage = {}
+    resp_preview = {
+        "id": getattr(msg, "id", None),
+        "model": getattr(msg, "model", model),
+        "usage": usage,
+        "text_preview": text[:800],
+    }
+    print("[AI RESPONSE chunk_elements.py]", json.dumps(resp_preview, ensure_ascii=False), file=sys.stderr)
     return text, usage
 
 
@@ -363,7 +378,7 @@ def main():
                                 "page_number": page_number,
                                 "book_slug": source_slug,
                                 "created_at": _utc_iso(),
-                                "model": "claude-haiku-4-5",
+                                "model": os.environ.get("AI_MODEL", "claude-haiku-4-5-20251001"),
                             })
                             append_ingest_log(args.log_path, args.job_id, {
                                 "status": "vision_call",
@@ -514,7 +529,7 @@ def main():
                         "page_number": page_number,
                         "book_slug": source_slug,
                         "created_at": _utc_iso(),
-                        "model": "claude-haiku-4-5",
+                        "model": os.environ.get("AI_MODEL", "claude-haiku-4-5-20251001"),
                     })
                     append_ingest_log(args.log_path, args.job_id, {
                         "status": "vision_call",

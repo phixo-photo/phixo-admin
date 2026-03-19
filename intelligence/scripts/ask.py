@@ -17,7 +17,7 @@ import json
 
 EMBED_MODEL = "text-embedding-3-small"
 # Use current Haiku (Claude 4.5 Haiku); see https://docs.anthropic.com/en/docs/about-claude/model-deprecations
-DEFAULT_CLAUDE_MODEL = "claude-haiku-4-5"
+DEFAULT_CLAUDE_MODEL = os.environ.get("AI_MODEL", "claude-haiku-4-5-20251001")
 
 SYSTEM_PROMPT = """You are a portrait photography expert. Answer the question using only the excerpts from photography books provided below.
 
@@ -126,12 +126,29 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
     import anthropic
 
     client = anthropic.Anthropic()
+    req_payload = {
+        "model": args.model,
+        "max_tokens": 1024,
+        "system": "[present]",
+        "messages": [{"role": "user", "content_preview": user_content[:1200]}],
+    }
+    print("[AI REQUEST ask.py]", json.dumps(req_payload, ensure_ascii=False), file=sys.stderr)
     message = client.messages.create(
         model=args.model,
         max_tokens=1024,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_content}],
     )
+    resp_summary = {
+        "id": getattr(message, "id", None),
+        "model": getattr(message, "model", args.model),
+        "usage": {
+            "input_tokens": getattr(getattr(message, "usage", None), "input_tokens", None),
+            "output_tokens": getattr(getattr(message, "usage", None), "output_tokens", None),
+        },
+        "text_preview": (message.content[0].text if message.content else "")[:800],
+    }
+    print("[AI RESPONSE ask.py]", json.dumps(resp_summary, ensure_ascii=False), file=sys.stderr)
 
     raw = message.content[0].text
 
