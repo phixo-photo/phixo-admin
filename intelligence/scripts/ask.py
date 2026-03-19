@@ -16,10 +16,17 @@ import os
 import sys
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
 
 EMBED_MODEL = "text-embedding-3-small"
 # Use current Haiku (Claude 4.5 Haiku); see https://docs.anthropic.com/en/docs/about-claude/model-deprecations
 DEFAULT_CLAUDE_MODEL = os.environ.get("AI_MODEL", "claude-haiku-4-5-20251001")
+IMAGE_RELEVANCE_MODEL = "claude-haiku-4-5-20251001"
+IMAGE_RELEVANCE_PROMPT = (
+    "Does this text excerpt describe a specific physical body position, pose, lighting setup, "
+    "or visual technique that would be visible in a photograph? Answer only yes or no.\n\n"
+    "Text: {chunk_text}"
+)
 
 SYSTEM_PROMPT = """You are a portrait photography expert. Answer the question using only the excerpts from photography books provided below.
 
@@ -42,6 +49,22 @@ Rules:
 
 def slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", str(s).lower()).strip("-")
+
+
+def should_include_image_for_chunk(client, chunk_text: str) -> bool:
+    text = str(chunk_text or "").strip()
+    if not text:
+        return False
+    message = client.messages.create(
+        model=IMAGE_RELEVANCE_MODEL,
+        max_tokens=5,
+        messages=[{
+            "role": "user",
+            "content": IMAGE_RELEVANCE_PROMPT.format(chunk_text=text),
+        }],
+    )
+    reply = (message.content[0].text if getattr(message, "content", None) else "").strip().lower()
+    return reply.startswith("yes")
 
 
 def main():
@@ -109,6 +132,7 @@ def main():
             "page_number": (meta or {}).get("page_number"),
             "book_slug": (meta or {}).get("book_slug"),
             "source_document": (meta or {}).get("source_document"),
+            "doc_text": doc,
         })
         title = (meta or {}).get("source_document", "Unknown")
         context_parts.append(f"[Excerpt {excerpt_index} — {title}]\n{doc}")
@@ -186,29 +210,47 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
     if "pageImages" not in payload or not isinstance(payload.get("pageImages"), list):
         payload["pageImages"] = []
 
-    # Pull images from disk that belong to pages where retrieved text chunks came from.
+    # Filter page images to only chunks that are visually relevant.
     page_images = []
-    seen_paths = set()
+    seen_pages = set()
     data_root = os.path.dirname(os.path.abspath(args.db_path))
     images_root = os.path.join(data_root, "images")
-    for pm in page_matches:
+    relevance_flags = [False] * len(page_matches)
+    if page_matches:
+        with ThreadPoolExecutor(max_workers=min(8, len(page_matches))) as executor:
+            futures = [
+                executor.submit(should_include_image_for_chunk, client, pm.get("doc_text", ""))
+                for pm in page_matches
+            ]
+            for idx, future in enumerate(futures):
+                try:
+                    relevance_flags[idx] = bool(future.result())
+                except Exception:
+                    relevance_flags[idx] = False
+
+    for pm, is_relevant in zip(page_matches, relevance_flags):
+        if not is_relevant:
+            continue
         page_number = pm.get("page_number")
         source_document = str(pm.get("source_document") or "")
         if page_number is None or not source_document:
             continue
+        page_key = f"{source_document}:{int(page_number)}"
+        if page_key in seen_pages:
+            continue
+        seen_pages.add(page_key)
         book_slug = slug(source_document)
         pattern = os.path.join(images_root, book_slug, f"page{int(page_number):04d}_*.jpg")
-        for img_abs in sorted(glob.glob(pattern)):
-            img_rel = os.path.relpath(img_abs, images_root).replace("\\", "/")
-            if img_rel in seen_paths:
-                continue
-            seen_paths.add(img_rel)
-            page_images.append({
-                "path": img_rel,
-                "description": None,
-                "page": int(page_number),
-                "book": book_slug,
-            })
+        image_candidates = sorted(glob.glob(pattern))
+        if not image_candidates:
+            continue
+        img_rel = os.path.relpath(image_candidates[0], images_root).replace("\\", "/")
+        page_images.append({
+            "path": img_rel,
+            "description": None,
+            "page": int(page_number),
+            "book": book_slug,
+        })
 
     payload["referenceImage"] = page_images[0] if page_images else None
     payload["pageImages"] = page_images
