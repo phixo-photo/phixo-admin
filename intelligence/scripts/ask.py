@@ -51,6 +51,7 @@ def main():
     parser.add_argument("--collection", "-c", default="phixo_kb", help="ChromaDB collection name")
     parser.add_argument("--db-path", default="data/chromadb", help="ChromaDB path")
     parser.add_argument("--model", "-m", default=DEFAULT_CLAUDE_MODEL, help=f"Claude model (default: {DEFAULT_CLAUDE_MODEL})")
+    parser.add_argument("--source", default="", help="Optional source_document filter (exact title)")
     args = parser.parse_args()
 
     query = " ".join(args.query).strip()
@@ -79,16 +80,23 @@ def main():
 
     client_db = chromadb.PersistentClient(path=args.db_path)
     collection = client_db.get_collection(name=args.collection)
-    results = collection.query(
-        query_embeddings=[query_embedding],
-        n_results=args.top,
-        include=["documents", "metadatas", "distances"],
-    )
+    query_kwargs = {
+        "query_embeddings": [query_embedding],
+        "n_results": args.top,
+        "include": ["documents", "metadatas", "distances"],
+    }
+    source_filter = (args.source or "").strip()
+    if source_filter:
+        query_kwargs["where"] = {"source_document": source_filter}
+    results = collection.query(**query_kwargs)
 
     docs = results["documents"][0]
     metadatas = results["metadatas"][0]
     distances = results.get("distances", [[]])[0] or []
     sources = list({m.get("source_document", "?") for m in metadatas})
+    if source_filter and not docs:
+        print(f"No chunks found for selected book: {source_filter}", file=sys.stderr)
+        sys.exit(1)
 
     context_parts = []
     page_matches = []

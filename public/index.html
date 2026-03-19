@@ -714,6 +714,28 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
         </div>
         <p id="ask-desc-library" style="font-size:13px;color:var(--muted);margin:0">Ask anything from your saved research blocks, transcripts, and notes.</p>
         <p id="ask-desc-kb" style="font-size:13px;color:var(--muted);margin:0;display:none">Ask photography questions using your ingested books and guides.</p>
+        <div id="kb-book-controls" style="display:none;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <label for="kb-chat-book-select" style="font-size:12px;color:var(--muted);min-width:90px">Selected book</label>
+            <select id="kb-chat-book-select" onchange="onKbBookChange()" style="flex:1;min-width:220px"></select>
+          </div>
+          <div id="kb-question-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
+            <button class="btn btn-ghost btn-xs" onclick="toggleKbQuestionManager()" id="kb-manage-toggle">Manage questions</button>
+            <button class="btn btn-ghost btn-xs" onclick="toggleKbGenerateBox()" id="kb-generate-toggle">Generate more questions</button>
+          </div>
+          <div id="kb-question-manage" style="display:none;margin-top:8px;border-top:1px dashed var(--border);padding-top:8px"></div>
+          <div id="kb-generate-box" style="display:none;margin-top:8px;border-top:1px dashed var(--border);padding-top:8px">
+            <div style="display:flex;gap:6px;flex-wrap:wrap">
+              <button class="btn btn-dark btn-xs" onclick="generateKbQuestionsRandom()">Generate 8 random questions</button>
+              <button class="btn btn-ghost btn-xs" onclick="toggleKbTopicGenerate()">Generate questions about a specific topic</button>
+            </div>
+            <div id="kb-topic-generate" style="display:none;margin-top:8px;gap:6px;align-items:center;flex-wrap:wrap">
+              <input id="kb-topic-input" type="text" placeholder="e.g. hip placement, pricing objections" style="flex:1;min-width:220px">
+              <button class="btn btn-dark btn-xs" onclick="generateKbQuestionsTopic()">Generate</button>
+            </div>
+          </div>
+        </div>
         <div id="ask-history" style="flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:12px;padding-bottom:4px"></div>
         <div style="display:flex;gap:8px">
           <textarea id="ask-input" placeholder="e.g. What posing tips help nervous clients? What does the window light chapter recommend for Rembrandt lighting?" style="flex:1;min-height:90px;resize:vertical;font-size:13px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:inherit" onkeydown="if((event.ctrlKey||event.metaKey)&&event.key==='Enter'){submitAsk();return false}"></textarea>
@@ -1579,6 +1601,191 @@ function restoreDiscoveryFilters(){
 
 // ── Ask Library / Photography KB ────────────────────────────────────────────
 let _askMode = 'library'; // 'library' or 'kb'
+let kbBooks = [];
+let kbSelectedBookId = null;
+let kbDraftQuestions = [];
+
+function getSelectedKbBook(){
+  return kbBooks.find(b => Number(b.id) === Number(kbSelectedBookId)) || null;
+}
+
+function populateAskFromChip(question){
+  const input = document.getElementById('ask-input');
+  input.value = String(question || '');
+  input.focus();
+}
+
+function populateAskFromChipIndex(index){
+  const book = getSelectedKbBook();
+  const questions = Array.isArray(book?.suggestedQuestions) ? book.suggestedQuestions : [];
+  populateAskFromChip(questions[index] || '');
+}
+
+function renderKbQuestionChips(){
+  const chips = document.getElementById('kb-question-chips');
+  if (!chips) return;
+  const book = getSelectedKbBook();
+  const questions = Array.isArray(book?.suggestedQuestions) ? book.suggestedQuestions : [];
+  if (!book) {
+    chips.innerHTML = '<span style="font-size:11px;color:var(--muted)">Select a book to view suggested questions.</span>';
+    return;
+  }
+  if (!questions.length) {
+    chips.innerHTML = '<span style="font-size:11px;color:var(--muted)">No suggested questions yet for this book.</span>';
+    return;
+  }
+  chips.innerHTML = questions
+    .map((q, idx) => `<button class="btn btn-ghost btn-xs" style="border-radius:14px" onclick="populateAskFromChipIndex(${idx})">${esc(`#${idx+1}`)} ${esc(String(q))}</button>`)
+    .join('');
+}
+
+function renderKbQuestionManager(){
+  const panel = document.getElementById('kb-question-manage');
+  if (!panel || panel.style.display === 'none') return;
+  panel.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:6px">
+      ${kbDraftQuestions.map((q, i) => `
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="text" value="${esc(q)}" oninput="updateKbDraftQuestion(${i}, this.value)" style="flex:1">
+          <button class="btn btn-ghost btn-xs" onclick="deleteKbDraftQuestion(${i})">Delete</button>
+        </div>
+      `).join('')}
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-xs" onclick="addKbDraftQuestion()">Add question</button>
+        <button class="btn btn-dark btn-xs" onclick="saveKbQuestions()">Save changes</button>
+      </div>
+    </div>
+  `;
+}
+
+function setKbDraftFromSelectedBook(){
+  const book = getSelectedKbBook();
+  kbDraftQuestions = Array.isArray(book?.suggestedQuestions) ? [...book.suggestedQuestions] : [];
+}
+
+function toggleKbQuestionManager(){
+  const panel = document.getElementById('kb-question-manage');
+  if (!panel) return;
+  if (panel.style.display === 'none' || !panel.style.display) {
+    setKbDraftFromSelectedBook();
+    panel.style.display = 'block';
+  } else {
+    panel.style.display = 'none';
+  }
+  renderKbQuestionManager();
+}
+
+function addKbDraftQuestion(){
+  kbDraftQuestions.push('');
+  renderKbQuestionManager();
+}
+
+function updateKbDraftQuestion(index, value){
+  kbDraftQuestions[index] = String(value || '');
+}
+
+function deleteKbDraftQuestion(index){
+  kbDraftQuestions.splice(index, 1);
+  renderKbQuestionManager();
+}
+
+async function saveKbQuestions(){
+  const book = getSelectedKbBook();
+  if (!book) { toast('Select a book first', 'err'); return; }
+  const cleaned = kbDraftQuestions.map(q => String(q || '').trim()).filter(Boolean);
+  try {
+    const res = await api('PUT', `/api/knowledge/books/${book.id}/questions`, { questions: cleaned });
+    const idx = kbBooks.findIndex(b => Number(b.id) === Number(book.id));
+    if (idx >= 0) kbBooks[idx] = res.book;
+    setKbDraftFromSelectedBook();
+    renderKbQuestionManager();
+    renderKbQuestionChips();
+    toast('Questions saved', 'ok');
+  } catch (err) {
+    toast(err.message || 'Failed to save questions', 'err');
+  }
+}
+
+function toggleKbGenerateBox(){
+  const box = document.getElementById('kb-generate-box');
+  if (!box) return;
+  box.style.display = (box.style.display === 'none' || !box.style.display) ? 'block' : 'none';
+}
+
+function toggleKbTopicGenerate(){
+  const box = document.getElementById('kb-topic-generate');
+  if (!box) return;
+  box.style.display = (box.style.display === 'none' || !box.style.display) ? 'flex' : 'none';
+}
+
+async function generateKbQuestionsRandom(){
+  const book = getSelectedKbBook();
+  if (!book) { toast('Select a book first', 'err'); return; }
+  try {
+    const res = await api('POST', `/api/knowledge/books/${book.id}/questions/generate`, { mode: 'random' });
+    const idx = kbBooks.findIndex(b => Number(b.id) === Number(book.id));
+    if (idx >= 0) kbBooks[idx] = res.book;
+    setKbDraftFromSelectedBook();
+    renderKbQuestionManager();
+    renderKbQuestionChips();
+    toast('Generated 8 random questions', 'ok');
+  } catch (err) {
+    toast(err.message || 'Failed to generate questions', 'err');
+  }
+}
+
+async function generateKbQuestionsTopic(){
+  const book = getSelectedKbBook();
+  const subTopic = document.getElementById('kb-topic-input')?.value?.trim() || '';
+  if (!book) { toast('Select a book first', 'err'); return; }
+  if (!subTopic) { toast('Enter a specific topic', 'err'); return; }
+  try {
+    const res = await api('POST', `/api/knowledge/books/${book.id}/questions/generate`, { mode: 'topic', subTopic });
+    const idx = kbBooks.findIndex(b => Number(b.id) === Number(book.id));
+    if (idx >= 0) kbBooks[idx] = res.book;
+    setKbDraftFromSelectedBook();
+    renderKbQuestionManager();
+    renderKbQuestionChips();
+    toast('Generated topic-specific questions', 'ok');
+  } catch (err) {
+    toast(err.message || 'Failed to generate questions', 'err');
+  }
+}
+
+async function loadKbBooks(){
+  try {
+    const res = await api('GET', '/api/knowledge/books');
+    kbBooks = Array.isArray(res.books) ? res.books : [];
+    const sel = document.getElementById('kb-chat-book-select');
+    if (!sel) return;
+    if (!kbBooks.length) {
+      sel.innerHTML = '<option value="">No ingested books yet</option>';
+      kbSelectedBookId = null;
+      renderKbQuestionChips();
+      return;
+    }
+    if (!kbSelectedBookId || !kbBooks.some(b => Number(b.id) === Number(kbSelectedBookId))) {
+      kbSelectedBookId = kbBooks[0].id;
+    }
+    sel.innerHTML = kbBooks.map(b => `<option value="${b.id}" ${Number(b.id)===Number(kbSelectedBookId)?'selected':''}>${esc(b.source)}</option>`).join('');
+    renderKbQuestionChips();
+    const panel = document.getElementById('kb-question-manage');
+    if (panel && panel.style.display !== 'none') {
+      setKbDraftFromSelectedBook();
+      renderKbQuestionManager();
+    }
+  } catch (err) {
+    console.error('loadKbBooks error', err);
+  }
+}
+
+function onKbBookChange(){
+  const sel = document.getElementById('kb-chat-book-select');
+  kbSelectedBookId = sel?.value ? Number(sel.value) : null;
+  setKbDraftFromSelectedBook();
+  renderKbQuestionChips();
+  renderKbQuestionManager();
+}
 
 function setAskMode(mode){
   _askMode = mode;
@@ -1586,16 +1793,20 @@ function setAskMode(mode){
   const kbBtn = document.getElementById('ask-mode-kb');
   const descLib = document.getElementById('ask-desc-library');
   const descKb = document.getElementById('ask-desc-kb');
+  const kbControls = document.getElementById('kb-book-controls');
   if (mode === 'library') {
     libBtn.classList.add('on');
     kbBtn.classList.remove('on');
     descLib.style.display = 'block';
     descKb.style.display = 'none';
+    if (kbControls) kbControls.style.display = 'none';
   } else {
     kbBtn.classList.add('on');
     libBtn.classList.remove('on');
     descLib.style.display = 'none';
     descKb.style.display = 'block';
+    if (kbControls) kbControls.style.display = 'block';
+    loadKbBooks();
   }
 }
 
@@ -1603,6 +1814,7 @@ function openAskLibrary(){
   document.getElementById('ask-input').value='';
   showView('kb-chat');
   setAskMode('kb');
+  loadKbBooks();
   setTimeout(()=>document.getElementById('ask-input').focus(),100);
 }
 
@@ -1658,6 +1870,10 @@ async function askLibrary(){
 async function askKnowledgeBase(){
   const q = document.getElementById('ask-input').value.trim();
   if(!q) return;
+  if (!kbSelectedBookId) {
+    toast('Select a book first', 'err');
+    return;
+  }
   const btn = document.getElementById('ask-btn');
   const status = document.getElementById('ask-status');
   const history = document.getElementById('ask-history');
@@ -1676,7 +1892,7 @@ async function askKnowledgeBase(){
     const res = await fetch('/api/knowledge/chat', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ question:q })
+      body: JSON.stringify({ question:q, bookId: kbSelectedBookId })
     });
     const r = await res.json();
     if (!res.ok) throw new Error(r.error || 'Knowledge chat failed');
@@ -3457,6 +3673,7 @@ async function refreshIngestStatus(){
         const title = activeJob.source || currentKbSource || 'Book';
         uploadStatus.textContent = `INGEST_COMPLETE - ${title} - ${ts}\nProcessing complete. Book is ready to query.`;
         toast('Processing complete. Book is ready to query.', 'ok');
+        loadKbBooks();
       } else if (normalized === 'ERROR') {
         uploadStatus.textContent = activeJob.message ? `Ingest failed: ${activeJob.message}` : 'Ingest failed.';
       }

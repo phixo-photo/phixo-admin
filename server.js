@@ -29,6 +29,8 @@ const DATA_PATH = process.env.DATA_PATH || path.join(__dirname, '..', 'phixo-int
 const INTELLIGENCE_DIR = process.env.INTELLIGENCE_DIR || path.join(__dirname, '..', 'phixo-intelligence');
 // Simple JSONL log for ingestion jobs (PDF → chunks → ChromaDB)
 const INGEST_LOG_PATH = path.join(DATA_PATH, 'ingest-log.jsonl');
+const KB_DEFAULT_COLLECTION = 'phixo_kb';
+const KB_QUESTION_MODEL = 'claude-haiku-4-5-20251001';
 
 function appendIngestLog(entry) {
   try {
@@ -40,6 +42,34 @@ function appendIngestLog(entry) {
     fs.appendFileSync(INGEST_LOG_PATH, JSON.stringify(payload) + '\n');
   } catch (err) {
     console.error('Failed to append ingest log:', err.message);
+  }
+}
+
+function normalizeQuestionList(input) {
+  if (!Array.isArray(input)) return [];
+  const out = [];
+  for (const item of input) {
+    const q = String(item ?? '').trim();
+    if (!q) continue;
+    out.push(q.slice(0, 400));
+  }
+  return Array.from(new Set(out)).slice(0, 50);
+}
+
+function readIngestLogEvents() {
+  try {
+    if (!fs.existsSync(INGEST_LOG_PATH)) return [];
+    const raw = fs.readFileSync(INGEST_LOG_PATH, 'utf8');
+    return raw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        try { return JSON.parse(line); } catch (_) { return null; }
+      })
+      .filter(Boolean);
+  } catch (_) {
+    return [];
   }
 }
 
@@ -192,11 +222,29 @@ async function initDb() {
         source TEXT DEFAULT 'manual',
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
+
+      -- Photography knowledge books + suggested questions
+      CREATE TABLE IF NOT EXISTS kb_books (
+        id SERIAL PRIMARY KEY,
+        source TEXT NOT NULL UNIQUE,
+        author TEXT NOT NULL,
+        topic TEXT NOT NULL DEFAULT 'general',
+        suggested_questions JSONB NOT NULL DEFAULT '[]'::jsonb,
+        questions_generated_at TIMESTAMPTZ,
+        questions_generation_status TEXT NOT NULL DEFAULT 'pending',
+        questions_generation_error TEXT,
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
     `);
     // Migrations for existing DBs
     await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS metadata JSONB DEFAULT '{}'`);
     await pool.query(`ALTER TABLE blocks ADD COLUMN IF NOT EXISTS source_type VARCHAR(50)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_blocks_source_type ON blocks(source_type)`);
+    await pool.query(`ALTER TABLE kb_books ADD COLUMN IF NOT EXISTS suggested_questions JSONB NOT NULL DEFAULT '[]'::jsonb`);
+    await pool.query(`ALTER TABLE kb_books ADD COLUMN IF NOT EXISTS questions_generated_at TIMESTAMPTZ`);
+    await pool.query(`ALTER TABLE kb_books ADD COLUMN IF NOT EXISTS questions_generation_status TEXT NOT NULL DEFAULT 'pending'`);
+    await pool.query(`ALTER TABLE kb_books ADD COLUMN IF NOT EXISTS questions_generation_error TEXT`);
     
     // v3.40: Drive sync and discovery enhancements
     await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS drive_folder_id TEXT`);
@@ -1073,6 +1121,120 @@ app.post('/api/blocks/upload', requireAuth, upload.single('file'), async (req, r
 // PHOTOGRAPHY KNOWLEDGE BASE — RAG ingest (PDF → Python pipeline)
 // ═══════════════════════════════════════════════════
 
+async function runQuestionGenerationPy({ source, topic, subTopic = '' }) {
+  const dbPath = path.join(DATA_PATH, 'chromadb');
+  const pyArgs = [
+    path.join(INTELLIGENCE_DIR, 'scripts', 'generate_suggested_questions.py'),
+    '--source', source,
+    '--topic', topic || 'general',
+    '--db-path', dbPath,
+    '--collection', KB_DEFAULT_COLLECTION,
+  ];
+  if (subTopic && subTopic.trim()) pyArgs.push('--sub-topic', subTopic.trim());
+  return await new Promise((resolve, reject) => {
+    const child = spawn('python3', pyArgs, {
+      cwd: INTELLIGENCE_DIR,
+      env: {
+        ...process.env,
+        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+      },
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+    child.on('close', (code) => {
+      if (code !== 0) return reject(new Error(stderr || stdout || 'question generation failed'));
+      try {
+        const parsed = JSON.parse(stdout);
+        return resolve(normalizeQuestionList(parsed));
+      } catch (e) {
+        return reject(new Error('Invalid JSON from question generator'));
+      }
+    });
+  });
+}
+
+const kbQuestionJobsInFlight = new Set();
+
+async function generateAndStoreQuestions({ bookId, source, topic, subTopic = '', markAsInitial = false }) {
+  const key = String(bookId);
+  if (kbQuestionJobsInFlight.has(key)) return;
+  kbQuestionJobsInFlight.add(key);
+  try {
+    const questions = await runQuestionGenerationPy({ source, topic, subTopic });
+    await pool.query(
+      `UPDATE kb_books
+       SET suggested_questions = $2::jsonb,
+           questions_generated_at = NOW(),
+           questions_generation_status = 'ready',
+           questions_generation_error = NULL,
+           updated_at = NOW()
+       WHERE id = $1`,
+      [bookId, JSON.stringify(questions)]
+    );
+    if (markAsInitial) {
+      appendIngestLog({
+        status: 'QUESTIONS_GENERATED',
+        source,
+        model: KB_QUESTION_MODEL,
+        sampleSize: 10,
+        generatedCount: questions.length,
+      });
+    }
+  } catch (err) {
+    await pool.query(
+      `UPDATE kb_books
+       SET questions_generation_status = 'error',
+           questions_generation_error = LEFT($2, 1500),
+           updated_at = NOW()
+       WHERE id = $1`,
+      [bookId, String(err?.message || err || 'unknown error')]
+    );
+    if (markAsInitial) {
+      appendIngestLog({
+        status: 'QUESTIONS_ERROR',
+        source,
+        model: KB_QUESTION_MODEL,
+        sampleSize: 10,
+        message: String(err?.message || err || 'unknown error'),
+      });
+    }
+  } finally {
+    kbQuestionJobsInFlight.delete(key);
+  }
+}
+
+async function processCompletedIngestsForQuestionGeneration() {
+  try {
+    const events = readIngestLogEvents();
+    const completedSources = new Set(
+      events
+        .filter((ev) => String(ev.status || '').toUpperCase() === 'INGEST_COMPLETE' && ev.source)
+        .map((ev) => String(ev.source))
+    );
+    if (!completedSources.size) return;
+    const rows = (await pool.query(
+      `SELECT id, source, topic, questions_generated_at
+       FROM kb_books
+       WHERE source = ANY($1::text[])`,
+      [Array.from(completedSources)]
+    )).rows || [];
+    for (const row of rows) {
+      if (row.questions_generated_at) continue;
+      await generateAndStoreQuestions({
+        bookId: row.id,
+        source: row.source,
+        topic: row.topic || 'general',
+        subTopic: '',
+        markAsInitial: true,
+      });
+    }
+  } catch (err) {
+    console.warn('processCompletedIngestsForQuestionGeneration skipped:', err.message);
+  }
+}
+
 app.post('/api/knowledge/ingest-pdf', requireAuth, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
@@ -1096,6 +1258,27 @@ app.post('/api/knowledge/ingest-pdf', requireAuth, upload.single('file'), async 
     }
 
     const topicValue = topic || 'general';
+    let bookId = null;
+    try {
+      const up = await pool.query(
+        `INSERT INTO kb_books (source, author, topic, questions_generation_status, questions_generated_at, questions_generation_error, updated_at)
+         VALUES ($1, $2, $3, 'pending', NULL, NULL, NOW())
+         ON CONFLICT (source)
+         DO UPDATE SET
+           author = EXCLUDED.author,
+           topic = EXCLUDED.topic,
+           questions_generation_status = 'pending',
+           questions_generated_at = NULL,
+           questions_generation_error = NULL,
+           updated_at = NOW()
+         RETURNING id`,
+        [source, author, topicValue]
+      );
+      bookId = up.rows[0]?.id || null;
+    } catch (e) {
+      console.error('Failed to upsert kb_books row:', e.message);
+      return res.status(500).json({ error: 'Failed to store book metadata' });
+    }
     // Save the PDF to a temporary uploads folder under DATA_PATH
     const safeName = (req.file.originalname || 'book.pdf').replace(/[^a-zA-Z0-9_.-]+/g, '_');
     const shortId = Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e6).toString(36);
@@ -1106,6 +1289,7 @@ app.post('/api/knowledge/ingest-pdf', requireAuth, upload.single('file'), async 
     appendIngestLog({
       jobId: shortId,
       status: 'queued',
+      bookId,
       source,
       author,
       topic: topicValue,
@@ -1145,6 +1329,7 @@ app.post('/api/knowledge/ingest-pdf', requireAuth, upload.single('file'), async 
     return res.status(202).json({
       message: 'Book queued for processing. This may take a few minutes.',
       jobId: shortId,
+      bookId,
     });
   } catch (err) {
     console.error('Knowledge ingest error:', err.message, err.stack);
@@ -1155,7 +1340,7 @@ app.post('/api/knowledge/ingest-pdf', requireAuth, upload.single('file'), async 
 // Chat with the photography knowledge base (Python ask.py → Claude)
 app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
   try {
-    const { question } = req.body;
+    const { question, bookId } = req.body;
     if (!question || !question.trim()) {
       return res.status(400).json({ error: 'Question required' });
     }
@@ -1169,11 +1354,20 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
       return res.status(400).json({ error: 'Knowledge base is empty. Ingest at least one book first.' });
     }
 
+    let selectedSource = '';
+    if (bookId !== undefined && bookId !== null && String(bookId).trim() !== '') {
+      const row = (await pool.query(`SELECT source FROM kb_books WHERE id = $1`, [bookId])).rows[0];
+      if (!row) return res.status(400).json({ error: 'Selected book not found' });
+      selectedSource = String(row.source || '').trim();
+      if (!selectedSource) return res.status(400).json({ error: 'Selected book has no source' });
+    }
+
     const pyArgs = [
       path.join(INTELLIGENCE_DIR, 'scripts', 'ask.py'),
       question,
       '--db-path', dbPath,
     ];
+    if (selectedSource) pyArgs.push('--source', selectedSource);
 
     const child = spawn('python3', pyArgs, {
       cwd: INTELLIGENCE_DIR,
@@ -1252,6 +1446,113 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('Knowledge chat error:', err.message, err.stack);
     res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/knowledge/books', requireAuth, async (req, res) => {
+  try {
+    const rows = (await pool.query(
+      `SELECT id, source, author, topic, suggested_questions, questions_generated_at, questions_generation_status, questions_generation_error, created_at, updated_at
+       FROM kb_books
+       ORDER BY updated_at DESC, id DESC`
+    )).rows || [];
+    const books = rows.map((r) => ({
+      id: r.id,
+      source: r.source,
+      author: r.author,
+      topic: r.topic,
+      suggestedQuestions: Array.isArray(r.suggested_questions) ? r.suggested_questions : [],
+      questionsGeneratedAt: r.questions_generated_at,
+      questionsGenerationStatus: r.questions_generation_status,
+      questionsGenerationError: r.questions_generation_error,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }));
+    return res.json({ books });
+  } catch (err) {
+    console.error('knowledge books list error:', err.message);
+    return res.status(500).json({ error: 'Failed to load books' });
+  }
+});
+
+app.put('/api/knowledge/books/:bookId/questions', requireAuth, async (req, res) => {
+  try {
+    const bookId = Number(req.params.bookId);
+    if (!Number.isFinite(bookId) || bookId <= 0) return res.status(400).json({ error: 'Invalid book id' });
+    const questions = normalizeQuestionList(req.body?.questions || []);
+    const row = (await pool.query(
+      `UPDATE kb_books
+       SET suggested_questions = $2::jsonb,
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING id, source, author, topic, suggested_questions, questions_generated_at, questions_generation_status, questions_generation_error, created_at, updated_at`,
+      [bookId, JSON.stringify(questions)]
+    )).rows[0];
+    if (!row) return res.status(404).json({ error: 'Book not found' });
+    return res.json({
+      book: {
+        id: row.id,
+        source: row.source,
+        author: row.author,
+        topic: row.topic,
+        suggestedQuestions: Array.isArray(row.suggested_questions) ? row.suggested_questions : [],
+        questionsGeneratedAt: row.questions_generated_at,
+        questionsGenerationStatus: row.questions_generation_status,
+        questionsGenerationError: row.questions_generation_error,
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
+      }
+    });
+  } catch (err) {
+    console.error('save knowledge questions error:', err.message);
+    return res.status(500).json({ error: 'Failed to save questions' });
+  }
+});
+
+app.post('/api/knowledge/books/:bookId/questions/generate', requireAuth, async (req, res) => {
+  try {
+    const bookId = Number(req.params.bookId);
+    if (!Number.isFinite(bookId) || bookId <= 0) return res.status(400).json({ error: 'Invalid book id' });
+    const mode = String(req.body?.mode || 'random').toLowerCase();
+    const subTopic = String(req.body?.subTopic || '').trim();
+    if (mode === 'topic' && !subTopic) {
+      return res.status(400).json({ error: 'subTopic is required for topic mode' });
+    }
+    const row = (await pool.query(`SELECT id, source, topic FROM kb_books WHERE id = $1`, [bookId])).rows[0];
+    if (!row) return res.status(404).json({ error: 'Book not found' });
+    const questions = await runQuestionGenerationPy({
+      source: row.source,
+      topic: row.topic || 'general',
+      subTopic: mode === 'topic' ? subTopic : '',
+    });
+    const updated = (await pool.query(
+      `UPDATE kb_books
+       SET suggested_questions = $2::jsonb,
+           questions_generated_at = NOW(),
+           questions_generation_status = 'ready',
+           questions_generation_error = NULL,
+           updated_at = NOW()
+       WHERE id = $1
+       RETURNING id, source, author, topic, suggested_questions, questions_generated_at, questions_generation_status, questions_generation_error, created_at, updated_at`,
+      [bookId, JSON.stringify(questions)]
+    )).rows[0];
+    return res.json({
+      book: {
+        id: updated.id,
+        source: updated.source,
+        author: updated.author,
+        topic: updated.topic,
+        suggestedQuestions: Array.isArray(updated.suggested_questions) ? updated.suggested_questions : [],
+        questionsGeneratedAt: updated.questions_generated_at,
+        questionsGenerationStatus: updated.questions_generation_status,
+        questionsGenerationError: updated.questions_generation_error,
+        createdAt: updated.created_at,
+        updatedAt: updated.updated_at,
+      }
+    });
+  } catch (err) {
+    console.error('generate knowledge questions error:', err.message);
+    return res.status(500).json({ error: 'Failed to generate questions', detail: err.message });
   }
 });
 
@@ -3826,6 +4127,11 @@ app.listen(PORT, async () => {
   console.log(`Phixo Admin v3 — port ${PORT}`);
   if (process.env.DATABASE_URL) {
     await initDb();
+    // Ingest-complete trigger for initial suggested questions generation.
+    setInterval(() => {
+      processCompletedIngestsForQuestionGeneration();
+    }, 15000);
+    processCompletedIngestsForQuestionGeneration();
     loadViralHooks(); // Load proven viral hooks from CSV
     // Auto-repair thumbnail URLs on every startup
     try {
