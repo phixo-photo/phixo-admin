@@ -1155,6 +1155,10 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
     child.on('close', (code) => {
       if (code !== 0) {
         console.error('ask.py error:', stderr || stdout);
+        const errText = String(stderr || stdout || '');
+        if (/collection/i.test(errText) && /does not exist|not found|no such/i.test(errText)) {
+          return res.status(400).json({ error: 'Knowledge base is empty. Ingest at least one book first.' });
+        }
         return res.status(500).json({ error: 'Knowledge chat failed', detail: stderr || stdout });
       }
 
@@ -1245,10 +1249,10 @@ app.get('/api/knowledge/ingest-status', requireAuth, (req, res) => {
   }
 });
 
-// Wipe the local knowledge base artifacts (uploads, chunks, chromadb, and ingest log)
+// Wipe the local knowledge base artifacts (uploads, chunks, images, chromadb, and ingest log)
 app.post('/api/knowledge/clean-kb', requireAuth, async (req, res) => {
   try {
-    const dirs = ['uploads', 'chunks', 'chromadb'];
+    const dirs = ['uploads', 'chunks', 'images', 'chromadb'];
     for (const d of dirs) {
       const full = path.join(DATA_PATH, d);
       if (fs.existsSync(full)) {
