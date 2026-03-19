@@ -1840,6 +1840,29 @@ async function askKnowledgeBase(){
 
       aiMsg.appendChild(wrap);
     }
+    // If page-matched images were retrieved, show them under the answer.
+    if (r.pageImages && r.pageImages.length) {
+      const gallery = document.createElement('div');
+      gallery.style.cssText='margin-top:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px';
+      const seen = new Set([r.referenceImage && r.referenceImage.path ? String(r.referenceImage.path) : '']);
+      r.pageImages.forEach(imgMeta => {
+        if (!imgMeta || !imgMeta.path) return;
+        const path = String(imgMeta.path);
+        if (seen.has(path)) return;
+        seen.add(path);
+        const cell = document.createElement('div');
+        const img = document.createElement('img');
+        let p = path;
+        while (p.startsWith('/')) p = p.slice(1);
+        img.src = '/api/knowledge/images/' + p;
+        img.alt = 'Page reference image';
+        img.loading = 'lazy';
+        img.style.cssText='width:100%;height:auto;border-radius:8px;border:1px solid var(--border);background:var(--bg);display:block';
+        cell.appendChild(img);
+        gallery.appendChild(cell);
+      });
+      if (gallery.children.length) aiMsg.appendChild(gallery);
+    }
     // If pose diagram exists, render it below the answer text.
     if (r.poseDiagram) {
       aiMsg.insertAdjacentHTML('beforeend', renderPoseDiagram(r.poseDiagram));

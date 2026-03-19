@@ -1222,7 +1222,7 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
       }
 
       if (!payload || typeof payload !== 'object') {
-        payload = { answerText: stdout, sources: [], poseDiagram: null, lightingDiagram: null };
+        payload = { answerText: stdout, sources: [], pageImages: [], poseDiagram: null, lightingDiagram: null };
         const sourcesMatch = stdout.match(/Sources:\s*(.+)/);
         if (sourcesMatch && sourcesMatch[1]) {
           payload.sources = sourcesMatch[1].split(',').map(s => s.trim()).filter(Boolean);
@@ -1232,6 +1232,7 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
       let answer = payload.answerText || '';
       let sources = Array.isArray(payload.sources) ? payload.sources : [];
       const referenceImage = payload.referenceImage ?? null;
+      const pageImages = Array.isArray(payload.pageImages) ? payload.pageImages : [];
       const poseDiagram = payload.poseDiagram ?? null;
       const lightingDiagram = payload.lightingDiagram ?? null;
 
@@ -1248,7 +1249,7 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
       };
       answer = toPlain(answer);
 
-      res.json({ answer, sources, referenceImage, poseDiagram, lightingDiagram, raw: stdout });
+      res.json({ answer, sources, referenceImage, pageImages, poseDiagram, lightingDiagram, raw: stdout });
     });
   } catch (err) {
     console.error('Knowledge chat error:', err.message, err.stack);

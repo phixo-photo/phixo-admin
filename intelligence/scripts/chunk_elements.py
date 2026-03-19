@@ -209,35 +209,41 @@ def main():
     # For our Phase 1 pipeline we only need text to chunk + embed.
     from pdfminer.high_level import extract_text
 
-    full_text = extract_text(args.pdf_path) or ""
-    full_text = "\n\n".join(line.strip() for line in full_text.splitlines() if line.strip())
-    if not full_text.strip():
+    raw_text = extract_text(args.pdf_path) or ""
+    page_texts = []
+    for page_number, page_raw in enumerate(raw_text.split("\f"), 1):
+        cleaned = "\n\n".join(line.strip() for line in page_raw.splitlines() if line.strip())
+        if cleaned:
+            page_texts.append((page_number, cleaned))
+    if not page_texts:
         print("No text extracted from PDF.", file=sys.stderr)
         sys.exit(1)
 
     print(f"Building chunks ({args.chunk_size} tokens, {args.overlap} overlap)...")
-    text_chunks = make_chunks(full_text, chunk_size=args.chunk_size, overlap=args.overlap, encoder=encoder)
-
     source_slug = slug(args.source)
     chunks_with_meta = []
-    for i, text in enumerate(text_chunks):
-        if not text:
-            continue
-        chunk_id = f"{source_slug}_chunk_{i:04d}"
-        chunks_with_meta.append({
-            "chunk_id": chunk_id,
-            "text": text,
-            "metadata": {
+    for page_number, page_text in page_texts:
+        text_chunks = make_chunks(page_text, chunk_size=args.chunk_size, overlap=args.overlap, encoder=encoder)
+        for i, text in enumerate(text_chunks):
+            if not text:
+                continue
+            chunk_id = f"{source_slug}_p{page_number:04d}_chunk_{i:04d}"
+            chunks_with_meta.append({
                 "chunk_id": chunk_id,
-                "chunk_type": "text",
-                "source_document": args.source,
-                "author": args.author,
-                "chapter": "unknown",
-                "topic_category": args.topic,
-                "content_type": "narrative",
-                "copyright_status": "copyrighted_private",
-            },
-        })
+                "text": text,
+                "metadata": {
+                    "chunk_id": chunk_id,
+                    "chunk_type": "text",
+                    "page_number": page_number,
+                    "book_slug": source_slug,
+                    "source_document": args.source,
+                    "author": args.author,
+                    "chapter": "unknown",
+                    "topic_category": args.topic,
+                    "content_type": "narrative",
+                    "copyright_status": "copyrighted_private",
+                },
+            })
 
     # Extract embedded images and create "image chunks" (text=vision-generated description)
     data_root = os.path.dirname(os.path.abspath(args.out_dir))
@@ -267,8 +273,9 @@ def main():
                 "page_number": page_index + 1,
                 "book_slug": source_slug,
             })
-            # list of tuples; first element is xref
-            imgs = page.get_images(full=True) or []
+            # Exact PyMuPDF extraction flow:
+            # for img in doc[page_num].get_images(): xref=img[0], pix=fitz.Pixmap(doc,xref)
+            imgs = page.get_images() or []
             append_ingest_log(args.log_path, args.job_id, {
                 "status": "image_page_images",
                 "page_number": page_index + 1,
@@ -278,7 +285,7 @@ def main():
             for img_idx, img in enumerate(imgs):
                 xref = img[0]
                 page_number = page_index + 1
-                filename = f"{page_number}_{img_idx}.png"
+                filename = f"page{page_number:04d}_{img_idx:02d}.jpg"
                 rel_image_path = f"{source_slug}/{filename}"  # relative to DATA_PATH/images/
                 out_path = os.path.join(book_images_dir, filename)
                 sidecar_path = out_path + ".json"
@@ -324,13 +331,13 @@ def main():
                         })
 
                         try:
-                            # Load the existing PNG and downscale if needed to keep vision fast.
+                            # Load existing image and convert to RGB if needed.
                             pix = fitz.Pixmap(out_path)
-                            if pix.n >= 5:
+                            if pix.n - pix.alpha > 3:
                                 pix = fitz.Pixmap(fitz.csRGB, pix)
                             w = int(pix.width)
                             h = int(pix.height)
-                            if w and h and (w < 50 or h < 50):
+                            if w and h and (w < 200 or h < 200):
                                 skipped_small += 1
                                 append_ingest_log(args.log_path, args.job_id, {
                                     "status": "vision_skip",
@@ -367,7 +374,7 @@ def main():
                                 "width": w,
                                 "height": h,
                             })
-                            desc_text, usage = describe_image_with_claude(img_bytes, "image/png", timeout_s=180)
+                            desc_text, usage = describe_image_with_claude(img_bytes, "image/jpeg", timeout_s=180)
                             if not desc_text:
                                 continue
                             described_images += 1
@@ -440,7 +447,7 @@ def main():
                     "width": w,
                     "height": h,
                 })
-                if w and h and (w < 50 or h < 50):
+                if w and h and (w < 200 or h < 200):
                     skipped_small += 1
                     append_ingest_log(args.log_path, args.job_id, {
                         "status": "vision_skip",
@@ -453,7 +460,7 @@ def main():
                     })
                     continue
 
-                # Save image as PNG (more reliable for downstream serving)
+                # Save image as JPG using the proven PyMuPDF path.
                 os.makedirs(book_images_dir, exist_ok=True)
                 try:
                     append_ingest_log(args.log_path, args.job_id, {
@@ -463,7 +470,7 @@ def main():
                         "book_slug": source_slug,
                     })
                     pix = fitz.Pixmap(doc, xref)
-                    if pix.n >= 5:  # CMYK or with alpha
+                    if pix.n - pix.alpha > 3:
                         pix = fitz.Pixmap(fitz.csRGB, pix)
                     # Downscale very large images to speed up vision calls (and reduce payload size).
                     # Keep aspect ratio; target max dimension ~1400px.
@@ -478,13 +485,7 @@ def main():
                         pass
                     pix.save(out_path)
                 except Exception:
-                    # Fallback: write raw bytes from extract_image (may not be png)
-                    raw_bytes = extracted.get("image")
-                    if isinstance(raw_bytes, (bytes, bytearray)):
-                        with open(out_path, "wb") as f:
-                            f.write(raw_bytes)
-                    else:
-                        continue
+                    continue
 
                 extracted_images += 1
                 append_ingest_log(args.log_path, args.job_id, {
@@ -508,7 +509,7 @@ def main():
                     with open(out_path, "rb") as f:
                         img_bytes = f.read()
                     try:
-                        desc_text, usage = describe_image_with_claude(img_bytes, "image/png", timeout_s=180)
+                        desc_text, usage = describe_image_with_claude(img_bytes, "image/jpeg", timeout_s=180)
                     except Exception as te:
                         append_ingest_log(args.log_path, args.job_id, {
                             "status": "vision_timeout",

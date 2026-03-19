@@ -101,12 +101,18 @@ def main():
 
     context_parts = []
     image_candidates = []
+    page_matches = []
     excerpt_index = 1
     for doc, meta, dist in zip(docs, metadatas, distances):
         ctype = (meta or {}).get("chunk_type", "text")
         if ctype == "image":
             image_candidates.append((dist, doc, meta))
             continue
+        page_matches.append({
+            "page_number": (meta or {}).get("page_number"),
+            "book_slug": (meta or {}).get("book_slug"),
+            "source_document": (meta or {}).get("source_document"),
+        })
         title = (meta or {}).get("source_document", "Unknown")
         context_parts.append(f"[Excerpt {excerpt_index} — {title}]\n{doc}")
         excerpt_index += 1
@@ -170,6 +176,7 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
         payload = {
             "answerText": raw,
             "referenceImage": None,
+            "pageImages": [],
             "poseDiagram": None,
             "lightingDiagram": None,
             "sources": sources,
@@ -181,6 +188,8 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
     # Normalize diagram fields: missing keys -> null.
     if "referenceImage" not in payload:
         payload["referenceImage"] = None
+    if "pageImages" not in payload or not isinstance(payload.get("pageImages"), list):
+        payload["pageImages"] = []
     if "poseDiagram" not in payload:
         payload["poseDiagram"] = None
     if "lightingDiagram" not in payload:
@@ -203,6 +212,44 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
                     "book": book,
                 }
     payload["referenceImage"] = ref
+
+    # Pull all image chunks that belong to pages where retrieved text chunks came from.
+    page_images = []
+    seen_paths = set()
+    for pm in page_matches:
+        page_number = pm.get("page_number")
+        source_document = pm.get("source_document")
+        if page_number is None or not source_document:
+            continue
+        try:
+            got = collection.get(
+                where={
+                    "$and": [
+                        {"chunk_type": "image"},
+                        {"page_number": int(page_number)},
+                        {"source_document": str(source_document)},
+                    ]
+                },
+                include=["documents", "metadatas"],
+            )
+        except Exception:
+            continue
+        docs_i = got.get("documents", []) or []
+        metas_i = got.get("metadatas", []) or []
+        for doc_i, meta_i in zip(docs_i, metas_i):
+            if not isinstance(meta_i, dict):
+                continue
+            img_path = meta_i.get("image_path")
+            if not img_path or img_path in seen_paths:
+                continue
+            seen_paths.add(img_path)
+            page_images.append({
+                "path": img_path,
+                "description": doc_i,
+                "page": meta_i.get("page_number"),
+                "book": meta_i.get("book_slug"),
+            })
+    payload["pageImages"] = page_images
 
     print(json.dumps(payload, ensure_ascii=False))
 
