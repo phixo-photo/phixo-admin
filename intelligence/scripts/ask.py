@@ -180,6 +180,7 @@ def main():
             "page_number": (meta or {}).get("page_number"),
             "book_slug": (meta or {}).get("book_slug"),
             "source_document": (meta or {}).get("source_document"),
+            "topic_category": (meta or {}).get("topic_category"),
             "doc_text": doc,
         })
         title = (meta or {}).get("source_document", "Unknown")
@@ -258,6 +259,14 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
     if "pageImages" not in payload or not isinstance(payload.get("pageImages"), list):
         payload["pageImages"] = []
 
+    # Rule 1 — Topic focus filter:
+    # If we're in All Books mode with Business focus, return text only.
+    if all_books_mode and topic_focus == "business":
+        payload["referenceImage"] = None
+        payload["pageImages"] = []
+        print(json.dumps(payload, ensure_ascii=False))
+        return
+
     # Filter page images to only chunks that are visually relevant.
     page_images = []
     seen_pages = set()
@@ -265,16 +274,38 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
     images_root = os.path.join(data_root, "images")
     relevance_flags = [False] * len(page_matches)
     if page_matches:
-        with ThreadPoolExecutor(max_workers=min(8, len(page_matches))) as executor:
-            futures = [
-                executor.submit(should_include_image_for_chunk, client, pm.get("doc_text", ""))
-                for pm in page_matches
-            ]
-            for idx, future in enumerate(futures):
-                try:
-                    relevance_flags[idx] = bool(future.result())
-                except Exception:
-                    relevance_flags[idx] = False
+        # Rule 2 — Mixed results filter:
+        # In All Books mode, only run the image relevance filter for chunks from
+        # Photography topic books. Never attach images from Business topic books.
+        if all_books_mode:
+            with ThreadPoolExecutor(max_workers=min(8, len(page_matches))) as executor:
+                futures_by_idx = {}
+                for idx, pm in enumerate(page_matches):
+                    topic_category = str(pm.get("topic_category") or "").strip().lower()
+                    is_photography = topic_category in PHOTOGRAPHY_TOPIC_CATEGORIES
+                    if not is_photography:
+                        continue
+                    futures_by_idx[idx] = executor.submit(
+                        should_include_image_for_chunk,
+                        client,
+                        pm.get("doc_text", ""),
+                    )
+                for idx, future in futures_by_idx.items():
+                    try:
+                        relevance_flags[idx] = bool(future.result())
+                    except Exception:
+                        relevance_flags[idx] = False
+        else:
+            with ThreadPoolExecutor(max_workers=min(8, len(page_matches))) as executor:
+                futures = [
+                    executor.submit(should_include_image_for_chunk, client, pm.get("doc_text", ""))
+                    for pm in page_matches
+                ]
+                for idx, future in enumerate(futures):
+                    try:
+                        relevance_flags[idx] = bool(future.result())
+                    except Exception:
+                        relevance_flags[idx] = False
 
     for pm, is_relevant in zip(page_matches, relevance_flags):
         if not is_relevant:
