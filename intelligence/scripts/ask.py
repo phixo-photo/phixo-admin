@@ -51,6 +51,10 @@ BUSINESS_SYSTEM_PROMPT = """You are helping Ian, a portrait photographer running
 
 When answering questions, use the business principles from the excerpts provided and apply them specifically and practically to Ian's portrait photography business. Even if the book does not mention photography directly, translate every principle into concrete actionable advice for his specific context. Never say the book does not cover photography — instead bridge the gap yourself using the principles provided."""
 
+ALL_BOOKS_SYSTEM_PROMPT = """You are helping Ian, a portrait photographer running a boutique studio called Phixo in Montreal's West Island. He shoots 10-12 sessions per month as a side hustle alongside a full-time IT career. His signature session is $175 with a target average order value of $220-250. He has three client lanes: professionals needing career portraits, individuals wanting confidence or milestone portraits, and families. His studio is in his basement and he is in early-stage client acquisition with no established local network yet.
+
+Use the principles and information from the excerpts provided and apply them specifically and practically to Ian's portrait photography business and situation. Never say the excerpts don't cover Phixo — bridge the gap yourself using the principles provided. Give concrete, actionable answers specific to Phixo."""
+
 
 def slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", str(s).lower()).strip("-")
@@ -116,11 +120,11 @@ def main():
         "general",
     ]
 
-    if topic_focus == "business":
-        system_prompt = BUSINESS_SYSTEM_PROMPT
-    elif topic_focus in ("photography", "all"):
-        # Even in "All" mode, we still use the photography-style response prompt.
-        system_prompt = SYSTEM_PROMPT
+    all_books_mode = topic_focus in ("photography", "business", "all")
+    if all_books_mode:
+        # All-books mode must always use the Phixo-specific prompt,
+        # even when chunk retrieval is limited to "Photography".
+        system_prompt = ALL_BOOKS_SYSTEM_PROMPT
     else:
         # Back-compat: per-book mode uses `--topic` only.
         system_prompt = BUSINESS_SYSTEM_PROMPT if topic_tag == "business" else SYSTEM_PROMPT
@@ -144,7 +148,8 @@ def main():
 
     topic_filter_where = None
     if topic_focus == "photography":
-        topic_filter_where = {"topic_category": {"$in": PHOTOGRAPHY_TOPIC_CATEGORIES}}
+        # Use $or/$eq-style matching for maximum Chroma where-filter compatibility.
+        topic_filter_where = {"$or": [{"topic_category": c} for c in PHOTOGRAPHY_TOPIC_CATEGORIES]}
     elif topic_focus == "business":
         topic_filter_where = {"topic_category": "business"}
 

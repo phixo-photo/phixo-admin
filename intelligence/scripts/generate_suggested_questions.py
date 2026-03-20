@@ -129,6 +129,14 @@ def build_all_books_prompt(excerpts: list[str], focus: str, sub_topic: str | Non
 Selected focus: {focus_label}
 
 Based on these excerpts, generate 8 questions this photographer would genuinely want to ask.
+
+Always frame questions specifically around Ian's portrait studio Phixo. Never generate generic questions that
+could apply to any business or any photographer.
+- Photography focus examples: 'How should I light a confidence portrait for a nervous female client at Phixo?' or
+  'What posing approach works best for professional headshots at Phixo?'
+- Business focus examples: 'How can I make Phixo profitable on 10-12 sessions a month?' or
+  'What percentage of my Phixo revenue should I set aside for taxes in Quebec?'
+- All focus: a broad mix of both (technique/client work + business strategy), still explicitly at Phixo.
 """
     if sub_topic:
         prompt += f"""
