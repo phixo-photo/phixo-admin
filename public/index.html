@@ -523,6 +523,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
   <div class="nav-section">Research Library</div>
   <button class="nb" data-view="research" onclick="showView('research',this)"><span class="ico">📚</span> Research Library</button>
   <button class="nb" onclick="openAddBlock()"><span class="ico">＋</span> Add Block</button>
+  <button class="nb" onclick="openAskLibrary()"><span class="ico">💬</span> Chat</button>
   <div class="nav-section">Content &amp; Strategy</div>
   <button class="nb" data-view="calendar" onclick="showView('calendar',this)"><span class="ico">📅</span> Content Calendar</button>
   <button class="nb" onclick="openNewPost()"><span class="ico">✏️</span> New Post</button>
@@ -718,6 +719,16 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
             <label for="kb-chat-book-select" style="font-size:12px;color:var(--muted);min-width:90px">Selected book</label>
             <select id="kb-chat-book-select" onchange="onKbBookChange()" style="flex:1;min-width:220px"></select>
+          </div>
+          <div id="kb-all-books-topic-focus" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+              <label for="kb-all-books-topic-focus-select" style="font-size:12px;color:var(--muted);min-width:90px">Topic focus</label>
+              <select id="kb-all-books-topic-focus-select" onchange="onKbAllBooksTopicFocusChange()" style="flex:1;min-width:220px">
+                <option value="photography">Photography</option>
+                <option value="business">Business</option>
+                <option value="all" selected>All</option>
+              </select>
+            </div>
           </div>
           <div id="kb-book-delete-list" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
           <div id="kb-question-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
@@ -1604,12 +1615,35 @@ function restoreDiscoveryFilters(){
 let _askMode = 'library'; // 'library' or 'kb'
 let kbBooks = [];
 let kbSelectedBookId = null;
+let kbAllBooksActive = false;
+let kbAllBooksTopicFocus = 'all'; // 'photography' | 'business' | 'all'
 let kbDraftQuestions = [];
 let kbQuestionGenerationInFlight = false;
 let kbBookDeletionInFlight = new Set();
 
 function getSelectedKbBook(){
+  if (kbAllBooksActive) return null;
   return kbBooks.find(b => Number(b.id) === Number(kbSelectedBookId)) || null;
+}
+
+function getKbAllBooksStorageKey(){
+  return `all_books_${String(kbAllBooksTopicFocus || 'all').toLowerCase()}`;
+}
+
+function loadKbAllBooksQuestionsFromStorage(){
+  try{
+    const raw = localStorage.getItem(getKbAllBooksStorageKey());
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed : [];
+  }catch(e){
+    return [];
+  }
+}
+
+function getCurrentKbSuggestedQuestions(){
+  if (kbAllBooksActive) return loadKbAllBooksQuestionsFromStorage();
+  const book = getSelectedKbBook();
+  return Array.isArray(book?.suggestedQuestions) ? book.suggestedQuestions : [];
 }
 
 function populateAskFromChip(question){
@@ -1619,22 +1653,24 @@ function populateAskFromChip(question){
 }
 
 function populateAskFromChipIndex(index){
-  const book = getSelectedKbBook();
-  const questions = Array.isArray(book?.suggestedQuestions) ? book.suggestedQuestions : [];
+  const questions = getCurrentKbSuggestedQuestions();
   populateAskFromChip(questions[index] || '');
 }
 
 function renderKbQuestionChips(){
   const chips = document.getElementById('kb-question-chips');
   if (!chips) return;
-  const book = getSelectedKbBook();
-  const questions = Array.isArray(book?.suggestedQuestions) ? book.suggestedQuestions : [];
-  if (!book) {
+  const questions = getCurrentKbSuggestedQuestions();
+  if (!kbAllBooksActive && !getSelectedKbBook()) {
     chips.innerHTML = '<span style="font-size:11px;color:var(--muted)">Select a book to view suggested questions.</span>';
     return;
   }
   if (!questions.length) {
-    chips.innerHTML = '<span style="font-size:11px;color:var(--muted)">No suggested questions yet for this book.</span>';
+    if (kbAllBooksActive) {
+      chips.innerHTML = '<span style="font-size:11px;color:var(--muted)">No suggested questions yet for All Books.</span>';
+    } else {
+      chips.innerHTML = '<span style="font-size:11px;color:var(--muted)">No suggested questions yet for this book.</span>';
+    }
     return;
   }
   chips.innerHTML = questions
@@ -1683,8 +1719,9 @@ function renderKbQuestionManager(){
 }
 
 function setKbDraftFromSelectedBook(){
-  const book = getSelectedKbBook();
-  kbDraftQuestions = Array.isArray(book?.suggestedQuestions) ? [...book.suggestedQuestions] : [];
+  kbDraftQuestions = Array.isArray(getCurrentKbSuggestedQuestions())
+    ? [...getCurrentKbSuggestedQuestions()]
+    : [];
 }
 
 function toggleKbQuestionManager(){
@@ -1714,16 +1751,23 @@ function deleteKbDraftQuestion(index){
 }
 
 async function saveKbQuestions(){
-  const book = getSelectedKbBook();
-  if (!book) { toast('Select a book first', 'err'); return; }
   const cleaned = kbDraftQuestions.map(q => String(q || '').trim()).filter(Boolean);
   try {
-    const res = await api('PUT', `/api/knowledge/books/${book.id}/questions`, { questions: cleaned });
-    const idx = kbBooks.findIndex(b => Number(b.id) === Number(book.id));
-    if (idx >= 0) kbBooks[idx] = res.book;
-    setKbDraftFromSelectedBook();
-    renderKbQuestionManager();
-    renderKbQuestionChips();
+    if (kbAllBooksActive) {
+      localStorage.setItem(getKbAllBooksStorageKey(), JSON.stringify(cleaned));
+      setKbDraftFromSelectedBook();
+      renderKbQuestionManager();
+      renderKbQuestionChips();
+    } else {
+      const book = getSelectedKbBook();
+      if (!book) { toast('Select a book first', 'err'); return; }
+      const res = await api('PUT', `/api/knowledge/books/${book.id}/questions`, { questions: cleaned });
+      const idx = kbBooks.findIndex(b => Number(b.id) === Number(book.id));
+      if (idx >= 0) kbBooks[idx] = res.book;
+      setKbDraftFromSelectedBook();
+      renderKbQuestionManager();
+      renderKbQuestionChips();
+    }
     toast('Questions saved', 'ok');
   } catch (err) {
     toast(err.message || 'Failed to save questions', 'err');
@@ -1743,8 +1787,10 @@ function toggleKbTopicGenerate(){
 }
 
 async function generateKbQuestionsRandom(){
-  const book = getSelectedKbBook();
-  if (!book) { toast('Select a book first', 'err'); return; }
+  if (!kbAllBooksActive) {
+    const book = getSelectedKbBook();
+    if (!book) { toast('Select a book first', 'err'); return; }
+  }
   try {
     if (kbQuestionGenerationInFlight) return;
     kbQuestionGenerationInFlight = true;
@@ -1755,13 +1801,24 @@ async function generateKbQuestionsRandom(){
         button.disabled = true;
         button.textContent = 'Generating...';
       }
-      const res = await api('POST', `/api/knowledge/books/${book.id}/questions/generate`, { mode: 'random' });
-    const idx = kbBooks.findIndex(b => Number(b.id) === Number(book.id));
-    if (idx >= 0) kbBooks[idx] = res.book;
-    setKbDraftFromSelectedBook();
-    renderKbQuestionManager();
-    renderKbQuestionChips();
-    toast('Generated 8 random questions', 'ok');
+      if (kbAllBooksActive) {
+        const res = await api('POST', `/api/knowledge/all-books/questions/generate`, { mode: 'random', topicFocus: kbAllBooksTopicFocus });
+        const questions = Array.isArray(res?.questions) ? res.questions : [];
+        localStorage.setItem(getKbAllBooksStorageKey(), JSON.stringify(questions));
+        setKbDraftFromSelectedBook();
+        renderKbQuestionManager();
+        renderKbQuestionChips();
+        toast('Generated 8 random questions (All Books)', 'ok');
+      } else {
+        const book = getSelectedKbBook();
+        const res = await api('POST', `/api/knowledge/books/${book.id}/questions/generate`, { mode: 'random' });
+        const idx = kbBooks.findIndex(b => Number(b.id) === Number(book.id));
+        if (idx >= 0) kbBooks[idx] = res.book;
+        setKbDraftFromSelectedBook();
+        renderKbQuestionManager();
+        renderKbQuestionChips();
+        toast('Generated 8 random questions', 'ok');
+      }
     } finally {
       kbQuestionGenerationInFlight = false;
       if (button && button.isConnected) {
@@ -1775,9 +1832,11 @@ async function generateKbQuestionsRandom(){
 }
 
 async function generateKbQuestionsTopic(){
-  const book = getSelectedKbBook();
+  if (!kbAllBooksActive) {
+    const book = getSelectedKbBook();
+    if (!book) { toast('Select a book first', 'err'); return; }
+  }
   const subTopic = document.getElementById('kb-topic-input')?.value?.trim() || '';
-  if (!book) { toast('Select a book first', 'err'); return; }
   if (!subTopic) { toast('Enter a specific topic', 'err'); return; }
   if (kbQuestionGenerationInFlight) return;
   kbQuestionGenerationInFlight = true;
@@ -1788,13 +1847,24 @@ async function generateKbQuestionsTopic(){
       button.disabled = true;
       button.textContent = 'Generating...';
     }
-    const res = await api('POST', `/api/knowledge/books/${book.id}/questions/generate`, { mode: 'topic', subTopic });
-    const idx = kbBooks.findIndex(b => Number(b.id) === Number(book.id));
-    if (idx >= 0) kbBooks[idx] = res.book;
-    setKbDraftFromSelectedBook();
-    renderKbQuestionManager();
-    renderKbQuestionChips();
-    toast('Generated topic-specific questions', 'ok');
+    if (kbAllBooksActive) {
+      const res = await api('POST', `/api/knowledge/all-books/questions/generate`, { mode: 'topic', subTopic, topicFocus: kbAllBooksTopicFocus });
+      const questions = Array.isArray(res?.questions) ? res.questions : [];
+      localStorage.setItem(getKbAllBooksStorageKey(), JSON.stringify(questions));
+      setKbDraftFromSelectedBook();
+      renderKbQuestionManager();
+      renderKbQuestionChips();
+      toast('Generated topic-specific questions (All Books)', 'ok');
+    } else {
+      const book = getSelectedKbBook();
+      const res = await api('POST', `/api/knowledge/books/${book.id}/questions/generate`, { mode: 'topic', subTopic });
+      const idx = kbBooks.findIndex(b => Number(b.id) === Number(book.id));
+      if (idx >= 0) kbBooks[idx] = res.book;
+      setKbDraftFromSelectedBook();
+      renderKbQuestionManager();
+      renderKbQuestionChips();
+      toast('Generated topic-specific questions', 'ok');
+    }
   } catch (err) {
     toast(err.message || 'Failed to generate questions', 'err');
   } finally {
@@ -1848,14 +1918,33 @@ async function loadKbBooks(){
     if (!kbBooks.length) {
       sel.innerHTML = '<option value="">No ingested books yet</option>';
       kbSelectedBookId = null;
+      kbAllBooksActive = false;
+      const tf = document.getElementById('kb-all-books-topic-focus');
+      if (tf) tf.style.display = 'none';
       renderKbQuestionChips();
       renderKbBookDeleteList();
       return;
     }
-    if (!kbSelectedBookId || !kbBooks.some(b => Number(b.id) === Number(kbSelectedBookId))) {
-      kbSelectedBookId = kbBooks[0].id;
+
+    // If a book is selected, ensure it exists; otherwise default to the first book.
+    if (!kbAllBooksActive) {
+      if (!kbSelectedBookId || !kbBooks.some(b => Number(b.id) === Number(kbSelectedBookId))) {
+        kbSelectedBookId = kbBooks[0].id;
+      }
+    } else {
+      kbSelectedBookId = null;
     }
-    sel.innerHTML = kbBooks.map(b => `<option value="${b.id}" ${Number(b.id)===Number(kbSelectedBookId)?'selected':''}>${esc(b.source)}</option>`).join('');
+
+    const allBooksSelected = kbAllBooksActive ? 'selected' : '';
+    const topicFocusSelect = document.getElementById('kb-all-books-topic-focus-select');
+    if (topicFocusSelect) topicFocusSelect.value = kbAllBooksTopicFocus;
+
+    sel.innerHTML =
+      `<option value="all_books" ${allBooksSelected}>All Books</option>` +
+      kbBooks.map(b => {
+        const selected = (!kbAllBooksActive && Number(b.id)===Number(kbSelectedBookId)) ? 'selected' : '';
+        return `<option value="${b.id}" ${selected}>${esc(b.source)}</option>`;
+      }).join('');
     renderKbQuestionChips();
     renderKbBookDeleteList();
     const panel = document.getElementById('kb-question-manage');
@@ -1863,6 +1952,9 @@ async function loadKbBooks(){
       setKbDraftFromSelectedBook();
       renderKbQuestionManager();
     }
+
+    const tf = document.getElementById('kb-all-books-topic-focus');
+    if (tf) tf.style.display = kbAllBooksActive ? 'block' : 'none';
   } catch (err) {
     console.error('loadKbBooks error', err);
   }
@@ -1870,7 +1962,20 @@ async function loadKbBooks(){
 
 function onKbBookChange(){
   const sel = document.getElementById('kb-chat-book-select');
-  kbSelectedBookId = sel?.value ? Number(sel.value) : null;
+  const v = sel?.value;
+  kbAllBooksActive = (v === 'all_books');
+  kbSelectedBookId = kbAllBooksActive ? null : (v ? Number(v) : null);
+  const tf = document.getElementById('kb-all-books-topic-focus');
+  if (tf) tf.style.display = kbAllBooksActive ? 'block' : 'none';
+  setKbDraftFromSelectedBook();
+  renderKbQuestionChips();
+  renderKbQuestionManager();
+}
+
+function onKbAllBooksTopicFocusChange(){
+  const sel = document.getElementById('kb-all-books-topic-focus-select');
+  kbAllBooksTopicFocus = sel?.value ? String(sel.value).toLowerCase() : 'all';
+  if (!kbAllBooksActive) return;
   setKbDraftFromSelectedBook();
   renderKbQuestionChips();
   renderKbQuestionManager();
@@ -1959,10 +2064,7 @@ async function askLibrary(){
 async function askKnowledgeBase(){
   const q = document.getElementById('ask-input').value.trim();
   if(!q) return;
-  if (!kbSelectedBookId) {
-    toast('Select a book first', 'err');
-    return;
-  }
+  if (!kbAllBooksActive && !kbSelectedBookId) { toast('Select a book first', 'err'); return; }
   const btn = document.getElementById('ask-btn');
   const status = document.getElementById('ask-status');
   const history = document.getElementById('ask-history');
@@ -1981,7 +2083,7 @@ async function askKnowledgeBase(){
     const res = await fetch('/api/knowledge/chat', {
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ question:q, bookId: kbSelectedBookId })
+      body: JSON.stringify({ question:q, bookId: kbAllBooksActive ? null : kbSelectedBookId, topicFocus: kbAllBooksActive ? kbAllBooksTopicFocus : undefined })
     });
     const r = await res.json();
     if (!res.ok) throw new Error(r.error || 'Knowledge chat failed');

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate suggested questions for a single ingested book from sampled chunks.
+Generate suggested questions from sampled Chroma chunks.
 
 Rules:
 - Always uses claude-haiku-4-5-20251001
@@ -27,6 +27,21 @@ TOPIC_LABELS = {
     "client_psychology": "Client psychology",
     "business": "Business",
     "general": "General",
+}
+
+PHOTOGRAPHY_TOPIC_CATEGORIES = [
+    "posing",
+    "lighting",
+    "gear",
+    "color_theory",
+    "client_psychology",
+    "general",
+]
+
+ALL_BOOKS_FOCUS_LABELS = {
+    "photography": "Photography",
+    "business": "Business",
+    "all": "All",
 }
 
 
@@ -99,10 +114,46 @@ Excerpts:
     return prompt
 
 
+def build_all_books_prompt(excerpts: list[str], focus: str, sub_topic: str | None):
+    joined = "\n\n---\n\n".join(excerpts)
+    focus_label = ALL_BOOKS_FOCUS_LABELS.get(focus, "All")
+    # Required system prompt addition for All Books mode.
+    system_addition = (
+        "Ian is a portrait photographer running Phixo, a boutique studio in Montreal's West Island. "
+        "He shoots 10-12 sessions per month as a side hustle. Generate questions that would genuinely help him "
+        "run and grow his photography business - spanning technique, client work, and business strategy as appropriate "
+        "for the selected focus."
+    )
+    prompt = f"""{system_addition}
+
+Selected focus: {focus_label}
+
+Based on these excerpts, generate 8 questions this photographer would genuinely want to ask.
+"""
+    if sub_topic:
+        prompt += f"""
+Focus specifically on this sub-topic: {sub_topic}
+Only generate questions relevant to this sub-topic.
+"""
+    prompt += f"""
+Return ONLY a JSON array of 8 question strings. No preamble, no markdown, no explanation.
+Example format: ["Question 1?", "Question 2?", "Question 3?"]
+
+Excerpts:
+{joined}
+"""
+    return prompt
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate suggested book questions from sampled Chroma chunks.")
-    parser.add_argument("--source", required=True, help="Exact source_document title")
+    parser.add_argument("--source", required=False, help="Exact source_document title (omit for all-books mode)")
     parser.add_argument("--topic", default="general", help="Book topic tag")
+    parser.add_argument(
+        "--topic-focus",
+        default="all",
+        help="All-books topic focus: photography | business | all",
+    )
     parser.add_argument("--db-path", required=True, help="ChromaDB path")
     parser.add_argument("--collection", default="phixo_kb", help="Collection name")
     parser.add_argument("--sub-topic", default="", help="Optional sub-topic focus")
@@ -120,28 +171,79 @@ def main():
 
     client_db = chromadb.PersistentClient(path=args.db_path)
     collection = client_db.get_collection(name=args.collection)
-    results = collection.get(
-        where={"source_document": args.source},
-        include=["documents", "metadatas"],
-    )
-    docs = results.get("documents") or []
-    metas = results.get("metadatas") or []
-    text_docs = []
-    for doc, meta in zip(docs, metas):
-        ctype = (meta or {}).get("chunk_type", "text")
-        text = str(doc or "").strip()
-        if ctype == "image" or not text:
-            continue
-        text_docs.append(text)
 
-    if not text_docs:
-        print(f"No chunks found for source_document='{args.source}'", file=sys.stderr)
-        sys.exit(1)
+    source_filter = (args.source or "").strip()
+    topic_focus = str(getattr(args, "topic_focus", "all") or "all").strip().lower()
+    sub_topic = (args.sub_topic or "").strip() or None
 
-    sample_count = min(SAMPLE_SIZE, len(text_docs))
-    sampled = random.sample(text_docs, sample_count)
-    topic_label = TOPIC_LABELS.get(args.topic, "General")
-    prompt = build_prompt(sampled, topic_label, (args.sub_topic or "").strip() or None)
+    def collect_text_docs(where):
+        get_kwargs = {"include": ["documents", "metadatas"]}
+        if where is not None:
+            get_kwargs["where"] = where
+        results = collection.get(**get_kwargs)
+        docs = results.get("documents") or []
+        metas = results.get("metadatas") or []
+        text_docs = []
+        for doc, meta in zip(docs, metas):
+            ctype = (meta or {}).get("chunk_type", "text")
+            text = str(doc or "").strip()
+            if ctype == "image" or not text:
+                continue
+            text_docs.append(text)
+        return text_docs
+
+    if source_filter:
+        # Per-book mode (back-compat).
+        text_docs = collect_text_docs({"source_document": source_filter})
+        if not text_docs:
+            print(f"No chunks found for source_document='{source_filter}'", file=sys.stderr)
+            sys.exit(1)
+
+        sample_count = min(SAMPLE_SIZE, len(text_docs))
+        sampled = random.sample(text_docs, sample_count)
+        topic_label = TOPIC_LABELS.get(args.topic, "General")
+        prompt = build_prompt(sampled, topic_label, sub_topic)
+    else:
+        # All-books mode: filter by topic_category and sample exactly per focus.
+        if topic_focus == "photography":
+            photo_docs = collect_text_docs({"topic_category": {"$in": PHOTOGRAPHY_TOPIC_CATEGORIES}})
+            if not photo_docs:
+                print("No photography chunks found for all-books mode.", file=sys.stderr)
+                sys.exit(1)
+            sampled = random.sample(photo_docs, min(SAMPLE_SIZE, len(photo_docs)))
+            prompt = build_all_books_prompt(sampled, "photography", sub_topic)
+        elif topic_focus == "business":
+            business_docs = collect_text_docs({"topic_category": "business"})
+            if not business_docs:
+                print("No business chunks found for all-books mode.", file=sys.stderr)
+                sys.exit(1)
+            sampled = random.sample(business_docs, min(SAMPLE_SIZE, len(business_docs)))
+            prompt = build_all_books_prompt(sampled, "business", sub_topic)
+        else:
+            # All: sample 5 from photography-topic chunks and 5 from business-topic chunks.
+            photo_docs = collect_text_docs({"topic_category": {"$in": PHOTOGRAPHY_TOPIC_CATEGORIES}})
+            business_docs = collect_text_docs({"topic_category": "business"})
+            if not photo_docs and not business_docs:
+                print("No chunks found for all-books mode.", file=sys.stderr)
+                sys.exit(1)
+
+            photo_sample = min(5, len(photo_docs))
+            business_sample = min(5, len(business_docs))
+            sampled = []
+            if photo_sample:
+                sampled.extend(random.sample(photo_docs, photo_sample))
+            if business_sample:
+                sampled.extend(random.sample(business_docs, business_sample))
+
+            # If one side has insufficient chunks, fill up to 10 from whatever remains.
+            if len(sampled) < SAMPLE_SIZE:
+                already = set(sampled)
+                remaining_candidates = [t for t in photo_docs if t not in already] + [t for t in business_docs if t not in already]
+                if remaining_candidates:
+                    remaining = min(SAMPLE_SIZE - len(sampled), len(remaining_candidates))
+                    sampled.extend(random.sample(remaining_candidates, remaining))
+
+            prompt = build_all_books_prompt(sampled, "all", sub_topic)
 
     client = anthropic.Anthropic()
     message = client.messages.create(

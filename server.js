@@ -1155,6 +1155,39 @@ async function runQuestionGenerationPy({ source, topic, subTopic = '' }) {
   });
 }
 
+async function runAllBooksQuestionGenerationPy({ topicFocus, subTopic = '' }) {
+  const dbPath = path.join(DATA_PATH, 'chromadb');
+  const pyArgs = [
+    path.join(INTELLIGENCE_DIR, 'scripts', 'generate_suggested_questions.py'),
+    '--topic-focus', topicFocus || 'all',
+    '--db-path', dbPath,
+    '--collection', KB_DEFAULT_COLLECTION,
+  ];
+  if (subTopic && subTopic.trim()) pyArgs.push('--sub-topic', subTopic.trim());
+  return await new Promise((resolve, reject) => {
+    const child = spawn('python3', pyArgs, {
+      cwd: INTELLIGENCE_DIR,
+      env: {
+        ...process.env,
+        ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+      },
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+    child.on('close', (code) => {
+      if (code !== 0) return reject(new Error(stderr || stdout || 'question generation failed'));
+      try {
+        const parsed = JSON.parse(stdout);
+        return resolve(normalizeQuestionList(parsed));
+      } catch (e) {
+        return reject(new Error('Invalid JSON from question generator'));
+      }
+    });
+  });
+}
+
 async function deleteBookChunksPy({ sourceDocument }) {
   const dbPath = path.join(DATA_PATH, 'chromadb');
   const pyArgs = [
@@ -1371,7 +1404,7 @@ app.post('/api/knowledge/ingest-pdf', requireAuth, upload.single('file'), async 
 // Chat with the photography knowledge base (Python ask.py → Claude)
 app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
   try {
-    const { question, bookId } = req.body;
+    const { question, bookId, topicFocus } = req.body;
     if (!question || !question.trim()) {
       return res.status(400).json({ error: 'Question required' });
     }
@@ -1395,6 +1428,13 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
       if (!selectedSource) return res.status(400).json({ error: 'Selected book has no source' });
     }
 
+    const normalizeAllBooksTopicFocus = (v) => {
+      const s = String(v || '').trim().toLowerCase();
+      if (s === 'photography') return 'photography';
+      if (s === 'business') return 'business';
+      return 'all';
+    };
+
     const pyArgs = [
       path.join(INTELLIGENCE_DIR, 'scripts', 'ask.py'),
       question,
@@ -1402,6 +1442,12 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
     ];
     if (selectedSource) pyArgs.push('--source', selectedSource);
     if (selectedTopic) pyArgs.push('--topic', selectedTopic);
+    if (!selectedSource) {
+      const focus = normalizeAllBooksTopicFocus(topicFocus);
+      // `ask.py` uses topic-focus for Chroma filtering and `--topic` for system-prompt selection.
+      pyArgs.push('--topic', focus === 'business' ? 'business' : 'general');
+      pyArgs.push('--topic-focus', focus);
+    }
 
     const child = spawn('python3', pyArgs, {
       cwd: INTELLIGENCE_DIR,
@@ -1586,6 +1632,29 @@ app.post('/api/knowledge/books/:bookId/questions/generate', requireAuth, async (
     });
   } catch (err) {
     console.error('generate knowledge questions error:', err.message);
+    return res.status(500).json({ error: 'Failed to generate questions', detail: err.message });
+  }
+});
+
+app.post('/api/knowledge/all-books/questions/generate', requireAuth, async (req, res) => {
+  try {
+    const mode = String(req.body?.mode || 'random').toLowerCase();
+    const subTopic = String(req.body?.subTopic || '').trim();
+    const topicFocusRaw = String(req.body?.topicFocus || 'all').trim().toLowerCase();
+    const topicFocus = (topicFocusRaw === 'photography' || topicFocusRaw === 'business') ? topicFocusRaw : 'all';
+
+    if (mode === 'topic' && !subTopic) {
+      return res.status(400).json({ error: 'subTopic is required for topic mode' });
+    }
+
+    const questions = await runAllBooksQuestionGenerationPy({
+      topicFocus,
+      subTopic: mode === 'topic' ? subTopic : '',
+    });
+
+    return res.json({ questions });
+  } catch (err) {
+    console.error('generate all-books knowledge questions error:', err.message);
     return res.status(500).json({ error: 'Failed to generate questions', detail: err.message });
   }
 });

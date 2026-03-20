@@ -81,6 +81,11 @@ def main():
     parser.add_argument("--model", "-m", default=DEFAULT_CLAUDE_MODEL, help=f"Claude model (default: {DEFAULT_CLAUDE_MODEL})")
     parser.add_argument("--source", default="", help="Optional source_document filter (exact title)")
     parser.add_argument("--topic", default="general", help="Optional book topic tag (e.g. Business)")
+    parser.add_argument(
+        "--topic-focus",
+        default="",
+        help="Optional topic focus for all-books mode: photography | business | all",
+    )
     args = parser.parse_args()
 
     query = " ".join(args.query).strip()
@@ -100,7 +105,25 @@ def main():
         sys.exit(1)
 
     topic_tag = str(getattr(args, "topic", "general") or "general").strip().lower()
-    system_prompt = BUSINESS_SYSTEM_PROMPT if topic_tag == "business" else SYSTEM_PROMPT
+    topic_focus = str(getattr(args, "topic_focus", "") or "").strip().lower()
+
+    PHOTOGRAPHY_TOPIC_CATEGORIES = [
+        "posing",
+        "lighting",
+        "gear",
+        "color_theory",
+        "client_psychology",
+        "general",
+    ]
+
+    if topic_focus == "business":
+        system_prompt = BUSINESS_SYSTEM_PROMPT
+    elif topic_focus in ("photography", "all"):
+        # Even in "All" mode, we still use the photography-style response prompt.
+        system_prompt = SYSTEM_PROMPT
+    else:
+        # Back-compat: per-book mode uses `--topic` only.
+        system_prompt = BUSINESS_SYSTEM_PROMPT if topic_tag == "business" else SYSTEM_PROMPT
 
     from openai import OpenAI
     import chromadb
@@ -118,8 +141,19 @@ def main():
         "include": ["documents", "metadatas", "distances"],
     }
     source_filter = (args.source or "").strip()
-    if source_filter:
+
+    topic_filter_where = None
+    if topic_focus == "photography":
+        topic_filter_where = {"topic_category": {"$in": PHOTOGRAPHY_TOPIC_CATEGORIES}}
+    elif topic_focus == "business":
+        topic_filter_where = {"topic_category": "business"}
+
+    if source_filter and topic_filter_where:
+        query_kwargs["where"] = {"$and": [{"source_document": source_filter}, topic_filter_where]}
+    elif source_filter:
         query_kwargs["where"] = {"source_document": source_filter}
+    elif topic_filter_where:
+        query_kwargs["where"] = topic_filter_where
     results = collection.query(**query_kwargs)
 
     docs = results["documents"][0]
