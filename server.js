@@ -1507,6 +1507,7 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
       let sources = Array.isArray(payload.sources) ? payload.sources : [];
       const referenceImage = payload.referenceImage ?? null;
       const pageImages = Array.isArray(payload.pageImages) ? payload.pageImages : [];
+      const retrievedChunks = Array.isArray(payload.retrievedChunks) ? payload.retrievedChunks : [];
 
       // Convert common Markdown-ish output into plain text
       const toPlain = (s) => {
@@ -1521,10 +1522,118 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
       };
       answer = toPlain(answer);
 
-      res.json({ answer, sources, referenceImage, pageImages, raw: stdout });
+      res.json({ answer, sources, referenceImage, pageImages, retrievedChunks, raw: stdout });
     });
   } catch (err) {
     console.error('Knowledge chat error:', err.message, err.stack);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Premium "deep dive" follow-up (Tell me more)
+app.post('/api/knowledge/chat/deep-dive', requireAuth, async (req, res) => {
+  try {
+    const { question, originalAnswer, retrievedChunks, mode, topicFocus, bookTopicTag } = req.body || {};
+    if (!question || !String(question).trim()) return res.status(400).json({ error: 'Question required' });
+    if (!originalAnswer || !String(originalAnswer).trim()) return res.status(400).json({ error: 'Original answer required' });
+
+    const chunks = Array.isArray(retrievedChunks) ? retrievedChunks : [];
+
+    const deepDiveSystemAddition = `
+The user has already received a standard answer to their question and wants to go significantly deeper. Do not repeat what was already said. Build on it substantially. Go further into the principles, the edge cases, the nuances, the practical application specifically for Ian's basement studio and Phixo's situation. Give the kind of answer a senior photographer mentor would give after already covering the basics — assume the basics are understood and push further. Be thorough. This response should feel worth the extra cost and time.
+`.trim();
+
+    const SYSTEM_PROMPT = `You are a portrait photography expert. Answer the question using only the excerpts from photography books provided below.
+
+Return ONLY valid JSON with this schema (no markdown, no extra text):
+{
+  "answerText": string,
+  "referenceImage": null,
+  "pageImages": array of objects,
+  "sources": array of strings
+}
+
+Rules:
+1) Do not use markdown. answerText must be plain text with short paragraphs.
+2) Use clean flowing paragraphs, never bullets or numbered lists.
+3) Never include diagrams, SVG instructions, or generated visuals.
+4) referenceImage must be null and pageImages must be an empty array (the system attaches real page images after retrieval).
+5) If the excerpts do not cover what's asked, say so in answerText.
+6) When you use a specific idea from the text, it must be supported by the excerpts and you should list the book title in sources.`;
+
+    const BUSINESS_SYSTEM_PROMPT = `You are helping Ian, a portrait photographer running a boutique studio called Phixo in Montreal's West Island. He shoots 10-12 sessions per month as a side hustle alongside a full-time IT career. His signature session is $175 with a target average order value of $220-250. He has three client lanes: professionals needing career portraits, individuals wanting confidence or milestone portraits, and families. His studio is in his basement and he is in early-stage client acquisition with no established local network yet.
+
+When answering questions, use the business principles from the excerpts provided and apply them specifically and practically to Ian's portrait photography business. Even if the book does not mention photography directly, translate every principle into concrete actionable advice for his specific context. Never say the book does not cover photography — instead bridge the gap yourself using the principles provided.`;
+
+    const ALL_BOOKS_SYSTEM_PROMPT = `You are helping Ian, a portrait photographer running a boutique studio called Phixo in Montreal's West Island. He shoots 10-12 sessions per month as a side hustle alongside a full-time IT career. His signature session is $175 with a target average order value of $220-250. He has three client lanes: professionals needing career portraits, individuals wanting confidence or milestone portraits, and families. His studio is in his basement and he is in early-stage client acquisition with no established local network yet.
+
+Use the principles and information from the excerpts provided and apply them specifically and practically to Ian's portrait photography business and situation. Never say the excerpts don't cover Phixo — bridge the gap yourself using the principles provided.`;
+
+    // Mirror ask.py's system prompt selection so the "Tell me more" prompt builds on the same context.
+    const m = String(mode || '').toLowerCase();
+    const focus = String(topicFocus || '').toLowerCase();
+    const tag = String(bookTopicTag || '').toLowerCase();
+
+    const allBooksMode = m === 'all_books' || ['photography', 'business', 'all'].includes(focus);
+    const baseSystemPrompt = allBooksMode ? ALL_BOOKS_SYSTEM_PROMPT : (tag === 'business' ? BUSINESS_SYSTEM_PROMPT : SYSTEM_PROMPT);
+
+    const excerptParts = chunks.map((c, i) => {
+      const docText = String(c?.doc_text || '').trim();
+      const title = String(c?.source_document || 'Unknown').trim();
+      return `[Excerpt ${i + 1} — ${title}]\n${docText}`;
+    }).filter(s => s && !/^\[Excerpt .*?\]\s*$/.test(s));
+
+    const excerpts = excerptParts.join('\n\n---\n\n');
+
+    const userContent = `Here are excerpts from photography books:
+
+${excerpts}
+
+---
+
+Question: ${question}
+
+Original standard answer (already shown to the user):
+${originalAnswer}
+
+---
+
+Write a significantly deeper answer. Do not repeat what was already said. Build on it substantially. Go further into the principles, the edge cases, the nuances, and practical application.`;
+
+    const systemPrompt = `${deepDiveSystemAddition}\n\n${baseSystemPrompt}`.trim();
+
+    // IMPORTANT: This endpoint must use sonnet (premium) and must not rely on AI_MODEL.
+    const message = await anthropic.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2000,
+      temperature: 1.0,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userContent }],
+    });
+
+    const rawText = (message?.content || []).find((c) => c?.type === 'text')?.text || '';
+
+    // Be defensive: if Claude returned JSON, extract answerText; otherwise use raw text.
+    const tryExtractJson = (s) => {
+      if (typeof s !== 'string') return null;
+      const firstBrace = s.indexOf('{');
+      const lastBrace = s.lastIndexOf('}');
+      if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) return null;
+      try {
+        return JSON.parse(s.slice(firstBrace, lastBrace + 1));
+      } catch {
+        return null;
+      }
+    };
+
+    const jsonMaybe = tryExtractJson(rawText);
+    const deepAnswer = (jsonMaybe?.answerText && typeof jsonMaybe.answerText === 'string')
+      ? jsonMaybe.answerText
+      : rawText;
+
+    res.json({ deepAnswer });
+  } catch (err) {
+    console.error('Knowledge deep-dive error:', err.message, err.stack);
     res.status(500).json({ error: err.message });
   }
 });

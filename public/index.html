@@ -2119,14 +2119,26 @@ async function askKnowledgeBase(){
       seen.add(key);
       dedupedImages.push(imgMeta);
     });
-    const splitPoints = Math.max(1, paragraphs.length);
+    // Display-layer dedupe: each image meta gets rendered at most once per answer.
+    // This prevents the same page image from being re-rendered later in the same response.
+    const imagesAtParagraph = new Map();
+    if (paragraphs.length && dedupedImages.length) {
+      dedupedImages.forEach((imgMeta, i) => {
+        const paragraphIdx = Math.min(
+          paragraphs.length - 1,
+          Math.floor(((i + 0.5) * paragraphs.length) / dedupedImages.length)
+        );
+        const arr = imagesAtParagraph.get(paragraphIdx) || [];
+        arr.push(imgMeta);
+        imagesAtParagraph.set(paragraphIdx, arr);
+      });
+    }
+
     let html = '';
     paragraphs.forEach((p, idx) => {
       html += `<p style="margin:0 0 12px;white-space:normal">${esc(p)}</p>`;
-      const targetImageIndex = Math.floor(((idx + 1) * dedupedImages.length) / splitPoints) - 1;
-      if (targetImageIndex >= 0 && targetImageIndex < dedupedImages.length) {
-        html += renderInlineImage(dedupedImages[targetImageIndex]);
-      }
+      const imgsHere = imagesAtParagraph.get(idx) || [];
+      imgsHere.forEach((imgMeta) => { html += renderInlineImage(imgMeta); });
     });
     if (!paragraphs.length && dedupedImages.length) html += renderInlineImage(dedupedImages[0]);
     aiMsg.innerHTML = html;
@@ -2138,6 +2150,90 @@ async function askKnowledgeBase(){
         r.sources.map(s=>`<span style="background:var(--surface-3);border:1px solid var(--border);border-radius:20px;padding:3px 10px;font-size:11px;color:var(--text)">${esc(s)}</span>`).join('');
       aiMsg.appendChild(srcs);
     }
+
+    // Warning CTA (premium model) at the bottom of every KB answer.
+    const tellMoreWrap = document.createElement('div');
+    tellMoreWrap.style.cssText='margin-top:12px;padding-top:10px;border-top:1px solid var(--border);display:flex;justify-content:flex-end';
+
+    const tellMoreBtn = document.createElement('button');
+    tellMoreBtn.className = 'btn btn-sm';
+    tellMoreBtn.textContent = '⚠ Tell me more — uses premium model';
+    tellMoreBtn.style.cssText='background:#fff3e0;color:var(--warm);border:1px solid #e8d5a8;border-radius:7px;padding:6px 12px;font-size:12px;font-weight:800';
+
+    tellMoreBtn.onclick = async () => {
+      // One deep dive per question maximum (this button is per-answer).
+      if (tellMoreBtn.dataset.used === '1') return;
+
+      tellMoreBtn.disabled = true;
+      tellMoreBtn.textContent = 'Generating deep response — this may take 30 seconds...';
+
+      const retrievedChunks = Array.isArray(r.retrievedChunks) ? r.retrievedChunks : [];
+      const originalAnswer = r.answer || '';
+      const selectedBook = getSelectedKbBook();
+      const bookTopicTag = selectedBook?.topic ? String(selectedBook.topic).toLowerCase() : 'general';
+
+      try {
+        const deepRes = await fetch('/api/knowledge/chat/deep-dive', {
+          method:'POST',
+          headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({
+            question:q,
+            originalAnswer,
+            retrievedChunks,
+            mode: kbAllBooksActive ? 'all_books' : 'book',
+            topicFocus: kbAllBooksActive ? kbAllBooksTopicFocus : undefined,
+            bookTopicTag
+          })
+        });
+
+        const deepJson = await deepRes.json();
+        if (!deepRes.ok) throw new Error(deepJson.error || 'Deep dive failed');
+
+        const deepAnswerText = String(deepJson.deepAnswer || '').trim();
+        const deepParagraphs = formatParagraphs(deepAnswerText);
+
+        // Build: label -> thin rule -> paragraphs.
+        const deepWrap = document.createElement('div');
+        const deepLabel = document.createElement('div');
+        deepLabel.textContent = 'Deep dive';
+        deepLabel.style.cssText='font-size:10px;color:var(--muted);font-weight:800;margin-bottom:6px;letter-spacing:.4px';
+
+        const deepRule = document.createElement('div');
+        deepRule.style.cssText='border-top:1px solid var(--border);margin-bottom:10px';
+
+        deepWrap.appendChild(deepLabel);
+        deepWrap.appendChild(deepRule);
+
+        if (deepParagraphs.length) {
+          deepParagraphs.forEach((p) => {
+            const pe = document.createElement('p');
+            pe.style.cssText='margin:0 0 12px;white-space:normal';
+            pe.textContent = p;
+            deepWrap.appendChild(pe);
+          });
+        } else if (deepAnswerText) {
+          const pe = document.createElement('p');
+          pe.style.cssText='margin:0 0 12px;white-space:normal';
+          pe.textContent = deepAnswerText;
+          deepWrap.appendChild(pe);
+        }
+
+        // Insert the deep response above the Tell me more button.
+        aiMsg.insertBefore(deepWrap, tellMoreWrap);
+
+        // Permanently hide the Tell me more button for this answer.
+        tellMoreBtn.style.display = 'none';
+        tellMoreBtn.dataset.used = '1';
+      } catch (err) {
+        tellMoreBtn.disabled = false;
+        tellMoreBtn.textContent = '⚠ Tell me more — uses premium model';
+        toast(err.message || 'Deep dive failed', 'err');
+      }
+    };
+
+    tellMoreWrap.appendChild(tellMoreBtn);
+    aiMsg.appendChild(tellMoreWrap);
+
     history.appendChild(aiMsg);
     history.scrollTop=history.scrollHeight;
   } catch(err){

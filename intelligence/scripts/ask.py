@@ -258,6 +258,9 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
         payload["referenceImage"] = None
     if "pageImages" not in payload or not isinstance(payload.get("pageImages"), list):
         payload["pageImages"] = []
+    # Expose the original retrieved text chunks so the frontend can request a
+    # deeper follow-up without re-running retrieval/relevance filtering.
+    payload["retrievedChunks"] = page_matches
 
     # Rule 1 — Topic focus filter:
     # If we're in All Books mode with Business focus, return text only.
