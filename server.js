@@ -25,6 +25,27 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 200
 // Shared data paths (for RAG pipeline, uploads, ChromaDB, etc.)
 // When deployed on Railway, mount a volume and set DATA_PATH to that mount point (e.g. /data).
 const DATA_PATH = process.env.DATA_PATH || path.join(__dirname, '..', 'phixo-intelligence', 'data');
+
+// Algonquin ingest can handle much larger video/audio uploads than the regular single-book flow.
+// We use diskStorage so we can safely downsample for Whisper without loading the full payload into memory.
+const uploadAlgonquin = multer({
+  storage: multer.diskStorage({
+    destination: (req, file, cb) => {
+      try {
+        const dir = path.join(DATA_PATH, 'algonquin_uploads');
+        fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+      } catch (err) {
+        cb(err);
+      }
+    },
+    filename: (req, file, cb) => {
+      const safeOriginal = String(file.originalname || 'file').replace(/[^a-zA-Z0-9_.-]+/g, '_');
+      cb(null, `${Date.now()}-${safeOriginal}`);
+    },
+  }),
+  limits: { fileSize: 1024 * 1024 * 1024, files: 30 }, // 1 GB hard cap per file
+});
 // Location of the Python RAG pipeline (phixo-intelligence repo or copied folder)
 const INTELLIGENCE_DIR = process.env.INTELLIGENCE_DIR || path.join(__dirname, '..', 'phixo-intelligence');
 // Simple JSONL log for ingestion jobs (PDF → chunks → ChromaDB)
@@ -245,6 +266,22 @@ async function initDb() {
     await pool.query(`ALTER TABLE kb_books ADD COLUMN IF NOT EXISTS questions_generated_at TIMESTAMPTZ`);
     await pool.query(`ALTER TABLE kb_books ADD COLUMN IF NOT EXISTS questions_generation_status TEXT NOT NULL DEFAULT 'pending'`);
     await pool.query(`ALTER TABLE kb_books ADD COLUMN IF NOT EXISTS questions_generation_error TEXT`);
+    await pool.query(`ALTER TABLE kb_books ADD COLUMN IF NOT EXISTS title TEXT`);
+    await pool.query(`ALTER TABLE kb_books ADD COLUMN IF NOT EXISTS file_count INTEGER NOT NULL DEFAULT 0`);
+    await pool.query(`ALTER TABLE kb_books ADD COLUMN IF NOT EXISTS last_updated TIMESTAMPTZ`);
+    // Backfill title for existing rows so chat/query uses a stable display name.
+    await pool.query(`UPDATE kb_books SET title = source WHERE title IS NULL OR title = ''`);
+
+    // Ensure Algonquin College persistent KB row exists (never deleted by normal delete).
+    await pool.query(`
+      INSERT INTO kb_books (source, title, author, topic, file_count, last_updated)
+      VALUES ('algonquin-college', 'Algonquin College Photography Program', 'Algonquin College', 'algonquin-college', 0, NULL)
+      ON CONFLICT (source)
+      DO UPDATE SET
+        title = EXCLUDED.title,
+        author = EXCLUDED.author,
+        topic = EXCLUDED.topic
+    `);
     
     // v3.40: Drive sync and discovery enhancements
     await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS drive_folder_id TEXT`);
@@ -1121,14 +1158,14 @@ app.post('/api/blocks/upload', requireAuth, upload.single('file'), async (req, r
 // PHOTOGRAPHY KNOWLEDGE BASE — RAG ingest (PDF → Python pipeline)
 // ═══════════════════════════════════════════════════
 
-async function runQuestionGenerationPy({ source, topic, subTopic = '' }) {
+async function runQuestionGenerationPy({ source, topic, subTopic = '', collection = KB_DEFAULT_COLLECTION }) {
   const dbPath = path.join(DATA_PATH, 'chromadb');
   const pyArgs = [
     path.join(INTELLIGENCE_DIR, 'scripts', 'generate_suggested_questions.py'),
     '--source', source,
     '--topic', topic || 'general',
     '--db-path', dbPath,
-    '--collection', KB_DEFAULT_COLLECTION,
+    '--collection', collection,
   ];
   if (subTopic && subTopic.trim()) pyArgs.push('--sub-topic', subTopic.trim());
   return await new Promise((resolve, reject) => {
@@ -1221,12 +1258,12 @@ async function deleteBookChunksPy({ sourceDocument }) {
 
 const kbQuestionJobsInFlight = new Set();
 
-async function generateAndStoreQuestions({ bookId, source, topic, subTopic = '', markAsInitial = false }) {
+async function generateAndStoreQuestions({ bookId, sourceDocument, topic, collection, subTopic = '', markAsInitial = false }) {
   const key = String(bookId);
   if (kbQuestionJobsInFlight.has(key)) return;
   kbQuestionJobsInFlight.add(key);
   try {
-    const questions = await runQuestionGenerationPy({ source, topic, subTopic });
+    const questions = await runQuestionGenerationPy({ source: sourceDocument, topic, subTopic, collection });
     await pool.query(
       `UPDATE kb_books
        SET suggested_questions = $2::jsonb,
@@ -1240,7 +1277,7 @@ async function generateAndStoreQuestions({ bookId, source, topic, subTopic = '',
     if (markAsInitial) {
       appendIngestLog({
         status: 'QUESTIONS_GENERATED',
-        source,
+        source: sourceDocument,
         model: KB_QUESTION_MODEL,
         sampleSize: 10,
         generatedCount: questions.length,
@@ -1258,7 +1295,7 @@ async function generateAndStoreQuestions({ bookId, source, topic, subTopic = '',
     if (markAsInitial) {
       appendIngestLog({
         status: 'QUESTIONS_ERROR',
-        source,
+        source: sourceDocument,
         model: KB_QUESTION_MODEL,
         sampleSize: 10,
         message: String(err?.message || err || 'unknown error'),
@@ -1279,17 +1316,21 @@ async function processCompletedIngestsForQuestionGeneration() {
     );
     if (!completedSources.size) return;
     const rows = (await pool.query(
-      `SELECT id, source, topic, questions_generated_at
+      `SELECT id, source, title, topic, questions_generated_at
        FROM kb_books
        WHERE source = ANY($1::text[])`,
       [Array.from(completedSources)]
     )).rows || [];
     for (const row of rows) {
       if (row.questions_generated_at) continue;
+      const isAlgonquin = String(row.topic || '').trim() === 'algonquin-college';
+      const sourceDocument = isAlgonquin ? String(row.title || '').trim() : String(row.source || '').trim();
+      if (!sourceDocument) continue;
       await generateAndStoreQuestions({
         bookId: row.id,
-        source: row.source,
+        sourceDocument,
         topic: row.topic || 'general',
+        collection: isAlgonquin ? 'algonquin-college' : KB_DEFAULT_COLLECTION,
         subTopic: '',
         markAsInitial: true,
       });
@@ -1322,6 +1363,9 @@ app.post('/api/knowledge/ingest-pdf', requireAuth, upload.single('file'), async 
     }
 
     const topicValue = topic || 'general';
+    if (String(topicValue || '').trim() === 'algonquin-college') {
+      return res.status(400).json({ error: 'Algonquin College files must be ingested via "Add to Algonquin College" (persistent KB).' });
+    }
     let bookId = null;
     try {
       const up = await pool.query(
@@ -1401,6 +1445,566 @@ app.post('/api/knowledge/ingest-pdf', requireAuth, upload.single('file'), async 
   }
 });
 
+// ════════════════════════════════════════════════════════════════════════════
+// Algonquin College persistent KB ingest (multi-file, accumulates forever)
+// Chroma collection: `algonquin-college`
+// DB row (kb_books): source='algonquin-college', title='Algonquin College Photography Program'
+// ════════════════════════════════════════════════════════════════════════════
+
+const KB_ALGONQUIN_COLLECTION = 'algonquin-college';
+const KB_ALGONQUIN_ROW_SOURCE = 'algonquin-college';
+const KB_ALGONQUIN_SOURCE_DOCUMENT = 'Algonquin College Photography Program';
+const KB_ALGONQUIN_TOPIC = 'algonquin-college';
+
+const algonquinIngestJobs = new Map(); // jobId -> { files: [...], state: 'running'|'done' }
+
+function newAlgonquinJobId() {
+  return Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e6).toString(36);
+}
+
+function parseLastJsonLine(stdout) {
+  if (!stdout) return null;
+  const lines = String(stdout).split('\n').map((l) => l.trim()).filter(Boolean);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const l = lines[i];
+    if (l.startsWith('{') && l.endsWith('}')) {
+      try { return JSON.parse(l); } catch (_) { /* keep searching */ }
+    }
+  }
+  return null;
+}
+
+function sanitizeFileName(name) {
+  return String(name || 'file').replace(/[^a-zA-Z0-9_.-]+/g, '_');
+}
+
+function algonquinDetectFileType(file) {
+  const original = String(file.originalname || '').toLowerCase();
+  const mime = String(file.mimetype || '').toLowerCase();
+  if (original.endsWith('.pdf') || mime === 'application/pdf') return { fileType: 'pdf', badge: 'PDF' };
+  if (original.endsWith('.docx') || original.endsWith('.txt')) return { fileType: 'doc', badge: 'Doc' };
+  if (original.endsWith('.mp4') || original.endsWith('.mov')) return { fileType: 'video', badge: 'Video' };
+  if (original.endsWith('.mp3')) return { fileType: 'audio', badge: 'Video' };
+  return { fileType: null, badge: '' };
+}
+
+async function whisperTranscribeBuffer({ filePath, fileSizeBytes, mimeType, filename }) {
+  if (!process.env.OPENAI_API_KEY) throw new Error('OPENAI_API_KEY not set — required for Whisper');
+
+  // Memory-safety + payload limits.
+  const hardMaxBytes = 1024 * 1024 * 1024; // 1 GB hard reject
+  const maxWhisperBytes = 24 * 1024 * 1024;
+
+  if (!filePath) throw new Error('Missing filePath for Whisper');
+  const sizeBytes = Number.isFinite(fileSizeBytes) && fileSizeBytes > 0 ? Number(fileSizeBytes) : fs.statSync(filePath).size;
+  if (!sizeBytes) throw new Error('Empty file');
+  if (sizeBytes > hardMaxBytes) {
+    throw new Error('File too large for transcription — max 1 GB');
+  }
+
+  const safeName = sanitizeFileName(filename || 'audio');
+  const whisperForm = new FormData();
+
+  const { exec } = require('child_process');
+  const { promisify } = require('util');
+  const execAsync = promisify(exec);
+
+  const ffmpegPath = global.FFMPEG_PATH || 'ffmpeg';
+
+  let audioBuffer = null;
+  let blobType = mimeType || 'application/octet-stream';
+  let uploadName = safeName;
+
+  // If the uploaded file is small enough, send it directly.
+  if (sizeBytes <= maxWhisperBytes) {
+    audioBuffer = fs.readFileSync(filePath);
+  } else {
+    // Otherwise, downsample until the payload is small enough for Whisper.
+    const tmpDir = path.join(DATA_PATH, 'tmp', 'algonquin-whisper', `${Date.now().toString(36)}-${Math.floor(Math.random() * 1e6).toString(36)}`);
+    fs.mkdirSync(tmpDir, { recursive: true });
+
+    let lastOutBytes = 0;
+    const bitrates = ['64k', '32k', '16k'];
+    try {
+      for (const bitrate of bitrates) {
+        const outPath = path.join(tmpDir, `audio_${bitrate}.m4a`);
+        const cmd = `"${ffmpegPath}" -i "${filePath}" -vn -acodec aac -b:a ${bitrate} -ar 16000 "${outPath}" -y -loglevel error`;
+        await execAsync(cmd);
+        const buf = fs.readFileSync(outPath);
+        lastOutBytes = buf.length || 0;
+        if (lastOutBytes > 0 && lastOutBytes <= maxWhisperBytes) {
+          audioBuffer = buf;
+          blobType = 'audio/aac';
+          uploadName = `${safeName.replace(/\.[^.]+$/, '')}.m4a`;
+          break;
+        }
+      }
+    } finally {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    }
+
+    if (!audioBuffer) {
+      throw new Error(`File too large for Whisper after compression (${Math.round(lastOutBytes / (1024 * 1024))}MB). Please use a smaller file.`);
+    }
+  }
+
+  if (!audioBuffer || audioBuffer.length === 0) throw new Error('Whisper input buffer empty');
+
+  const blob = new Blob([audioBuffer], { type: blobType });
+  whisperForm.append('file', blob, uploadName);
+  whisperForm.append('model', 'whisper-1');
+  whisperForm.append('response_format', 'text');
+
+  const whisperRes = await fetch('https://api.openai.com/v1/audio/transcriptions', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+    body: whisperForm,
+  });
+  if (!whisperRes.ok) throw new Error('Whisper API error: ' + await whisperRes.text());
+  return (await whisperRes.text()).trim();
+}
+
+async function runPython(scriptRelPath, argsArr, { env } = {}) {
+  const child = spawn('python3', [scriptRelPath, ...argsArr], {
+    cwd: INTELLIGENCE_DIR,
+    env: {
+      ...process.env,
+      ...(env || {}),
+    },
+  });
+  let stdout = '';
+  let stderr = '';
+  child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+  child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+  return await new Promise((resolve, reject) => {
+    child.on('close', (code) => {
+      if (code !== 0) return reject(new Error(stderr || stdout || `Python failed: ${scriptRelPath}`));
+      resolve({ stdout, stderr, code });
+    });
+  });
+}
+
+async function runAlgonquinChunkToJson({ inputPath, mode, outDir, subSource, fileType, originalFilename }) {
+  const sourceDocument = KB_ALGONQUIN_SOURCE_DOCUMENT;
+  const topic = KB_ALGONQUIN_TOPIC;
+  const author = 'Algonquin College';
+  if (mode === 'pdf') {
+    const r = await runPython(
+      path.join(INTELLIGENCE_DIR, 'scripts', 'algonquin_chunk_pdf_to_json.py'),
+      [
+        '--pdf-path', inputPath,
+        '--data-path', DATA_PATH,
+        '--out-dir', outDir,
+        '--source-document', sourceDocument,
+        '--sub-source', subSource,
+        '--topic', topic,
+        '--file-type', fileType, // 'pdf'
+        '--original-filename', originalFilename,
+        '--author', author,
+      ],
+    );
+    const payload = parseLastJsonLine(r.stdout);
+    if (!payload?.chunk_path) throw new Error('Algonquin PDF chunking did not output chunk_path');
+    return payload.chunk_path;
+  }
+  // text mode: doc/txt/transcript
+  const r = await runPython(
+    path.join(INTELLIGENCE_DIR, 'scripts', 'algonquin_chunk_text_to_json.py'),
+    [
+      '--text-path', inputPath,
+      '--out-dir', outDir,
+      '--source-document', sourceDocument,
+      '--sub-source', subSource,
+      '--topic', topic,
+      '--file-type', fileType, // 'doc'/'video'/'audio'
+      '--original-filename', originalFilename,
+      '--author', author,
+    ],
+  );
+  const payload = parseLastJsonLine(r.stdout);
+  if (!payload?.chunk_path) throw new Error('Algonquin text chunking did not output chunk_path');
+  return payload.chunk_path;
+}
+
+async function embedAlgonquinChunkJson({ chunkJsonPath }) {
+  const embedPy = path.join(INTELLIGENCE_DIR, 'scripts', 'embed_and_store.py');
+  // Embed+store in the persistent Algonquin collection (never replace).
+  const r = await runPython(embedPy, [
+    chunkJsonPath,
+    '--collection', KB_ALGONQUIN_COLLECTION,
+    '--db-path', path.join(DATA_PATH, 'chromadb'),
+  ]);
+  return r.stdout;
+}
+
+async function checkAlgonquinDuplicate({ dbPath, collection, originalFilename, fileType }) {
+  const dupPy = path.join(INTELLIGENCE_DIR, 'scripts', 'algonquin_check_duplicate.py');
+  const r = await runPython(dupPy, [
+    '--db-path', dbPath,
+    '--collection', collection,
+    '--original-filename', originalFilename,
+    '--file-type', fileType,
+  ]);
+  const payload = parseLastJsonLine(r.stdout);
+  return !!payload?.duplicate;
+}
+
+async function ensureAlgonquinDriveFolderIds(drive) {
+  // Helper that creates nested folders under Drive if missing.
+  async function ensureFolder(name, parentId = null) {
+    const q = [
+      `name='${String(name).replace(/'/g, "\\'")}'`,
+      "mimeType='application/vnd.google-apps.folder'",
+      'trashed=false',
+      parentId ? `'${parentId}' in parents` : undefined,
+    ].filter(Boolean).join(' and ');
+    const found = await drive.files.list({ q, fields: 'files(id,name)', pageSize: 10 });
+    const existing = found.data.files?.[0];
+    if (existing?.id) return existing.id;
+    const created = await drive.files.create({
+      requestBody: { name, mimeType: 'application/vnd.google-apps.folder', parents: parentId ? [parentId] : undefined },
+      fields: 'id',
+    });
+    return created.data.id;
+  }
+
+  const phixoKbId = await ensureFolder('Phixo KB', null);
+  const algId = await ensureFolder('Algonquin College', phixoKbId);
+  const sourceFilesId = await ensureFolder('Source Files', algId);
+  const videosId = await ensureFolder('Videos', algId);
+  const transcriptsId = await ensureFolder('Transcripts', algId);
+  return { sourceFilesId, videosId, transcriptsId };
+}
+
+async function backupAlgonquinFileToDrive({ drive, file, subSource, transcriptText, folderIds }) {
+  const Readable = require('stream').Readable;
+
+  const uploadPath = file?.path;
+  try {
+    // 1) Upload original file.
+    const isPdfOrDoc = file.fileType === 'pdf' || file.fileType === 'doc';
+    const targetFolderId = isPdfOrDoc ? folderIds.sourceFilesId : folderIds.videosId;
+    const originalName = String(file.originalname || file.filename || 'file');
+
+    const mediaBody = uploadPath
+      ? fs.createReadStream(uploadPath)
+      : Readable.from([file.buffer]);
+
+    await drive.files.create({
+      requestBody: { name: originalName, parents: [targetFolderId] },
+      media: { mimeType: file.mimetype || 'application/octet-stream', body: mediaBody },
+      fields: 'id',
+    });
+
+    // 2) If video/audio, upload transcript text file.
+    if (transcriptText && (file.fileType === 'video' || file.fileType === 'audio')) {
+      const safeSub = sanitizeFileName(subSource || 'Algonquin');
+      const safeOriginal = sanitizeFileName(originalName.replace(/\.[^.]+$/, ''));
+      const ts = new Date().toISOString().replace(/[:.]/g, '-');
+      const transcriptName = `${safeSub}_${safeOriginal}_transcript_${ts}.txt`;
+      await drive.files.create({
+        requestBody: { name: transcriptName, parents: [folderIds.transcriptsId] },
+        media: { mimeType: 'text/plain; charset=utf-8', body: Readable.from([Buffer.from(transcriptText, 'utf-8')]) },
+        fields: 'id',
+      });
+    }
+  } finally {
+    // Free temporary upload space after backup completes.
+    if (uploadPath) {
+      try { fs.unlinkSync(uploadPath); } catch (_) { /* ignore */ }
+    }
+  }
+}
+
+app.post('/api/knowledge/algonquin/ingest', requireAuth, uploadAlgonquin.array('files', 30), async (req, res) => {
+  try {
+    const files = Array.isArray(req.files) ? req.files : [];
+    if (!files.length) return res.status(400).json({ error: 'No files uploaded' });
+
+    let subSources = [];
+    try {
+      subSources = JSON.parse(String(req.body?.sub_sources || '[]'));
+    } catch (_) {}
+    if (!Array.isArray(subSources)) subSources = [];
+
+    // Validate sub_source count; if missing, fall back to filename base.
+    const jobId = newAlgonquinJobId();
+    const dbPath = path.join(DATA_PATH, 'chromadb');
+    const jobTmpDir = path.join(DATA_PATH, 'algonquin', jobId);
+    const chunkOutBase = path.join(DATA_PATH, 'algonquin_chunks', jobId);
+    fs.mkdirSync(jobTmpDir, { recursive: true });
+    fs.mkdirSync(chunkOutBase, { recursive: true });
+
+    const job = {
+      jobId,
+      state: 'running',
+      startedAt: new Date().toISOString(),
+      files: files.map((f, idx) => {
+        const det = algonquinDetectFileType(f);
+        const sourceTitle = String(subSources[idx] || '').trim();
+        const baseName = String(f.originalname || f.filename || 'file').replace(/\.[^.]+$/, '');
+        return {
+          idx,
+          originalFilename: String(f.originalname || f.filename || ''),
+          filename: String(f.originalname || f.filename || ''),
+          subSource: sourceTitle || baseName,
+          fileType: det.fileType, // 'pdf'|'doc'|'video'|'audio'
+          badge: det.badge,
+          status: 'Queued',
+          message: '',
+          embeddedAt: null,
+          completedAt: null,
+        };
+      }),
+    };
+
+    // Fail fast on unknown file types (these shouldn't make it into the queue).
+    const invalid = job.files.find((x) => !x.fileType);
+    if (invalid) return res.status(400).json({ error: `Unsupported file type for: ${invalid.filename}` });
+
+    algonquinIngestJobs.set(jobId, job);
+
+    // Kick off sequential processing in background.
+    (async () => {
+      const drive = getDrive(req);
+      const folderIdsPromise = ensureAlgonquinDriveFolderIds(drive).catch(() => null);
+
+      // Serialize embedding writes so Chroma persistent storage doesn't see concurrent writes.
+      let embedQueue = Promise.resolve();
+      async function withEmbedLock(fn) {
+        const prev = embedQueue;
+        let unlock;
+        embedQueue = new Promise((r) => { unlock = r; });
+        await prev;
+        try {
+          return await fn();
+        } finally {
+          unlock();
+        }
+      }
+
+      const isVideo = (fileType) => fileType === 'video' || fileType === 'audio';
+      const docFiles = job.files.filter((f) => !isVideo(f.fileType));
+      const videoFiles = job.files.filter((f) => isVideo(f.fileType));
+
+      async function processOneFile(f) {
+        if (f.status !== 'Queued') return; // duplicates/skips may have changed it
+
+        try {
+          const originalFilename = f.originalFilename;
+          const subSource = f.subSource;
+          const uploadedFile = files[f.idx];
+
+          // Duplicate check (warn+skip).
+          const isDup = await checkAlgonquinDuplicate({
+            dbPath,
+            collection: KB_ALGONQUIN_COLLECTION,
+            originalFilename,
+            fileType: f.fileType,
+          });
+          if (isDup) {
+            f.status = 'Skipped (already ingested)';
+            f.message = `Duplicate filename in Chroma: ${originalFilename}`;
+            return;
+          }
+
+          const inputDir = path.join(jobTmpDir, 'input');
+          const textDir = path.join(jobTmpDir, 'text');
+          const chunkOutDir = path.join(chunkOutBase, String(f.idx));
+          fs.mkdirSync(inputDir, { recursive: true });
+          fs.mkdirSync(textDir, { recursive: true });
+          fs.mkdirSync(chunkOutDir, { recursive: true });
+
+          const safeOriginalName = sanitizeFileName(uploadedFile.originalname || 'file');
+          const fileSizeBytes = uploadedFile.size || fs.statSync(uploadedFile.path).size;
+          const inputPath = f.fileType === 'pdf' ? path.join(inputDir, safeOriginalName) : null;
+          // Only PDFs need the original binary for chunking; others (doc/txt/transcripts) use derived text.
+          if (inputPath) {
+            fs.copyFileSync(uploadedFile.path, inputPath);
+          }
+
+          let transcriptText = null;
+          if (f.fileType === 'video') {
+            // NOTE: Whisper stays serialized because we only call this from the single-threaded video loop.
+            f.status = 'Transcribing';
+            f.message = 'Whisper transcription in progress...';
+            transcriptText = await whisperTranscribeBuffer({
+              filePath: uploadedFile.path,
+              fileSizeBytes,
+              mimeType: uploadedFile.mimetype,
+              filename: safeOriginalName,
+            });
+          } else if (f.fileType === 'audio') {
+            f.status = 'Chunking';
+            f.message = 'Whisper transcription (audio) + chunking...';
+            transcriptText = await whisperTranscribeBuffer({
+              filePath: uploadedFile.path,
+              fileSizeBytes,
+              mimeType: uploadedFile.mimetype,
+              filename: safeOriginalName,
+            });
+          }
+
+          // Chunking
+          f.status = 'Chunking';
+          f.message = 'Extracting text and creating chunks...';
+          let chunkJsonPath = null;
+          if (f.fileType === 'pdf') {
+            chunkJsonPath = await runAlgonquinChunkToJson({
+              inputPath,
+              mode: 'pdf',
+              outDir: chunkOutDir,
+              subSource,
+              fileType: 'pdf',
+              originalFilename,
+            });
+          } else if (f.fileType === 'doc') {
+            const lowerName = String(uploadedFile.originalname || '').toLowerCase();
+            const fileBuffer = fs.readFileSync(uploadedFile.path);
+            let extractedText = '';
+            if (lowerName.endsWith('.docx')) {
+              if (!mammoth) throw new Error('mammoth dependency missing — DOCX ingestion cannot run');
+              const r = await mammoth.extractRawText({ buffer: fileBuffer });
+              extractedText = r.value || '';
+            } else {
+              // TXT
+              extractedText = fileBuffer.toString('utf-8');
+            }
+            const textPath = path.join(textDir, `${f.idx}.txt`);
+            fs.writeFileSync(textPath, extractedText, 'utf-8');
+            chunkJsonPath = await runAlgonquinChunkToJson({
+              inputPath: textPath,
+              mode: 'text',
+              outDir: chunkOutDir,
+              subSource,
+              fileType: 'doc',
+              originalFilename,
+            });
+          } else if (f.fileType === 'video' || f.fileType === 'audio') {
+            if (!transcriptText) throw new Error('Missing transcript text after Whisper');
+            const textPath = path.join(textDir, `${f.idx}_transcript.txt`);
+            fs.writeFileSync(textPath, transcriptText, 'utf-8');
+            chunkJsonPath = await runAlgonquinChunkToJson({
+              inputPath: textPath,
+              mode: 'text',
+              outDir: chunkOutDir,
+              subSource,
+              fileType: f.fileType, // video|audio
+              originalFilename,
+            });
+          } else {
+            throw new Error(`Unsupported fileType: ${f.fileType}`);
+          }
+
+          // Embedding (serialized)
+          f.status = 'Embedding';
+          f.message = 'Embedding chunks into Chroma...';
+          await withEmbedLock(() => embedAlgonquinChunkJson({ chunkJsonPath }));
+
+          // Trigger initial suggested-questions generation (same mechanism as regular book ingest).
+          appendIngestLog({
+            jobId: `${job.jobId}:${f.idx}`,
+            status: 'INGEST_COMPLETE',
+            source: KB_ALGONQUIN_ROW_SOURCE,
+            topic: KB_ALGONQUIN_TOPIC,
+            filename: originalFilename,
+          });
+
+          // DB row update (increment file_count, update last_updated).
+          await pool.query(
+            `UPDATE kb_books
+             SET file_count = COALESCE(file_count,0) + 1,
+                 last_updated = NOW(),
+                 updated_at = NOW()
+             WHERE source = $1`,
+            [KB_ALGONQUIN_ROW_SOURCE]
+          );
+
+          // Drive backup should never block ingest queue.
+          f.status = 'Backing up to Drive';
+          f.message = 'Copying files + uploading transcripts...';
+          const transcriptForBackup = transcriptText; // may be null
+          (async () => {
+            try {
+              const folderIds = await folderIdsPromise;
+              if (!folderIds) throw new Error('Failed to resolve Drive folder IDs');
+              await backupAlgonquinFileToDrive({
+                drive,
+                file: { ...f, path: uploadedFile.path, originalname: uploadedFile.originalname, mimetype: uploadedFile.mimetype, fileType: f.fileType },
+                subSource,
+                transcriptText: transcriptForBackup,
+                folderIds,
+              });
+              f.status = 'Complete';
+              f.completedAt = new Date().toISOString();
+              f.message = '';
+            } catch (driveErr) {
+              console.error('Algonquin drive backup error:', driveErr);
+              f.status = 'Complete (backup error)';
+              f.completedAt = new Date().toISOString();
+              f.message = String(driveErr?.message || driveErr || 'Drive backup failed');
+            }
+          })();
+        } catch (err) {
+          console.error('Algonquin ingest file error:', err);
+          f.status = 'Error';
+          f.message = String(err?.message || err || 'Ingest failed');
+        }
+      }
+
+      // Process doc/pdf in parallel (limited). Video/audio (Whisper) stays sequential.
+      const maxDocConcurrency = Math.max(1, Math.min(4, Number(process.env.KB_ALG_DOC_CONCURRENCY || 2)));
+      let docCursor = 0;
+      const docWorkers = Array.from({ length: Math.min(maxDocConcurrency, docFiles.length || 1) }).map(async () => {
+        while (true) {
+          if (docCursor >= docFiles.length) return;
+          const idx = docCursor++;
+          const f = docFiles[idx];
+          if (!f) return;
+          await processOneFile(f);
+        }
+      });
+
+      // Only one Whisper at a time:
+      for (const f of videoFiles) {
+        await processOneFile(f);
+      }
+
+      await Promise.all(docWorkers);
+      job.state = 'done';
+    })();
+
+    return res.json({ jobId });
+  } catch (err) {
+    console.error('Algonquin ingest endpoint error:', err);
+    return res.status(500).json({ error: err?.message || String(err) });
+  }
+});
+
+app.get('/api/knowledge/algonquin/ingest-status', requireAuth, async (req, res) => {
+  try {
+    const jobId = String(req.query.jobId || '').trim();
+    if (!jobId) return res.status(400).json({ error: 'jobId required' });
+    const job = algonquinIngestJobs.get(jobId);
+    if (!job) return res.status(404).json({ error: 'Job not found' });
+    return res.json({
+      jobId,
+      state: job.state,
+      files: job.files.map((f) => ({
+        idx: f.idx,
+        filename: f.filename,
+        subSource: f.subSource,
+        fileType: f.fileType,
+        badge: f.badge,
+        status: f.status,
+        message: f.message,
+      })),
+    });
+  } catch (err) {
+    return res.status(500).json({ error: err?.message || String(err) });
+  }
+});
+
 // Chat with the photography knowledge base (Python ask.py → Claude)
 app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
   try {
@@ -1420,12 +2024,15 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
 
     let selectedSource = '';
     let selectedTopic = '';
+    let selectedCollection = KB_DEFAULT_COLLECTION;
     if (bookId !== undefined && bookId !== null && String(bookId).trim() !== '') {
-      const row = (await pool.query(`SELECT source, topic FROM kb_books WHERE id = $1`, [bookId])).rows[0];
+      const row = (await pool.query(`SELECT source, title, topic FROM kb_books WHERE id = $1`, [bookId])).rows[0];
       if (!row) return res.status(400).json({ error: 'Selected book not found' });
-      selectedSource = String(row.source || '').trim();
+      // Chroma's metadata.source_document is the human title (stored in kb_books.title).
+      selectedSource = String(row.title || row.source || '').trim();
       selectedTopic = String(row.topic || '').trim();
       if (!selectedSource) return res.status(400).json({ error: 'Selected book has no source' });
+      if (selectedTopic === 'algonquin-college') selectedCollection = 'algonquin-college';
     }
 
     const normalizeAllBooksTopicFocus = (v) => {
@@ -1439,6 +2046,7 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
       path.join(INTELLIGENCE_DIR, 'scripts', 'ask.py'),
       question,
       '--db-path', dbPath,
+      '--collection', selectedCollection,
     ];
     if (selectedSource) pyArgs.push('--source', selectedSource);
     if (selectedTopic) pyArgs.push('--topic', selectedTopic);
@@ -1641,15 +2249,19 @@ Write a significantly deeper answer. Do not repeat what was already said. Build 
 app.get('/api/knowledge/books', requireAuth, async (req, res) => {
   try {
     const rows = (await pool.query(
-      `SELECT id, source, author, topic, suggested_questions, questions_generated_at, questions_generation_status, questions_generation_error, created_at, updated_at
+      `SELECT id, source, title, author, topic, file_count, last_updated,
+              suggested_questions, questions_generated_at, questions_generation_status, questions_generation_error, created_at, updated_at
        FROM kb_books
        ORDER BY updated_at DESC, id DESC`
     )).rows || [];
     const books = rows.map((r) => ({
       id: r.id,
       source: r.source,
+      title: r.title,
       author: r.author,
       topic: r.topic,
+      fileCount: typeof r.file_count === 'number' ? r.file_count : 0,
+      lastUpdated: r.last_updated,
       suggestedQuestions: Array.isArray(r.suggested_questions) ? r.suggested_questions : [],
       questionsGeneratedAt: r.questions_generated_at,
       questionsGenerationStatus: r.questions_generation_status,
@@ -1674,7 +2286,7 @@ app.put('/api/knowledge/books/:bookId/questions', requireAuth, async (req, res) 
        SET suggested_questions = $2::jsonb,
            updated_at = NOW()
        WHERE id = $1
-       RETURNING id, source, author, topic, suggested_questions, questions_generated_at, questions_generation_status, questions_generation_error, created_at, updated_at`,
+       RETURNING id, source, title, author, topic, suggested_questions, questions_generated_at, questions_generation_status, questions_generation_error, created_at, updated_at`,
       [bookId, JSON.stringify(questions)]
     )).rows[0];
     if (!row) return res.status(404).json({ error: 'Book not found' });
@@ -1682,6 +2294,7 @@ app.put('/api/knowledge/books/:bookId/questions', requireAuth, async (req, res) 
       book: {
         id: row.id,
         source: row.source,
+        title: row.title,
         author: row.author,
         topic: row.topic,
         suggestedQuestions: Array.isArray(row.suggested_questions) ? row.suggested_questions : [],
@@ -1707,12 +2320,16 @@ app.post('/api/knowledge/books/:bookId/questions/generate', requireAuth, async (
     if (mode === 'topic' && !subTopic) {
       return res.status(400).json({ error: 'subTopic is required for topic mode' });
     }
-    const row = (await pool.query(`SELECT id, source, topic FROM kb_books WHERE id = $1`, [bookId])).rows[0];
+    const row = (await pool.query(`SELECT id, source, title, topic FROM kb_books WHERE id = $1`, [bookId])).rows[0];
     if (!row) return res.status(404).json({ error: 'Book not found' });
+    const isAlgonquin = String(row.topic || '').trim() === 'algonquin-college';
+    const sourceDocument = isAlgonquin ? String(row.title || '').trim() : String(row.source || '').trim();
+    if (!sourceDocument) return res.status(400).json({ error: 'Selected book has no source_document' });
     const questions = await runQuestionGenerationPy({
-      source: row.source,
+      source: sourceDocument,
       topic: row.topic || 'general',
       subTopic: mode === 'topic' ? subTopic : '',
+      collection: isAlgonquin ? 'algonquin-college' : KB_DEFAULT_COLLECTION,
     });
     const updated = (await pool.query(
       `UPDATE kb_books
@@ -1722,13 +2339,14 @@ app.post('/api/knowledge/books/:bookId/questions/generate', requireAuth, async (
            questions_generation_error = NULL,
            updated_at = NOW()
        WHERE id = $1
-       RETURNING id, source, author, topic, suggested_questions, questions_generated_at, questions_generation_status, questions_generation_error, created_at, updated_at`,
+       RETURNING id, source, title, author, topic, suggested_questions, questions_generated_at, questions_generation_status, questions_generation_error, created_at, updated_at`,
       [bookId, JSON.stringify(questions)]
     )).rows[0];
     return res.json({
       book: {
         id: updated.id,
         source: updated.source,
+        title: updated.title,
         author: updated.author,
         topic: updated.topic,
         suggestedQuestions: Array.isArray(updated.suggested_questions) ? updated.suggested_questions : [],
@@ -1825,10 +2443,14 @@ app.delete('/api/knowledge/books/:bookId', requireAuth, async (req, res) => {
     const bookId = Number(req.params.bookId);
     if (!Number.isFinite(bookId) || bookId <= 0) return res.status(400).json({ error: 'Invalid book id' });
 
-    const row = (await pool.query(`SELECT id, source FROM kb_books WHERE id = $1`, [bookId])).rows[0];
+    const row = (await pool.query(`SELECT id, source, title, topic FROM kb_books WHERE id = $1`, [bookId])).rows[0];
     if (!row) return res.status(404).json({ error: 'Book not found' });
 
-    const sourceDocument = String(row.source || '').trim();
+    if (String(row.topic || '').trim() === 'algonquin-college') {
+      return res.status(403).json({ error: 'Algonquin College KB row cannot be deleted' });
+    }
+
+    const sourceDocument = String(row.title || row.source || '').trim();
     if (!sourceDocument) return res.status(400).json({ error: 'Selected book has no source' });
 
     const dbPath = path.join(DATA_PATH, 'chromadb');

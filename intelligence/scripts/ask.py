@@ -300,11 +300,17 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
                         relevance_flags[idx] = False
         else:
             with ThreadPoolExecutor(max_workers=min(8, len(page_matches))) as executor:
-                futures = [
-                    executor.submit(should_include_image_for_chunk, client, pm.get("doc_text", ""))
-                    for pm in page_matches
-                ]
-                for idx, future in enumerate(futures):
+                futures_by_idx = {}
+                for idx, pm in enumerate(page_matches):
+                    # Only chunks with a page_number can map to a physical page image.
+                    if (pm.get("page_number") is None):
+                        continue
+                    futures_by_idx[idx] = executor.submit(
+                        should_include_image_for_chunk,
+                        client,
+                        pm.get("doc_text", ""),
+                    )
+                for idx, future in futures_by_idx.items():
                     try:
                         relevance_flags[idx] = bool(future.result())
                     except Exception:
@@ -317,11 +323,14 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
         source_document = str(pm.get("source_document") or "")
         if page_number is None or not source_document:
             continue
-        page_key = f"{source_document}:{int(page_number)}"
+        # Use per-chunk book_slug when available so multiple uploads under the same
+        # source_document (e.g. Algonquin persistent KB) never collide on images.
+        book_slug = pm.get("book_slug")
+        book_slug = str(book_slug).strip() if book_slug else slug(source_document)
+        page_key = f"{source_document}:{book_slug}:{int(page_number)}"
         if page_key in seen_pages:
             continue
         seen_pages.add(page_key)
-        book_slug = slug(source_document)
         pattern = os.path.join(images_root, book_slug, f"page{int(page_number):04d}_*.jpg")
         image_candidates = sorted(glob.glob(pattern))
         if not image_candidates:

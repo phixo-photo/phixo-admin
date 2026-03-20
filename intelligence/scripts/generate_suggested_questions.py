@@ -26,6 +26,7 @@ TOPIC_LABELS = {
     "color_theory": "Color theory",
     "client_psychology": "Client psychology",
     "business": "Business",
+    "algonquin-college": "Algonquin College",
     "general": "General",
 }
 
@@ -84,7 +85,7 @@ def normalize_questions(items):
     return deduped[:QUESTION_COUNT]
 
 
-def build_prompt(excerpts: list[str], topic_label: str, sub_topic: str | None):
+def build_prompt(excerpts: list[str], topic_label: str, topic_tag: str, sub_topic: str | None):
     joined = "\n\n---\n\n".join(excerpts)
     prompt = f"""You are helping a portrait photographer learn from this book.
 Based on these excerpts, generate 8 questions this photographer would genuinely want to ask.
@@ -98,6 +99,14 @@ Use the topic tag to guide the style of questions:
 - General: broad photography questions
 
 Topic tag for this book: {topic_label}
+"""
+    if topic_tag == "algonquin-college":
+        prompt += """
+This content comes from Ian's formal photography education at Algonquin College in Ottawa.
+It includes theory classes, lighting for studio photography, digital imaging, camera techniques,
+Photoshop and Capture One Pro tutorials, and photo theory.
+Generate questions Ian would ask to recover and apply this foundational knowledge to his current portrait
+work at Phixo — questions that bridge his college education with his real studio sessions today.
 """
     if sub_topic:
         prompt += f"""
@@ -210,7 +219,7 @@ def main():
         sample_count = min(SAMPLE_SIZE, len(text_docs))
         sampled = random.sample(text_docs, sample_count)
         topic_label = TOPIC_LABELS.get(args.topic, "General")
-        prompt = build_prompt(sampled, topic_label, sub_topic)
+        prompt = build_prompt(sampled, topic_label, args.topic, sub_topic)
     else:
         # All-books mode: filter by topic_category and sample exactly per focus.
         if topic_focus == "photography":
