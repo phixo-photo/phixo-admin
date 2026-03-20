@@ -47,6 +47,11 @@ Rules:
 6) When you use a specific idea from the text, it must be supported by the excerpts and you should list the book title in sources."""
 
 
+BUSINESS_SYSTEM_PROMPT = """You are helping Ian, a portrait photographer running a boutique studio called Phixo in Montreal's West Island. He shoots 10-12 sessions per month as a side hustle alongside a full-time IT career. His signature session is $175 with a target average order value of $220-250. He has three client lanes: professionals needing career portraits, individuals wanting confidence or milestone portraits, and families. His studio is in his basement and he is in early-stage client acquisition with no established local network yet.
+
+When answering questions, use the business principles from the excerpts provided and apply them specifically and practically to Ian's portrait photography business. Even if the book does not mention photography directly, translate every principle into concrete actionable advice for his specific context. Never say the book does not cover photography — instead bridge the gap yourself using the principles provided."""
+
+
 def slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", str(s).lower()).strip("-")
 
@@ -75,6 +80,7 @@ def main():
     parser.add_argument("--db-path", default="data/chromadb", help="ChromaDB path")
     parser.add_argument("--model", "-m", default=DEFAULT_CLAUDE_MODEL, help=f"Claude model (default: {DEFAULT_CLAUDE_MODEL})")
     parser.add_argument("--source", default="", help="Optional source_document filter (exact title)")
+    parser.add_argument("--topic", default="general", help="Optional book topic tag (e.g. Business)")
     args = parser.parse_args()
 
     query = " ".join(args.query).strip()
@@ -92,6 +98,9 @@ def main():
     if not os.path.isdir(args.db_path):
         print(f"ChromaDB not found at {args.db_path}. Run embed_and_store.py first.", file=sys.stderr)
         sys.exit(1)
+
+    topic_tag = str(getattr(args, "topic", "general") or "general").strip().lower()
+    system_prompt = BUSINESS_SYSTEM_PROMPT if topic_tag == "business" else SYSTEM_PROMPT
 
     from openai import OpenAI
     import chromadb
@@ -163,7 +172,7 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
     message = client.messages.create(
         model=args.model,
         max_tokens=1024,
-        system=SYSTEM_PROMPT,
+        system=system_prompt,
         messages=[{"role": "user", "content": user_content}],
     )
     resp_summary = {

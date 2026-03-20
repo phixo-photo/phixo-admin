@@ -719,6 +719,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
             <label for="kb-chat-book-select" style="font-size:12px;color:var(--muted);min-width:90px">Selected book</label>
             <select id="kb-chat-book-select" onchange="onKbBookChange()" style="flex:1;min-width:220px"></select>
           </div>
+          <div id="kb-book-delete-list" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
           <div id="kb-question-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
             <button class="btn btn-ghost btn-xs" onclick="toggleKbQuestionManager()" id="kb-manage-toggle">Manage questions</button>
@@ -727,12 +728,12 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
           <div id="kb-question-manage" style="display:none;margin-top:8px;border-top:1px dashed var(--border);padding-top:8px"></div>
           <div id="kb-generate-box" style="display:none;margin-top:8px;border-top:1px dashed var(--border);padding-top:8px">
             <div style="display:flex;gap:6px;flex-wrap:wrap">
-              <button class="btn btn-dark btn-xs" onclick="generateKbQuestionsRandom()">Generate 8 random questions</button>
+              <button class="btn btn-dark btn-xs" id="kb-generate-random-btn" onclick="generateKbQuestionsRandom(this)">Generate 8 random questions</button>
               <button class="btn btn-ghost btn-xs" onclick="toggleKbTopicGenerate()">Generate questions about a specific topic</button>
             </div>
             <div id="kb-topic-generate" style="display:none;margin-top:8px;gap:6px;align-items:center;flex-wrap:wrap">
               <input id="kb-topic-input" type="text" placeholder="e.g. hip placement, pricing objections" style="flex:1;min-width:220px">
-              <button class="btn btn-dark btn-xs" onclick="generateKbQuestionsTopic()">Generate</button>
+              <button class="btn btn-dark btn-xs" id="kb-generate-topic-btn" onclick="generateKbQuestionsTopic(this)">Generate</button>
             </div>
           </div>
         </div>
@@ -1604,6 +1605,8 @@ let _askMode = 'library'; // 'library' or 'kb'
 let kbBooks = [];
 let kbSelectedBookId = null;
 let kbDraftQuestions = [];
+let kbQuestionGenerationInFlight = false;
+let kbBookDeletionInFlight = new Set();
 
 function getSelectedKbBook(){
   return kbBooks.find(b => Number(b.id) === Number(kbSelectedBookId)) || null;
@@ -1636,6 +1639,27 @@ function renderKbQuestionChips(){
   }
   chips.innerHTML = questions
     .map((q, idx) => `<button class="btn btn-ghost btn-xs" style="border-radius:14px" onclick="populateAskFromChipIndex(${idx})">${esc(`#${idx+1}`)} ${esc(String(q))}</button>`)
+    .join('');
+}
+
+function renderKbBookDeleteList(){
+  const el = document.getElementById('kb-book-delete-list');
+  if (!el) return;
+  if (!kbBooks.length) {
+    el.innerHTML = '<span style="font-size:11px;color:var(--muted)">No ingested books yet</span>';
+    return;
+  }
+  el.innerHTML = kbBooks
+    .map((b) => {
+      const id = Number(b.id);
+      const deleting = kbBookDeletionInFlight.has(id);
+      return `
+        <div style="display:flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:999px;padding:4px 10px;background:var(--surface-1)">
+          <span style="font-size:12px;color:var(--text);max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(b.source)}</span>
+          <button class="btn btn-ghost btn-xs" ${deleting ? 'disabled' : ''} onclick="deleteKbBook(${id}, this)">Delete</button>
+        </div>
+      `;
+    })
     .join('');
 }
 
@@ -1722,13 +1746,29 @@ async function generateKbQuestionsRandom(){
   const book = getSelectedKbBook();
   if (!book) { toast('Select a book first', 'err'); return; }
   try {
-    const res = await api('POST', `/api/knowledge/books/${book.id}/questions/generate`, { mode: 'random' });
+    if (kbQuestionGenerationInFlight) return;
+    kbQuestionGenerationInFlight = true;
+    const button = arguments[0] || document.getElementById('kb-generate-random-btn');
+    const originalLabel = button?.textContent || '';
+    try {
+      if (button) {
+        button.disabled = true;
+        button.textContent = 'Generating...';
+      }
+      const res = await api('POST', `/api/knowledge/books/${book.id}/questions/generate`, { mode: 'random' });
     const idx = kbBooks.findIndex(b => Number(b.id) === Number(book.id));
     if (idx >= 0) kbBooks[idx] = res.book;
     setKbDraftFromSelectedBook();
     renderKbQuestionManager();
     renderKbQuestionChips();
     toast('Generated 8 random questions', 'ok');
+    } finally {
+      kbQuestionGenerationInFlight = false;
+      if (button && button.isConnected) {
+        button.disabled = false;
+        button.textContent = originalLabel;
+      }
+    }
   } catch (err) {
     toast(err.message || 'Failed to generate questions', 'err');
   }
@@ -1739,7 +1779,15 @@ async function generateKbQuestionsTopic(){
   const subTopic = document.getElementById('kb-topic-input')?.value?.trim() || '';
   if (!book) { toast('Select a book first', 'err'); return; }
   if (!subTopic) { toast('Enter a specific topic', 'err'); return; }
+  if (kbQuestionGenerationInFlight) return;
+  kbQuestionGenerationInFlight = true;
+  const button = arguments[0] || document.getElementById('kb-generate-topic-btn');
+  const originalLabel = button?.textContent || '';
   try {
+    if (button) {
+      button.disabled = true;
+      button.textContent = 'Generating...';
+    }
     const res = await api('POST', `/api/knowledge/books/${book.id}/questions/generate`, { mode: 'topic', subTopic });
     const idx = kbBooks.findIndex(b => Number(b.id) === Number(book.id));
     if (idx >= 0) kbBooks[idx] = res.book;
@@ -1749,6 +1797,45 @@ async function generateKbQuestionsTopic(){
     toast('Generated topic-specific questions', 'ok');
   } catch (err) {
     toast(err.message || 'Failed to generate questions', 'err');
+  } finally {
+    kbQuestionGenerationInFlight = false;
+    if (button && button.isConnected) {
+      button.disabled = false;
+      button.textContent = originalLabel;
+    }
+  }
+}
+
+async function deleteKbBook(bookId, btnEl){
+  const id = Number(bookId);
+  if (!Number.isFinite(id) || id <= 0) return;
+  if (kbBookDeletionInFlight.has(id)) return;
+
+  const book = kbBooks.find(b => Number(b.id) === id);
+  const label = book?.source || 'this book';
+  if (!window.confirm(`Delete "${label}" from the Photography KB?`)) return;
+
+  kbBookDeletionInFlight.add(id);
+  const btn = btnEl || null;
+  const originalLabel = btn?.textContent || '';
+
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Deleting...';
+    }
+    await api('DELETE', `/api/knowledge/books/${id}`);
+    toast('Book deleted', 'ok');
+    await loadKbBooks();
+  } catch (err) {
+    toast(err.message || 'Failed to delete book', 'err');
+    if (btn && btn.isConnected) btn.textContent = originalLabel;
+  } finally {
+    kbBookDeletionInFlight.delete(id);
+    if (btn && btn.isConnected) {
+      btn.disabled = false;
+      btn.textContent = originalLabel;
+    }
   }
 }
 
@@ -1762,6 +1849,7 @@ async function loadKbBooks(){
       sel.innerHTML = '<option value="">No ingested books yet</option>';
       kbSelectedBookId = null;
       renderKbQuestionChips();
+      renderKbBookDeleteList();
       return;
     }
     if (!kbSelectedBookId || !kbBooks.some(b => Number(b.id) === Number(kbSelectedBookId))) {
@@ -1769,6 +1857,7 @@ async function loadKbBooks(){
     }
     sel.innerHTML = kbBooks.map(b => `<option value="${b.id}" ${Number(b.id)===Number(kbSelectedBookId)?'selected':''}>${esc(b.source)}</option>`).join('');
     renderKbQuestionChips();
+    renderKbBookDeleteList();
     const panel = document.getElementById('kb-question-manage');
     if (panel && panel.style.display !== 'none') {
       setKbDraftFromSelectedBook();

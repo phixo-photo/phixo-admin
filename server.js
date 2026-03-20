@@ -1155,6 +1155,37 @@ async function runQuestionGenerationPy({ source, topic, subTopic = '' }) {
   });
 }
 
+async function deleteBookChunksPy({ sourceDocument }) {
+  const dbPath = path.join(DATA_PATH, 'chromadb');
+  const pyArgs = [
+    path.join(INTELLIGENCE_DIR, 'scripts', 'delete_book_chunks.py'),
+    '--source-document', sourceDocument,
+    '--db-path', dbPath,
+    '--collection', KB_DEFAULT_COLLECTION,
+  ];
+  return await new Promise((resolve, reject) => {
+    const child = spawn('python3', pyArgs, {
+      cwd: INTELLIGENCE_DIR,
+      env: {
+        ...process.env,
+      },
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+    child.on('close', (code) => {
+      if (code !== 0) return reject(new Error(stderr || stdout || 'delete book chunks failed'));
+      try {
+        const parsed = JSON.parse(stdout);
+        return resolve(parsed);
+      } catch (e) {
+        return resolve({ ok: true });
+      }
+    });
+  });
+}
+
 const kbQuestionJobsInFlight = new Set();
 
 async function generateAndStoreQuestions({ bookId, source, topic, subTopic = '', markAsInitial = false }) {
@@ -1355,10 +1386,12 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
     }
 
     let selectedSource = '';
+    let selectedTopic = '';
     if (bookId !== undefined && bookId !== null && String(bookId).trim() !== '') {
-      const row = (await pool.query(`SELECT source FROM kb_books WHERE id = $1`, [bookId])).rows[0];
+      const row = (await pool.query(`SELECT source, topic FROM kb_books WHERE id = $1`, [bookId])).rows[0];
       if (!row) return res.status(400).json({ error: 'Selected book not found' });
       selectedSource = String(row.source || '').trim();
+      selectedTopic = String(row.topic || '').trim();
       if (!selectedSource) return res.status(400).json({ error: 'Selected book has no source' });
     }
 
@@ -1368,6 +1401,7 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
       '--db-path', dbPath,
     ];
     if (selectedSource) pyArgs.push('--source', selectedSource);
+    if (selectedTopic) pyArgs.push('--topic', selectedTopic);
 
     const child = spawn('python3', pyArgs, {
       cwd: INTELLIGENCE_DIR,
@@ -1604,6 +1638,31 @@ app.post('/api/knowledge/clean-kb', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('clean-kb error:', err.message);
     return res.status(500).json({ error: 'Failed to clean knowledge base', detail: err.message });
+  }
+});
+
+// Delete a single book (and only that book) from ChromaDB + kb_books row.
+app.delete('/api/knowledge/books/:bookId', requireAuth, async (req, res) => {
+  try {
+    const bookId = Number(req.params.bookId);
+    if (!Number.isFinite(bookId) || bookId <= 0) return res.status(400).json({ error: 'Invalid book id' });
+
+    const row = (await pool.query(`SELECT id, source FROM kb_books WHERE id = $1`, [bookId])).rows[0];
+    if (!row) return res.status(404).json({ error: 'Book not found' });
+
+    const sourceDocument = String(row.source || '').trim();
+    if (!sourceDocument) return res.status(400).json({ error: 'Selected book has no source' });
+
+    const dbPath = path.join(DATA_PATH, 'chromadb');
+    if (fs.existsSync(dbPath)) {
+      await deleteBookChunksPy({ sourceDocument });
+    }
+
+    await pool.query(`DELETE FROM kb_books WHERE id = $1`, [bookId]);
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('delete knowledge book error:', err.message, err.stack);
+    return res.status(500).json({ error: 'Failed to delete book', detail: err.message });
   }
 });
 
