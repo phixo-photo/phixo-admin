@@ -1716,7 +1716,7 @@ async function backupAlgonquinFileToDrive({ drive, file, subSource, transcriptTe
   }
 }
 
-app.post('/api/knowledge/algonquin/ingest', requireAuth, uploadAlgonquin.array('files', 30), async (req, res) => {
+app.post('/api/knowledge/algonquin/ingest', requireAuth, uploadAlgonquin.array('files', 50), async (req, res) => {
   try {
     const files = Array.isArray(req.files) ? req.files : [];
     if (!files.length) return res.status(400).json({ error: 'No files uploaded' });
@@ -2002,6 +2002,19 @@ app.get('/api/knowledge/algonquin/ingest-status', requireAuth, async (req, res) 
     });
   } catch (err) {
     return res.status(500).json({ error: err?.message || String(err) });
+  }
+});
+
+// Ensure multer upload errors (file count/size) return JSON for the UI.
+// Without this, the client often falls back to a generic error message.
+app.use((err, req, res, next) => {
+  try {
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({ error: err.message });
+    }
+    return res.status(500).json({ error: err?.message || String(err) });
+  } catch (e) {
+    return res.status(500).json({ error: 'Unknown server error' });
   }
 });
 

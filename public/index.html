@@ -4006,7 +4006,12 @@ async function startKbAlgonquinIngest(){
     for(const f of files){ fd.append('files', f); }
 
     const res = await fetch('/api/knowledge/algonquin/ingest', { method: 'POST', body: fd });
-    const data = await res.json().catch(() => ({}));
+    let data = {};
+    try { data = await res.json(); }
+    catch(e){
+      const t = await res.text().catch(() => '');
+      data = { error: t || 'Algonquin ingest queue failed' };
+    }
     if(!res.ok) throw new Error(data.error || 'Algonquin ingest queue failed');
 
     kbAlgonquinJobId = data.jobId;
