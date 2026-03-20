@@ -44,7 +44,7 @@ const uploadAlgonquin = multer({
       cb(null, `${Date.now()}-${safeOriginal}`);
     },
   }),
-  limits: { fileSize: 1024 * 1024 * 1024, files: 30 }, // 1 GB hard cap per file
+  limits: { fileSize: 1024 * 1024 * 1024, files: 50 }, // 1 GB hard cap per file, up to 50 files per batch
 });
 // Location of the Python RAG pipeline (phixo-intelligence repo or copied folder)
 const INTELLIGENCE_DIR = process.env.INTELLIGENCE_DIR || path.join(__dirname, '..', 'phixo-intelligence');
