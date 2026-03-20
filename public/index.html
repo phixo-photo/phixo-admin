@@ -3972,6 +3972,7 @@ function onKbAlgonquinFilesSelected(){
           <span style="font-size:12px;color:var(--text);flex:1;min-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(file.name)}</span>
           <span id="kb-alg-status-label-${idx}" style="font-size:12px;color:var(--muted);white-space:nowrap">Queued</span>
         </div>
+        <div id="kb-alg-status-msg-${idx}" style="font-size:11px;color:var(--muted)"></div>
         ${file.size > LARGE_FILE_WARN_BYTES ? '<div style="font-size:11px;color:var(--warm)">Large file — transcription may take several minutes</div>' : ''}
       </div>
     `;
@@ -4031,8 +4032,15 @@ async function startKbAlgonquinIngest(){
         const el = document.getElementById('kb-alg-status-' + f.idx);
         if(!el) return;
         const label = String(f.status || 'Queued');
+        const msg = String(f.message || '').trim();
         const labelEl = document.getElementById('kb-alg-status-label-' + f.idx);
+        const msgEl = document.getElementById('kb-alg-status-msg-' + f.idx);
         if(labelEl) labelEl.textContent = label;
+        if(msgEl){
+          msgEl.textContent = msg;
+          msgEl.style.display = msg ? 'block' : 'none';
+          msgEl.style.color = label.startsWith('Error') ? 'var(--hot)' : 'var(--muted)';
+        }
         if(!doneTerminal.has(label)) allDone = false;
       });
 
@@ -4045,7 +4053,11 @@ async function startKbAlgonquinIngest(){
         const anyErr = (json.files || []).some(f => String(f.status||'').startsWith('Error'));
         const anyDup = (json.files || []).some(f => String(f.status||'').includes('already ingested'));
         if(anyDup) toast('Some files were skipped (already ingested).','ok');
-        if(anyErr) toast('Some files failed ingest — check the per-file statuses.','err');
+        if(anyErr){
+          const firstErr = (json.files || []).find(f => String(f.status||'').startsWith('Error'));
+          const firstMsg = String(firstErr?.message || '').trim();
+          toast(firstMsg ? `Some files failed ingest — ${firstMsg}` : 'Some files failed ingest — check the per-file statuses.','err');
+        }
       }
     }, 2000);
   } catch(err){
