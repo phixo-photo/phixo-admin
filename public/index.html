@@ -759,6 +759,10 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
             </div>
           </div>
           <div id="kb-book-delete-list" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px"></div>
+          <div id="kb-algonquin-docs-wrap" style="display:none;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border)">
+            <div style="font-size:12px;color:var(--muted);margin-bottom:6px">Algonquin course files — remove one to drop it from search and re-upload if needed</div>
+            <div id="kb-algonquin-docs-list" style="display:flex;flex-direction:column;gap:6px;font-size:12px"></div>
+          </div>
           <div id="kb-question-chips" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:10px"></div>
           <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px">
             <button class="btn btn-ghost btn-xs" onclick="toggleKbQuestionManager()" id="kb-manage-toggle">Manage questions</button>
@@ -1648,6 +1652,7 @@ let kbAllBooksTopicFocus = 'all'; // 'photography' | 'business' | 'all'
 let kbDraftQuestions = [];
 let kbQuestionGenerationInFlight = false;
 let kbBookDeletionInFlight = new Set();
+let kbAlgonquinDocsLoading = false;
 
 function getSelectedKbBook(){
   if (kbAllBooksActive) return null;
@@ -1726,6 +1731,74 @@ function renderKbBookDeleteList(){
       `;
     })
     .join('');
+}
+
+function renderAlgonquinDocsList(documents){
+  const list = document.getElementById('kb-algonquin-docs-list');
+  if (!list) return;
+  if (!documents.length) {
+    list.innerHTML = '<span style="font-size:11px;color:var(--muted)">No course files found in Chroma (ingest via Research Library).</span>';
+    return;
+  }
+  list.innerHTML = documents.map((d) => {
+    const slug = String(d.bookSlug || '').trim();
+    const label = [d.subSource, d.originalFilename].map((x) => String(x || '').trim()).filter(Boolean).join(' · ') || slug;
+    return `
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;border:1px solid var(--border);border-radius:8px;padding:6px 10px;background:var(--surface-1)">
+        <span style="color:var(--text);overflow:hidden;text-overflow:ellipsis">${esc(label)}</span>
+        <button type="button" class="btn btn-ghost btn-xs" onclick="deleteAlgonquinKbDocument(${JSON.stringify(slug)}, this)">Remove</button>
+      </div>
+    `;
+  }).join('');
+}
+
+async function refreshAlgonquinDocsPanel(){
+  const wrap = document.getElementById('kb-algonquin-docs-wrap');
+  const list = document.getElementById('kb-algonquin-docs-list');
+  if (!wrap || !list) return;
+  const book = getSelectedKbBook();
+  const isAlg = !kbAllBooksActive && String(book?.topic || '').trim() === 'algonquin-college';
+  if (!isAlg || _askMode !== 'kb') {
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = 'block';
+  if (kbAlgonquinDocsLoading) return;
+  kbAlgonquinDocsLoading = true;
+  list.innerHTML = '<span style="color:var(--muted)">Loading course files…</span>';
+  try {
+    const res = await api('GET', '/api/knowledge/algonquin/documents');
+    const documents = Array.isArray(res.documents) ? res.documents : [];
+    renderAlgonquinDocsList(documents);
+  } catch (err) {
+    list.innerHTML = `<span style="color:var(--danger)">${esc(err.message || 'Failed to load')}</span>`;
+  } finally {
+    kbAlgonquinDocsLoading = false;
+  }
+}
+
+async function deleteAlgonquinKbDocument(bookSlug, btnEl){
+  const slug = String(bookSlug || '').trim();
+  if (!slug) return;
+  if (!window.confirm('Remove this file from the knowledge base? You can re-ingest it later.')) return;
+  const btn = btnEl || null;
+  const prev = btn?.textContent || '';
+  try {
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = '…';
+    }
+    await api('DELETE', `/api/knowledge/algonquin/documents/${encodeURIComponent(slug)}`);
+    toast('Course file removed', 'ok');
+    await loadKbBooks();
+    await refreshAlgonquinDocsPanel();
+  } catch (err) {
+    toast(err.message || 'Remove failed', 'err');
+    if (btn && btn.isConnected) {
+      btn.disabled = false;
+      btn.textContent = prev;
+    }
+  }
 }
 
 function renderKbQuestionManager(){
@@ -1952,6 +2025,7 @@ async function loadKbBooks(){
       if (tf) tf.style.display = 'none';
       renderKbQuestionChips();
       renderKbBookDeleteList();
+      refreshAlgonquinDocsPanel();
       return;
     }
 
@@ -1976,6 +2050,7 @@ async function loadKbBooks(){
       }).join('');
     renderKbQuestionChips();
     renderKbBookDeleteList();
+    refreshAlgonquinDocsPanel();
     const panel = document.getElementById('kb-question-manage');
     if (panel && panel.style.display !== 'none') {
       setKbDraftFromSelectedBook();
@@ -1999,6 +2074,7 @@ function onKbBookChange(){
   setKbDraftFromSelectedBook();
   renderKbQuestionChips();
   renderKbQuestionManager();
+  refreshAlgonquinDocsPanel();
 }
 
 function onKbAllBooksTopicFocusChange(){
@@ -2037,7 +2113,6 @@ function openAskLibrary(){
   document.getElementById('ask-input').value='';
   showView('kb-chat');
   setAskMode('kb');
-  loadKbBooks();
   setTimeout(()=>document.getElementById('ask-input').focus(),100);
 }
 

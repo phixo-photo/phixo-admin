@@ -24,11 +24,12 @@ DEFAULT_CLAUDE_MODEL = os.environ.get("AI_MODEL", "claude-haiku-4-5-20251001")
 IMAGE_RELEVANCE_MODEL = "claude-haiku-4-5-20251001"
 IMAGE_RELEVANCE_PROMPT = (
     "Does this text excerpt describe a specific physical body position, pose, lighting setup, "
-    "or visual technique that would be visible in a photograph? Answer only yes or no.\n\n"
+    "or visual technique that would be visible in a photograph? Answer only yes or no. "
+    "Answer no for title slides, chapter header graphics, or decorative banners that are mostly a course or chapter title.\n\n"
     "Text: {chunk_text}"
 )
 
-SYSTEM_PROMPT = """You are a portrait photography expert. Answer the question using only the excerpts from photography books provided below.
+SYSTEM_PROMPT = """You are a portrait photography expert. Answer the question using the reference notes from photography books provided below.
 
 Return ONLY valid JSON with this schema (no markdown, no extra text):
 {
@@ -43,8 +44,8 @@ Rules:
 2) Use clean flowing paragraphs, never bullets or numbered lists.
 3) Never include diagrams, SVG instructions, or generated visuals.
 4) referenceImage must be null and pageImages must be an empty array (the system attaches real page images after retrieval).
-5) If the excerpts do not cover what's asked, say so in answerText.
-6) When you use a specific idea from the text, it must be supported by the excerpts and you should list the book title in sources."""
+5) Write as a practicing photographer giving direct, practical guidance. Do not discuss the notes, excerpts, retrieval, or whether something is missing or not covered. If the context is thin, still give the best grounded answer you can without apologizing or listing gaps.
+6) Synthesize across multiple sources when several notes contribute; do not fixate on a single module. Put source titles only in the "sources" array — do not narrate sourcing in answerText."""
 
 
 BUSINESS_SYSTEM_PROMPT = """You are helping Ian, a portrait photographer running a boutique studio called Phixo in Montreal's West Island. He shoots 10-12 sessions per month as a side hustle alongside a full-time IT career. His signature session is $175 with a target average order value of $220-250. He has three client lanes: professionals needing career portraits, individuals wanting confidence or milestone portraits, and families. His studio is in his basement and he is in early-stage client acquisition with no established local network yet.
@@ -53,11 +54,66 @@ When answering questions, use the business principles from the excerpts provided
 
 ALL_BOOKS_SYSTEM_PROMPT = """You are helping Ian, a portrait photographer running a boutique studio called Phixo in Montreal's West Island. He shoots 10-12 sessions per month as a side hustle alongside a full-time IT career. His signature session is $175 with a target average order value of $220-250. He has three client lanes: professionals needing career portraits, individuals wanting confidence or milestone portraits, and families. His studio is in his basement and he is in early-stage client acquisition with no established local network yet.
 
-Use the principles and information from the excerpts provided and apply them specifically and practically to Ian's portrait photography business and situation. Never say the excerpts don't cover Phixo — bridge the gap yourself using the principles provided. Give concrete, actionable answers specific to Phixo."""
+Use the principles and information from the reference notes provided and apply them specifically and practically to Ian's portrait photography business and situation. Never say the notes don't cover Phixo — bridge the gap yourself using the principles provided. Give concrete, actionable answers specific to Phixo. Do not discuss excerpts, retrieval, or coverage gaps in answerText."""
+
+COURSE_PACK_SYSTEM_PROMPT = """You are a senior photography instructor helping Ian apply concepts from his course materials (multiple modules: theory, digital imaging, visual perception, etc.) to real portrait work at his studio Phixo.
+
+Return ONLY valid JSON with this schema (no markdown, no extra text):
+{
+  "answerText": string,
+  "referenceImage": null,
+  "pageImages": array of objects,
+  "sources": array of strings
+}
+
+Rules:
+1) Do not use markdown. answerText must be plain text with short paragraphs.
+2) Use clean flowing paragraphs, never bullets or numbered lists.
+3) referenceImage must be null and pageImages must be an empty array (the system attaches real page images after retrieval).
+4) Answer the question directly as practical guidance. Synthesize ideas across the labeled sections when more than one is relevant — do not rely on a single module if others apply.
+5) Never say "the excerpts", "the materials", "the notes provided", "does not cover", "is not addressed", or similar. Do not apologize for limitations.
+6) Put human-readable source labels (section titles / filenames as given in the labels) only in the "sources" array — not as meta-commentary in answerText."""
 
 
 def slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", str(s).lower()).strip("-")
+
+
+def diversify_by_book_slug(docs, metadatas, distances, target_n: int, max_per_slug: int):
+    """Prefer top semantic hits while capping how many chunks come from one book_slug (per uploaded file)."""
+    n = len(docs)
+    if n == 0:
+        return [], [], []
+    dist_list = list(distances or [])
+    if len(dist_list) < n:
+        dist_list = dist_list + [float("inf")] * (n - len(dist_list))
+    indexed = list(range(n))
+    indexed.sort(key=lambda i: dist_list[i] if dist_list[i] is not None else float("inf"))
+    picked = []
+    picked_set = set()
+    counts = {}
+    for i in indexed:
+        if len(picked) >= target_n:
+            break
+        meta = metadatas[i]
+        bslug = str((meta or {}).get("book_slug") or (meta or {}).get("source_document") or "_default")
+        if counts.get(bslug, 0) >= max_per_slug:
+            continue
+        counts[bslug] = counts.get(bslug, 0) + 1
+        picked.append(i)
+        picked_set.add(i)
+    for i in indexed:
+        if len(picked) >= target_n:
+            break
+        if i in picked_set:
+            continue
+        picked.append(i)
+        picked_set.add(i)
+    return (
+        [docs[i] for i in picked],
+        [metadatas[i] for i in picked],
+        [dist_list[i] for i in picked],
+    )
 
 
 def should_include_image_for_chunk(client, chunk_text: str) -> bool:
@@ -90,6 +146,11 @@ def main():
         default="",
         help="Optional topic focus for all-books mode: photography | business | all",
     )
+    parser.add_argument(
+        "--diversify-by-book-slug",
+        action="store_true",
+        help="Retrieve extra chunks then cap per book_slug so multi-file packs (e.g. Algonquin) mix sources.",
+    )
     args = parser.parse_args()
 
     query = " ".join(args.query).strip()
@@ -119,15 +180,23 @@ def main():
         "client_psychology",
         "general",
     ]
+    ALGONQUIN_TOPIC_CATEGORY = "algonquin-college"
+
+    def is_photography_topic_category(cat: str) -> bool:
+        c = str(cat or "").strip().lower()
+        return c in PHOTOGRAPHY_TOPIC_CATEGORIES or c == ALGONQUIN_TOPIC_CATEGORY
 
     all_books_mode = topic_focus in ("photography", "business", "all")
     if all_books_mode:
         # All-books mode must always use the Phixo-specific prompt,
         # even when chunk retrieval is limited to "Photography".
         system_prompt = ALL_BOOKS_SYSTEM_PROMPT
+    elif topic_tag == "business":
+        system_prompt = BUSINESS_SYSTEM_PROMPT
+    elif topic_tag == ALGONQUIN_TOPIC_CATEGORY:
+        system_prompt = COURSE_PACK_SYSTEM_PROMPT
     else:
-        # Back-compat: per-book mode uses `--topic` only.
-        system_prompt = BUSINESS_SYSTEM_PROMPT if topic_tag == "business" else SYSTEM_PROMPT
+        system_prompt = SYSTEM_PROMPT
 
     from openai import OpenAI
     import chromadb
@@ -139,17 +208,22 @@ def main():
 
     client_db = chromadb.PersistentClient(path=args.db_path)
     collection = client_db.get_collection(name=args.collection)
+    source_filter = (args.source or "").strip()
+    retrieve_n = args.top
+    if getattr(args, "diversify_by_book_slug", False) and source_filter:
+        retrieve_n = min(120, max(args.top * 10, 50))
+
     query_kwargs = {
         "query_embeddings": [query_embedding],
-        "n_results": args.top,
+        "n_results": retrieve_n,
         "include": ["documents", "metadatas", "distances"],
     }
-    source_filter = (args.source or "").strip()
 
     topic_filter_where = None
     if topic_focus == "photography":
-        # Use $or/$eq-style matching for maximum Chroma where-filter compatibility.
-        topic_filter_where = {"$or": [{"topic_category": c} for c in PHOTOGRAPHY_TOPIC_CATEGORIES]}
+        # Include Algonquin course-pack chunks (topic_category algonquin-college) in Photography scope.
+        photo_cats = list(PHOTOGRAPHY_TOPIC_CATEGORIES) + [ALGONQUIN_TOPIC_CATEGORY]
+        topic_filter_where = {"$or": [{"topic_category": c} for c in photo_cats]}
     elif topic_focus == "business":
         topic_filter_where = {"topic_category": "business"}
 
@@ -164,6 +238,14 @@ def main():
     docs = results["documents"][0]
     metadatas = results["metadatas"][0]
     distances = results.get("distances", [[]])[0] or []
+    if getattr(args, "diversify_by_book_slug", False) and source_filter:
+        docs, metadatas, distances = diversify_by_book_slug(
+            docs, metadatas, distances, args.top, max_per_slug=3
+        )
+    else:
+        docs = docs[: args.top]
+        metadatas = metadatas[: args.top]
+        distances = distances[: args.top] if distances else []
     sources = list({m.get("source_document", "?") for m in metadatas})
     if source_filter and not docs:
         print(f"No chunks found for selected book: {source_filter}", file=sys.stderr)
@@ -183,12 +265,14 @@ def main():
             "topic_category": (meta or {}).get("topic_category"),
             "doc_text": doc,
         })
-        title = (meta or {}).get("source_document", "Unknown")
+        sd = (meta or {}).get("source_document", "Unknown")
+        sub = (meta or {}).get("sub_source")
+        title = f"{sub} — {sd}" if sub and str(sub).strip() else str(sd)
         context_parts.append(f"[Excerpt {excerpt_index} — {title}]\n{doc}")
         excerpt_index += 1
     context = "\n\n---\n\n".join(context_parts)
 
-    user_content = f"""Here are excerpts from photography books:
+    user_content = f"""Here are reference notes:
 
 {context}
 
@@ -196,7 +280,7 @@ def main():
 
 Question: {query}
 
-Answer based on the excerpts above. If something isn't covered, say so briefly."""
+Answer directly and practically. Do not use phrases like "the excerpts", "the materials provided", "the notes state", "does not cover", "is not addressed", or similar commentary about the notes."""
 
     print(f"Asking Claude ({args.model})...")
     import anthropic
@@ -285,8 +369,11 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
                 futures_by_idx = {}
                 for idx, pm in enumerate(page_matches):
                     topic_category = str(pm.get("topic_category") or "").strip().lower()
-                    is_photography = topic_category in PHOTOGRAPHY_TOPIC_CATEGORIES
+                    is_photography = is_photography_topic_category(topic_category)
                     if not is_photography:
+                        continue
+                    pn = pm.get("page_number")
+                    if pn is not None and int(pn) <= 1:
                         continue
                     futures_by_idx[idx] = executor.submit(
                         should_include_image_for_chunk,
@@ -305,6 +392,9 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
                     # Only chunks with a page_number can map to a physical page image.
                     if (pm.get("page_number") is None):
                         continue
+                    pn = pm.get("page_number")
+                    if pn is not None and int(pn) <= 1:
+                        continue
                     futures_by_idx[idx] = executor.submit(
                         should_include_image_for_chunk,
                         client,
@@ -322,6 +412,8 @@ Answer based on the excerpts above. If something isn't covered, say so briefly."
         page_number = pm.get("page_number")
         source_document = str(pm.get("source_document") or "")
         if page_number is None or not source_document:
+            continue
+        if int(page_number) <= 1:
             continue
         # Use per-chunk book_slug when available so multiple uploads under the same
         # source_document (e.g. Algonquin persistent KB) never collide on images.

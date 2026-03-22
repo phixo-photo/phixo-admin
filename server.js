@@ -1256,6 +1256,68 @@ async function deleteBookChunksPy({ sourceDocument }) {
   });
 }
 
+async function listAlgonquinDocumentsPy() {
+  const dbPath = path.join(DATA_PATH, 'chromadb');
+  const pyArgs = [
+    path.join(INTELLIGENCE_DIR, 'scripts', 'list_algonquin_documents.py'),
+    '--source-document',
+    KB_ALGONQUIN_SOURCE_DOCUMENT,
+    '--db-path',
+    dbPath,
+    '--collection',
+    KB_ALGONQUIN_COLLECTION,
+  ];
+  return await new Promise((resolve, reject) => {
+    const child = spawn('python3', pyArgs, {
+      cwd: INTELLIGENCE_DIR,
+      env: { ...process.env },
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+    child.on('close', (code) => {
+      if (code !== 0) return reject(new Error(stderr || stdout || 'list algonquin documents failed'));
+      try {
+        return resolve(JSON.parse(stdout.trim()));
+      } catch (e) {
+        return reject(new Error('Invalid JSON from list_algonquin_documents.py'));
+      }
+    });
+  });
+}
+
+async function deleteAlgonquinDocumentPy({ bookSlug }) {
+  const dbPath = path.join(DATA_PATH, 'chromadb');
+  const pyArgs = [
+    path.join(INTELLIGENCE_DIR, 'scripts', 'delete_algonquin_document.py'),
+    '--book-slug',
+    bookSlug,
+    '--db-path',
+    dbPath,
+    '--collection',
+    KB_ALGONQUIN_COLLECTION,
+  ];
+  return await new Promise((resolve, reject) => {
+    const child = spawn('python3', pyArgs, {
+      cwd: INTELLIGENCE_DIR,
+      env: { ...process.env },
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk.toString(); });
+    child.stderr.on('data', (chunk) => { stderr += chunk.toString(); });
+    child.on('close', (code) => {
+      if (code !== 0) return reject(new Error(stderr || stdout || 'delete algonquin document failed'));
+      try {
+        return resolve(JSON.parse(stdout.trim()));
+      } catch (e) {
+        return reject(new Error('Invalid JSON from delete_algonquin_document.py'));
+      }
+    });
+  });
+}
+
 const kbQuestionJobsInFlight = new Set();
 
 async function generateAndStoreQuestions({ bookId, sourceDocument, topic, collection, subTopic = '', markAsInitial = false }) {
@@ -1476,6 +1538,30 @@ function parseLastJsonLine(stdout) {
 
 function sanitizeFileName(name) {
   return String(name || 'file').replace(/[^a-zA-Z0-9_.-]+/g, '_');
+}
+
+function pruneAlgonquinTempArtifacts({ olderThanMs = 6 * 60 * 60 * 1000 } = {}) {
+  const now = Date.now();
+  const roots = [
+    path.join(DATA_PATH, 'algonquin'),
+    path.join(DATA_PATH, 'algonquin_chunks'),
+    path.join(DATA_PATH, 'algonquin_uploads'),
+    path.join(DATA_PATH, 'tmp', 'algonquin-whisper'),
+  ];
+  for (const root of roots) {
+    try {
+      if (!fs.existsSync(root)) continue;
+      const entries = fs.readdirSync(root, { withFileTypes: true });
+      for (const e of entries) {
+        const p = path.join(root, e.name);
+        try {
+          const st = fs.statSync(p);
+          if ((now - st.mtimeMs) < olderThanMs) continue;
+          fs.rmSync(p, { recursive: true, force: true });
+        } catch (_) {}
+      }
+    } catch (_) {}
+  }
 }
 
 function algonquinDetectFileType(file) {
@@ -1718,6 +1804,9 @@ async function backupAlgonquinFileToDrive({ drive, file, subSource, transcriptTe
 
 app.post('/api/knowledge/algonquin/ingest', requireAuth, uploadAlgonquin.array('files', 50), async (req, res) => {
   try {
+    // Best-effort temp cleanup so old failed jobs don't fill Railway volume.
+    pruneAlgonquinTempArtifacts();
+
     const files = Array.isArray(req.files) ? req.files : [];
     if (!files.length) return res.status(400).json({ error: 'No files uploaded' });
 
@@ -1790,6 +1879,10 @@ app.post('/api/knowledge/algonquin/ingest', requireAuth, uploadAlgonquin.array('
       async function processOneFile(f) {
         if (f.status !== 'Queued') return; // duplicates/skips may have changed it
 
+        let chunkOutDir = null;
+        let chunkJsonPath = null;
+        let textPath = null;
+
         try {
           const originalFilename = f.originalFilename;
           const subSource = f.subSource;
@@ -1808,20 +1901,15 @@ app.post('/api/knowledge/algonquin/ingest', requireAuth, uploadAlgonquin.array('
             return;
           }
 
-          const inputDir = path.join(jobTmpDir, 'input');
           const textDir = path.join(jobTmpDir, 'text');
-          const chunkOutDir = path.join(chunkOutBase, String(f.idx));
-          fs.mkdirSync(inputDir, { recursive: true });
+          chunkOutDir = path.join(chunkOutBase, String(f.idx));
           fs.mkdirSync(textDir, { recursive: true });
           fs.mkdirSync(chunkOutDir, { recursive: true });
 
           const safeOriginalName = sanitizeFileName(uploadedFile.originalname || 'file');
           const fileSizeBytes = uploadedFile.size || fs.statSync(uploadedFile.path).size;
-          const inputPath = f.fileType === 'pdf' ? path.join(inputDir, safeOriginalName) : null;
-          // Only PDFs need the original binary for chunking; others (doc/txt/transcripts) use derived text.
-          if (inputPath) {
-            fs.copyFileSync(uploadedFile.path, inputPath);
-          }
+          // Avoid duplicate disk writes: PDFs can be chunked directly from upload path.
+          const inputPath = f.fileType === 'pdf' ? uploadedFile.path : null;
 
           let transcriptText = null;
           if (f.fileType === 'video') {
@@ -1848,7 +1936,6 @@ app.post('/api/knowledge/algonquin/ingest', requireAuth, uploadAlgonquin.array('
           // Chunking
           f.status = 'Chunking';
           f.message = 'Extracting text and creating chunks...';
-          let chunkJsonPath = null;
           if (f.fileType === 'pdf') {
             chunkJsonPath = await runAlgonquinChunkToJson({
               inputPath,
@@ -1870,7 +1957,7 @@ app.post('/api/knowledge/algonquin/ingest', requireAuth, uploadAlgonquin.array('
               // TXT
               extractedText = fileBuffer.toString('utf-8');
             }
-            const textPath = path.join(textDir, `${f.idx}.txt`);
+            textPath = path.join(textDir, `${f.idx}.txt`);
             fs.writeFileSync(textPath, extractedText, 'utf-8');
             chunkJsonPath = await runAlgonquinChunkToJson({
               inputPath: textPath,
@@ -1882,7 +1969,7 @@ app.post('/api/knowledge/algonquin/ingest', requireAuth, uploadAlgonquin.array('
             });
           } else if (f.fileType === 'video' || f.fileType === 'audio') {
             if (!transcriptText) throw new Error('Missing transcript text after Whisper');
-            const textPath = path.join(textDir, `${f.idx}_transcript.txt`);
+            textPath = path.join(textDir, `${f.idx}_transcript.txt`);
             fs.writeFileSync(textPath, transcriptText, 'utf-8');
             chunkJsonPath = await runAlgonquinChunkToJson({
               inputPath: textPath,
@@ -1948,7 +2035,15 @@ app.post('/api/knowledge/algonquin/ingest', requireAuth, uploadAlgonquin.array('
         } catch (err) {
           console.error('Algonquin ingest file error:', err);
           f.status = 'Error';
-          f.message = String(err?.message || err || 'Ingest failed');
+          const msg = String(err?.message || err || 'Ingest failed');
+          f.message = /ENOSPC|no space left on device/i.test(msg)
+            ? 'Storage full on server volume (ENOSPC). Free space or increase Railway volume.'
+            : msg;
+        } finally {
+          // Always clean per-file temp artifacts, even on failures.
+          try { if (textPath && fs.existsSync(textPath)) fs.rmSync(textPath, { force: true }); } catch (_) {}
+          try { if (chunkJsonPath && fs.existsSync(chunkJsonPath)) fs.rmSync(chunkJsonPath, { force: true }); } catch (_) {}
+          try { if (chunkOutDir && fs.existsSync(chunkOutDir)) fs.rmSync(chunkOutDir, { recursive: true, force: true }); } catch (_) {}
         }
       }
 
@@ -1972,6 +2067,9 @@ app.post('/api/knowledge/algonquin/ingest', requireAuth, uploadAlgonquin.array('
 
       await Promise.all(docWorkers);
       job.state = 'done';
+      // Best-effort cleanup of this job's temp directories.
+      try { fs.rmSync(jobTmpDir, { recursive: true, force: true }); } catch (_) {}
+      try { fs.rmSync(chunkOutBase, { recursive: true, force: true }); } catch (_) {}
     })();
 
     return res.json({ jobId });
@@ -2068,6 +2166,10 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
       // `ask.py` uses topic-focus for Chroma filtering and `--topic` for system-prompt selection.
       pyArgs.push('--topic', focus === 'business' ? 'business' : 'general');
       pyArgs.push('--topic-focus', focus);
+    }
+
+    if (String(selectedTopic || '').trim() === KB_ALGONQUIN_TOPIC) {
+      pyArgs.push('--top', '12', '--diversify-by-book-slug');
     }
 
     const child = spawn('python3', pyArgs, {
@@ -2179,8 +2281,8 @@ Rules:
 2) Use clean flowing paragraphs, never bullets or numbered lists.
 3) Never include diagrams, SVG instructions, or generated visuals.
 4) referenceImage must be null and pageImages must be an empty array (the system attaches real page images after retrieval).
-5) If the excerpts do not cover what's asked, say so in answerText.
-6) When you use a specific idea from the text, it must be supported by the excerpts and you should list the book title in sources.`;
+5) Write as a practicing photographer giving direct guidance. Do not discuss excerpts, retrieval, or whether something is missing or not covered.
+6) Put book titles only in the "sources" array — do not narrate sourcing in answerText.`;
 
     const BUSINESS_SYSTEM_PROMPT = `You are helping Ian, a portrait photographer running a boutique studio called Phixo in Montreal's West Island. He shoots 10-12 sessions per month as a side hustle alongside a full-time IT career. His signature session is $175 with a target average order value of $220-250. He has three client lanes: professionals needing career portraits, individuals wanting confidence or milestone portraits, and families. His studio is in his basement and he is in early-stage client acquisition with no established local network yet.
 
@@ -2476,6 +2578,58 @@ app.delete('/api/knowledge/books/:bookId', requireAuth, async (req, res) => {
   } catch (err) {
     console.error('delete knowledge book error:', err.message, err.stack);
     return res.status(500).json({ error: 'Failed to delete book', detail: err.message });
+  }
+});
+
+app.get('/api/knowledge/algonquin/documents', requireAuth, async (req, res) => {
+  try {
+    const dbPath = path.join(DATA_PATH, 'chromadb');
+    if (!fs.existsSync(dbPath)) {
+      return res.json({ documents: [] });
+    }
+    const payload = await listAlgonquinDocumentsPy();
+    const docs = Array.isArray(payload.documents) ? payload.documents : [];
+    return res.json({ documents: docs });
+  } catch (err) {
+    console.error('list algonquin documents error:', err.message, err.stack);
+    return res.status(500).json({ error: 'Failed to list Algonquin documents', detail: err.message });
+  }
+});
+
+app.delete('/api/knowledge/algonquin/documents/:bookSlug', requireAuth, async (req, res) => {
+  try {
+    let bookSlug = String(req.params.bookSlug || '').trim();
+    try {
+      bookSlug = decodeURIComponent(bookSlug);
+    } catch (_) { /* keep raw */ }
+    if (!bookSlug) return res.status(400).json({ error: 'bookSlug required' });
+    if (bookSlug.includes('..') || bookSlug.includes('/') || bookSlug.includes('\\')) {
+      return res.status(400).json({ error: 'Invalid book slug' });
+    }
+    const dbPath = path.join(DATA_PATH, 'chromadb');
+    if (!fs.existsSync(dbPath)) {
+      return res.status(400).json({ error: 'Knowledge base is empty' });
+    }
+    const payload = await deleteAlgonquinDocumentPy({ bookSlug });
+    const deletedChunks = Number(payload.deletedChunks) || 0;
+    if (deletedChunks > 0) {
+      await pool.query(
+        `UPDATE kb_books
+         SET file_count = GREATEST(COALESCE(file_count, 0) - 1, 0),
+             updated_at = NOW()
+         WHERE source = $1`,
+        [KB_ALGONQUIN_ROW_SOURCE],
+      );
+    }
+    return res.json({
+      ok: !!payload.ok,
+      deletedChunks,
+      imagesRemoved: !!payload.imagesRemoved,
+      reason: payload.reason || null,
+    });
+  } catch (err) {
+    console.error('delete algonquin document error:', err.message, err.stack);
+    return res.status(500).json({ error: 'Failed to delete document', detail: err.message });
   }
 });
 
