@@ -23,9 +23,11 @@ EMBED_MODEL = "text-embedding-3-small"
 DEFAULT_CLAUDE_MODEL = os.environ.get("AI_MODEL", "claude-haiku-4-5-20251001")
 IMAGE_RELEVANCE_MODEL = "claude-haiku-4-5-20251001"
 IMAGE_RELEVANCE_PROMPT = (
-    "Does this text excerpt describe a specific physical body position, pose, lighting setup, "
-    "or visual technique that would be visible in a photograph? Answer only yes or no. "
-    "Answer no for title slides, chapter header graphics, or decorative banners that are mostly a course or chapter title.\n\n"
+    "Would a reader need the actual page picture to understand this excerpt? Answer only yes or no.\n"
+    "Answer YES only for: poses, lighting setups, composition examples, gear arrangements, or diagrams "
+    "where the image carries the teaching point.\n"
+    "Answer NO for: title slides, chapter banners, decorative stock photos, mostly definitions or prose, "
+    "software UI steps (sliders, eyedropper, Capture One / Lightroom controls), or color theory explained in text only.\n\n"
     "Text: {chunk_text}"
 )
 
@@ -45,7 +47,8 @@ Rules:
 3) Never include diagrams, SVG instructions, or generated visuals.
 4) referenceImage must be null and pageImages must be an empty array (the system attaches real page images after retrieval).
 5) Write as a practicing photographer giving direct, practical guidance. Do not discuss the notes, excerpts, retrieval, or whether something is missing or not covered. If the context is thin, still give the best grounded answer you can without apologizing or listing gaps.
-6) Synthesize across multiple sources when several notes contribute; do not fixate on a single module. Put source titles only in the "sources" array — do not narrate sourcing in answerText."""
+6) Synthesize across multiple sources when several notes contribute; do not fixate on a single module. Put source titles only in the "sources" array — do not narrate sourcing in answerText.
+7) Never put slide titles, module banners, or all-caps course headers (e.g. PHOTO THEORY II) in answerText."""
 
 
 BUSINESS_SYSTEM_PROMPT = """You are helping Ian, a portrait photographer running a boutique studio called Phixo in Montreal's West Island. He shoots 10-12 sessions per month as a side hustle alongside a full-time IT career. His signature session is $175 with a target average order value of $220-250. He has three client lanes: professionals needing career portraits, individuals wanting confidence or milestone portraits, and families. His studio is in his basement and he is in early-stage client acquisition with no established local network yet.
@@ -72,11 +75,29 @@ Rules:
 3) referenceImage must be null and pageImages must be an empty array (the system attaches real page images after retrieval).
 4) Answer the question directly as practical guidance. Synthesize ideas across the labeled sections when more than one is relevant — do not rely on a single module if others apply.
 5) Never say "the excerpts", "the materials", "the notes provided", "does not cover", "is not addressed", or similar. Do not apologize for limitations.
-6) Put human-readable source labels (section titles / filenames as given in the labels) only in the "sources" array — not as meta-commentary in answerText."""
+6) Put human-readable source labels (section titles / filenames as given in the labels) only in the "sources" array — not as meta-commentary in answerText.
+7) Never output slide titles, module banners, or all-caps course headers (e.g. PHOTO THEORY II) in answerText — those are not part of the answer."""
 
 
 def slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", str(s).lower()).strip("-")
+
+
+def strip_slide_title_lines(text: str) -> str:
+    """Remove standalone all-caps / banner lines the model sometimes copies from deck slides."""
+    if not text or not str(text).strip():
+        return text
+    line_pat = re.compile(r"^[A-Z][A-Z0-9 \.\-\–\—\'’,&/]{2,100}$")
+    out_lines = []
+    for line in str(text).split("\n"):
+        s = line.strip()
+        if not s:
+            out_lines.append(line)
+            continue
+        if line_pat.match(s) and len(s.split()) <= 10:
+            continue
+        out_lines.append(line)
+    return "\n".join(out_lines).strip()
 
 
 def diversify_by_book_slug(docs, metadatas, distances, target_n: int, max_per_slug: int):
@@ -342,6 +363,9 @@ Answer directly and practically. Do not use phrases like "the excerpts", "the ma
         payload["referenceImage"] = None
     if "pageImages" not in payload or not isinstance(payload.get("pageImages"), list):
         payload["pageImages"] = []
+    at_raw = payload.get("answerText")
+    if isinstance(at_raw, str) and at_raw.strip():
+        payload["answerText"] = strip_slide_title_lines(at_raw)
     # Expose the original retrieved text chunks so the frontend can request a
     # deeper follow-up without re-running retrieval/relevance filtering.
     payload["retrievedChunks"] = page_matches
@@ -424,10 +448,20 @@ Answer directly and practically. Do not use phrases like "the excerpts", "the ma
             continue
         seen_pages.add(page_key)
         pattern = os.path.join(images_root, book_slug, f"page{int(page_number):04d}_*.jpg")
-        image_candidates = sorted(glob.glob(pattern))
-        if not image_candidates:
+        paths = glob.glob(pattern)
+        if not paths:
             continue
-        img_rel = os.path.relpath(image_candidates[0], images_root).replace("\\", "/")
+
+        def _fsize(p: str) -> int:
+            try:
+                return os.path.getsize(p)
+            except OSError:
+                return 10**12
+
+        ranked = sorted(paths, key=_fsize)
+        min_useful = 12 * 1024
+        chosen = next((p for p in ranked if _fsize(p) >= min_useful), ranked[0])
+        img_rel = os.path.relpath(chosen, images_root).replace("\\", "/")
         page_images.append({
             "path": img_rel,
             "description": None,

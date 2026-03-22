@@ -2243,7 +2243,21 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
           .replace(/[`>]/g, '') // strip code/quote markers
           .trim();
       };
-      answer = toPlain(answer);
+      const stripSlideTitleLines = (s) => {
+        if (typeof s !== 'string' || !s.trim()) return s;
+        const linePat = /^[A-Z][A-Z0-9 .\-–—',&/]{2,100}$/;
+        return s
+          .split('\n')
+          .filter((line) => {
+            const t = line.trim();
+            if (!t) return true;
+            if (linePat.test(t) && t.split(/\s+/).length <= 10) return false;
+            return true;
+          })
+          .join('\n')
+          .trim();
+      };
+      answer = stripSlideTitleLines(toPlain(answer));
 
       res.json({ answer, sources, referenceImage, pageImages, retrievedChunks, raw: stdout });
     });
