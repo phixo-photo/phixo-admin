@@ -59,9 +59,29 @@ NODE_ENV=production
 
 ### Prospect pipeline (Strategy → Prospects)
 
-- **Sync** uses the official Quebec **Registre des entreprises** JSON API by default (no Apollo). It searches a West Island city list and upserts by NEQ.
+- **Sync** uses the official Quebec **Registre des entreprises** JSON API by default (no paid tools). It searches a West Island city list and upserts by NEQ.
 - **Enrichment** uses Serper (`SERPER_API_KEY=...`).
 - **Drafts** use Anthropic (`ANTHROPIC_API_KEY`).
+
+**Apollo / remote JSON feed (optional, e.g. free trial):**
+
+```
+REGISTRY_SYNC_SOURCE_URL=https://your-apollo-or-feed-url/...
+REGISTRY_SYNC_SOURCE_TOKEN=...   # if the feed requires Bearer auth
+REGISTRY_SYNC_USE_APOLLO=true
+```
+
+When the trial ends, turn off the remote feed (Quebec direct still runs):
+
+```
+REGISTRY_SYNC_USE_APOLLO=false
+```
+
+You can leave `REGISTRY_SYNC_SOURCE_URL` in Railway for later; it is ignored while `REGISTRY_SYNC_USE_APOLLO` is `false`.
+
+Same idea with generic naming: `REGISTRY_SYNC_REMOTE_ENABLED=true|false` (if both are set, `REGISTRY_SYNC_USE_APOLLO` wins).
+
+If you **only** set `REGISTRY_SYNC_SOURCE_URL` and neither flag, the app still calls that URL (backward compatible).
 
 Optional:
 

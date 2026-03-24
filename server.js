@@ -193,6 +193,23 @@ function extractSyncRecords(payload) {
   return [];
 }
 
+/**
+ * Remote registry feed (e.g. Apollo trial webhook URL, or any JSON endpoint).
+ * Turn off when trial ends: REGISTRY_SYNC_USE_APOLLO=false (or REGISTRY_SYNC_REMOTE_ENABLED=false).
+ * If unset and REGISTRY_SYNC_SOURCE_URL is set, remote is still used (backward compatible).
+ */
+function shouldUseRegistryRemoteSource() {
+  const apollo = process.env.REGISTRY_SYNC_USE_APOLLO;
+  if (apollo !== undefined && String(apollo).trim() !== '') {
+    return ['true', '1', 'yes', 'on'].includes(String(apollo).toLowerCase().trim());
+  }
+  const remote = process.env.REGISTRY_SYNC_REMOTE_ENABLED;
+  if (remote !== undefined && String(remote).trim() !== '') {
+    return ['true', '1', 'yes', 'on'].includes(String(remote).toLowerCase().trim());
+  }
+  return !!process.env.REGISTRY_SYNC_SOURCE_URL;
+}
+
 async function pullRegistrySyncRecords({ since }) {
   const sourceUrl = process.env.REGISTRY_SYNC_SOURCE_URL;
   if (!sourceUrl) return [];
@@ -3698,9 +3715,9 @@ app.post('/api/pipeline/prospects/sync', requireAuth, async (req, res) => {
     const since = body.since ? String(body.since).slice(0, 10) : undefined;
     let records = recordsFromBody;
     let source = 'payload';
-    if (!records.length) {
+    if (!records.length && shouldUseRegistryRemoteSource()) {
       records = await pullRegistrySyncRecords({ since });
-      source = 'registry-source';
+      if (records.length) source = 'registry-remote';
     }
     if (!records.length && String(process.env.REGISTRY_SYNC_DISABLE_QUEBEC_DIRECT || '').toLowerCase() !== 'true') {
       records = await fetchQuebecRegistryDirectSync({ since });
