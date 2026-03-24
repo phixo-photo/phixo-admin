@@ -1646,6 +1646,9 @@ function toast(msg,type=''){
 }
 const dtimers={};
 function debouncedLoad(fn){clearTimeout(dtimers[fn]);dtimers[fn]=setTimeout(()=>window[fn](),280);}
+function debugClientLog(runId,hypothesisId,location,message,data){
+  fetch('http://127.0.0.1:7242/ingest/e4eb57ba-3b5c-4616-a9e8-1f8d47c6a373',{method:'POST',headers:{'Content-Type':'application/json','X-Debug-Session-Id':'7c3011'},body:JSON.stringify({sessionId:'7c3011',runId,hypothesisId,location,message,data,timestamp:Date.now()})}).catch(()=>{});
+}
 
 async function api(method,url,body){
   const opts={method,headers:{}};
@@ -1654,6 +1657,9 @@ async function api(method,url,body){
   const r=await fetch(url,opts);
   if(!r.ok){
     const e=await r.json().catch(()=>({error:'Failed'}));
+    // #region agent log
+    debugClientLog('sync-debug-browser-1','H6','public/index.html:api:error','Pipeline API error',{method,url,status:r.status,error:e?.error||null,hasDetails:!!e?.details,detailsKeys:e?.details?Object.keys(e.details):[]});
+    // #endregion
     let msg=e.error||'Failed';
     if(e.details&&typeof e.details==='object'){msg+='\n\n'+JSON.stringify(e.details,null,2);}
     const err=new Error(msg);err.details=e.details;throw err;
@@ -2915,6 +2921,9 @@ async function syncPipelineProspects(){
   try{
     const since = document.getElementById('pp-since')?.value || null;
     const payload = since ? { since } : {};
+    // #region agent log
+    debugClientLog('sync-debug-browser-1','H7','public/index.html:syncPipelineProspects:start','User triggered sync',{since:since||null,path:location.pathname});
+    // #endregion
     const r = await api('POST','/api/pipeline/prospects/sync',payload);
     const txt = `Synced ${r.total} total (${r.created} new, ${r.updated} updated) via ${r.source}.`;
     const el = document.getElementById('pp-sync-result');
