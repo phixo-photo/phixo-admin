@@ -52,6 +52,397 @@ const INTELLIGENCE_DIR = process.env.INTELLIGENCE_DIR || path.join(__dirname, '.
 const INGEST_LOG_PATH = path.join(DATA_PATH, 'ingest-log.jsonl');
 const KB_DEFAULT_COLLECTION = 'phixo_kb';
 const KB_QUESTION_MODEL = 'claude-haiku-4-5-20251001';
+const PROSPECTS_FILE = process.env.PROSPECTS_FILE || path.join(DATA_PATH, 'prospects.json');
+const PIPELINE_STATUS_ALLOWED = new Set(['raw', 'enriching', 'enriched', 'contacted', 'booked', 'skipped']);
+
+function defaultPipelineOwner() {
+  return {
+    name: null,
+    linkedin_url: null,
+    linkedin_headline: null,
+    oaciq_license: null,
+    amf_license: null,
+    facebook_url: null,
+    email: null,
+    phone: null,
+    headshot_status: 'unknown',
+  };
+}
+
+function defaultPipelineOutreach() {
+  return {
+    draft: null,
+    sent_at: null,
+    channel: null,
+    notes: null,
+  };
+}
+
+function normalizePipelineStatus(status, fallback = 'raw') {
+  if (!status) return fallback;
+  const normalized = String(status).trim().toLowerCase();
+  if (PIPELINE_STATUS_ALLOWED.has(normalized)) return normalized;
+  return fallback;
+}
+
+function ensurePipelineProspectsFile() {
+  const dir = path.dirname(PROSPECTS_FILE);
+  fs.mkdirSync(dir, { recursive: true });
+  if (!fs.existsSync(PROSPECTS_FILE)) {
+    fs.writeFileSync(PROSPECTS_FILE, '[]\n', 'utf8');
+  }
+}
+
+function readPipelineProspects() {
+  try {
+    ensurePipelineProspectsFile();
+    const raw = fs.readFileSync(PROSPECTS_FILE, 'utf8');
+    const parsed = JSON.parse(raw || '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((record) => normalizePipelineProspectRecord(record));
+  } catch (err) {
+    console.error('Failed reading prospects store:', err.message);
+    return [];
+  }
+}
+
+function writePipelineProspects(records) {
+  ensurePipelineProspectsFile();
+  const normalized = Array.isArray(records)
+    ? records.map((record) => normalizePipelineProspectRecord(record))
+    : [];
+  const tmpPath = `${PROSPECTS_FILE}.tmp`;
+  fs.writeFileSync(tmpPath, JSON.stringify(normalized, null, 2) + '\n', 'utf8');
+  fs.renameSync(tmpPath, PROSPECTS_FILE);
+}
+
+function normalizePipelineProspectRecord(input) {
+  const owner = (input && typeof input.owner === 'object' && input.owner) ? input.owner : {};
+  const outreach = (input && typeof input.outreach === 'object' && input.outreach) ? input.outreach : {};
+  const registeredDate = input?.registered_date ? String(input.registered_date).slice(0, 10) : null;
+  const id = input?.id ?? input?.business_id ?? null;
+  if (id === null || id === undefined || String(id).trim() === '') return null;
+  return {
+    id: String(id).trim(),
+    business_type: input?.business_type ? String(input.business_type).trim() : null,
+    address: input?.address ? String(input.address).trim() : null,
+    city: input?.city ? String(input.city).trim() : null,
+    postal_code: input?.postal_code ? String(input.postal_code).trim() : null,
+    registered_date: registeredDate,
+    employee_range: input?.employee_range ? String(input.employee_range).trim() : null,
+    prospect_score: input?.prospect_score ? String(input.prospect_score).trim().toUpperCase() : 'LOW',
+    status: normalizePipelineStatus(input?.status, 'raw'),
+    enriched_at: input?.enriched_at || null,
+    owner: {
+      ...defaultPipelineOwner(),
+      ...owner,
+      headshot_status: owner?.headshot_status ? String(owner.headshot_status).toLowerCase() : (owner?.headshot_status ?? 'unknown'),
+    },
+    outreach: {
+      ...defaultPipelineOutreach(),
+      ...outreach,
+    },
+  };
+}
+
+function upsertPipelineProspects(records) {
+  const incoming = Array.isArray(records) ? records : [];
+  const existing = readPipelineProspects();
+  const byId = new Map(existing.map((item) => [String(item.id), item]));
+  let created = 0;
+  let updated = 0;
+
+  for (const rawRecord of incoming) {
+    const normalized = normalizePipelineProspectRecord(rawRecord);
+    if (!normalized) continue;
+    const existingRecord = byId.get(normalized.id);
+    if (!existingRecord) {
+      byId.set(normalized.id, normalized);
+      created++;
+      continue;
+    }
+    byId.set(normalized.id, {
+      ...existingRecord,
+      business_type: normalized.business_type,
+      address: normalized.address,
+      city: normalized.city,
+      postal_code: normalized.postal_code,
+      registered_date: normalized.registered_date,
+      employee_range: normalized.employee_range,
+      prospect_score: normalized.prospect_score,
+    });
+    updated++;
+  }
+
+  const out = Array.from(byId.values()).sort((a, b) => {
+    const ad = a.registered_date || '';
+    const bd = b.registered_date || '';
+    if (ad && bd && ad !== bd) return ad > bd ? -1 : 1;
+    return String(a.id).localeCompare(String(b.id));
+  });
+  writePipelineProspects(out);
+  return { created, updated, total: out.length };
+}
+
+function extractSyncRecords(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== 'object') return [];
+  if (Array.isArray(payload.records)) return payload.records;
+  if (Array.isArray(payload.prospects)) return payload.prospects;
+  if (Array.isArray(payload.items)) return payload.items;
+  return [];
+}
+
+async function pullRegistrySyncRecords({ since }) {
+  const sourceUrl = process.env.REGISTRY_SYNC_SOURCE_URL;
+  if (!sourceUrl) return [];
+  const url = new URL(sourceUrl);
+  if (since) url.searchParams.set('since', since);
+  const headers = {};
+  if (process.env.REGISTRY_SYNC_SOURCE_TOKEN) {
+    headers.authorization = `Bearer ${process.env.REGISTRY_SYNC_SOURCE_TOKEN}`;
+  }
+  const response = await fetch(url.toString(), { method: 'GET', headers });
+  if (!response.ok) {
+    throw new Error(`Registry source request failed (${response.status})`);
+  }
+  const payload = await response.json();
+  return extractSyncRecords(payload);
+}
+
+function applyPipelineProspectPatch(current, patch) {
+  const next = { ...current };
+  const topLevelAllowed = [
+    'business_type',
+    'address',
+    'city',
+    'postal_code',
+    'registered_date',
+    'employee_range',
+    'prospect_score',
+    'status',
+    'enriched_at',
+  ];
+  for (const key of topLevelAllowed) {
+    if (patch[key] === undefined) continue;
+    if (key === 'status') {
+      next.status = normalizePipelineStatus(patch.status, current.status);
+    } else if (key === 'prospect_score') {
+      next.prospect_score = patch.prospect_score ? String(patch.prospect_score).trim().toUpperCase() : null;
+    } else if (key === 'registered_date') {
+      next.registered_date = patch.registered_date ? String(patch.registered_date).slice(0, 10) : null;
+    } else {
+      next[key] = patch[key];
+    }
+  }
+  if (patch.owner && typeof patch.owner === 'object') {
+    const ownerAllowed = ['name', 'linkedin_url', 'linkedin_headline', 'oaciq_license', 'amf_license', 'facebook_url', 'email', 'phone', 'headshot_status'];
+    const ownerPatch = {};
+    for (const key of ownerAllowed) {
+      if (patch.owner[key] !== undefined) ownerPatch[key] = patch.owner[key];
+    }
+    next.owner = { ...defaultPipelineOwner(), ...current.owner, ...ownerPatch };
+  }
+  if (patch.outreach && typeof patch.outreach === 'object') {
+    const outreachAllowed = ['draft', 'sent_at', 'channel', 'notes'];
+    const outreachPatch = {};
+    for (const key of outreachAllowed) {
+      if (patch.outreach[key] !== undefined) outreachPatch[key] = patch.outreach[key];
+    }
+    next.outreach = { ...defaultPipelineOutreach(), ...current.outreach, ...outreachPatch };
+  }
+  return normalizePipelineProspectRecord(next);
+}
+
+const PIPELINE_ENRICH_QUEUE = [];
+let PIPELINE_ENRICH_RUNNING = false;
+const PIPELINE_ENRICH_IN_FLIGHT = new Set();
+
+function pipelineSleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function parseOwnerNameFromLinkedinTitle(title) {
+  const raw = String(title || '').trim();
+  if (!raw) return null;
+  const candidate = raw.split(' - ')[0].split(' | ')[0].trim();
+  if (!candidate) return null;
+  if (candidate.length < 3 || candidate.length > 80) return null;
+  return candidate;
+}
+
+function runEmailRegex(text) {
+  const m = String(text || '').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i);
+  return m ? m[0] : null;
+}
+
+function runPhoneRegex(text) {
+  const m = String(text || '').match(/(?:\+?1[\s.-]?)?(?:\(?[2-9]\d{2}\)?[\s.-]?)?[2-9]\d{2}[\s.-]?\d{4}/);
+  return m ? m[0] : null;
+}
+
+async function serperSearch(query, num = 5) {
+  const apiKey = process.env.SERPER_API_KEY;
+  if (!apiKey) throw new Error('SERPER_API_KEY is not set');
+  const response = await fetch('https://google.serper.dev/search', {
+    method: 'POST',
+    headers: {
+      'X-API-KEY': apiKey,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ q: query, num }),
+  });
+  if (!response.ok) {
+    throw new Error(`Serper request failed (${response.status})`);
+  }
+  return response.json();
+}
+
+function computeHeadshotStatus(record, foundSignals) {
+  const current = String(record?.owner?.headshot_status || '').toLowerCase();
+  if (current === 'present' || current === 'none') return current;
+  const headline = String(record?.owner?.linkedin_headline || '').toLowerCase();
+  if (headline.includes('new broker') || headline.includes('launched')) return 'likely none';
+  const reg = record?.registered_date ? new Date(record.registered_date) : null;
+  if (reg && !Number.isNaN(reg.getTime())) {
+    const ageMs = Date.now() - reg.getTime();
+    const sixMonthsMs = 1000 * 60 * 60 * 24 * 30 * 6;
+    if (ageMs <= sixMonthsMs && !foundSignals.photoFound) return 'none';
+  }
+  if (!foundSignals.anyData) return 'unknown';
+  return 'unknown';
+}
+
+async function runPipelineEnrichment(id) {
+  const rows = readPipelineProspects();
+  const idx = rows.findIndex((item) => String(item.id) === String(id));
+  if (idx === -1) return;
+  let record = rows[idx];
+  rows[idx] = applyPipelineProspectPatch(record, { status: 'enriching' });
+  writePipelineProspects(rows);
+  record = rows[idx];
+
+  const foundSignals = { anyData: false, photoFound: false };
+  const ownerName = record.owner?.name || null;
+  const businessType = record.business_type || '';
+  const city = record.city || 'Montreal';
+
+  // Step 2 (first implementation): LinkedIn via Serper.
+  try {
+    const query = ownerName
+      ? `"${ownerName}" site:linkedin.com/in Montreal`
+      : `"${businessType}" "${city}" site:linkedin.com/in`;
+    const data = await serperSearch(query, 3);
+    const organic = Array.isArray(data?.organic) ? data.organic : [];
+    const linkedinResult = organic.find((r) => String(r?.link || '').includes('linkedin.com/in'));
+    if (linkedinResult) {
+      const patch = { owner: {} };
+      if (linkedinResult.link) patch.owner.linkedin_url = String(linkedinResult.link).trim();
+      patch.owner.linkedin_headline = (linkedinResult.snippet || linkedinResult.title || null);
+      if (!record.owner?.name) {
+        const inferredName = parseOwnerNameFromLinkedinTitle(linkedinResult.title);
+        if (inferredName) patch.owner.name = inferredName;
+      }
+      record = applyPipelineProspectPatch(record, patch);
+      foundSignals.anyData = true;
+    }
+  } catch (err) {
+    console.warn(`[pipeline enrich ${id}] step2-linkedin failed:`, err.message);
+  }
+
+  await pipelineSleep(2200);
+
+  // Step 5 (early fallback): broad web search for Facebook/email/phone.
+  try {
+    const seedName = record.owner?.name || businessType;
+    const queries = [
+      `"${seedName}" "${city}" Facebook`,
+      `"${seedName}" "${businessType}" Montreal`,
+      `"${seedName}" site:facebook.com`,
+    ];
+    let mergedText = '';
+    let facebookUrl = null;
+    for (const q of queries) {
+      const data = await serperSearch(q, 5);
+      const organic = Array.isArray(data?.organic) ? data.organic : [];
+      for (const item of organic) {
+        const link = String(item?.link || '');
+        const snippet = String(item?.snippet || '');
+        const title = String(item?.title || '');
+        mergedText += ` ${title} ${snippet}`;
+        if (!facebookUrl && link.includes('facebook.com')) facebookUrl = link;
+      }
+      if (facebookUrl) break;
+      await pipelineSleep(2200);
+    }
+    const email = runEmailRegex(mergedText);
+    const phone = runPhoneRegex(mergedText);
+    if (facebookUrl || email || phone) {
+      record = applyPipelineProspectPatch(record, {
+        owner: {
+          facebook_url: facebookUrl || undefined,
+          email: email || undefined,
+          phone: phone || undefined,
+        },
+      });
+      foundSignals.anyData = true;
+    }
+  } catch (err) {
+    console.warn(`[pipeline enrich ${id}] step5-broad failed:`, err.message);
+  }
+
+  const outRows = readPipelineProspects();
+  const outIdx = outRows.findIndex((item) => String(item.id) === String(id));
+  if (outIdx === -1) return;
+  const latest = outRows[outIdx];
+  const merged = applyPipelineProspectPatch(latest, {
+    owner: {
+      ...record.owner,
+      headshot_status: computeHeadshotStatus(record, foundSignals),
+    },
+    enriched_at: new Date().toISOString(),
+    status: foundSignals.anyData ? 'enriched' : 'skipped',
+  });
+  outRows[outIdx] = merged;
+  writePipelineProspects(outRows);
+}
+
+async function processPipelineEnrichmentQueue() {
+  if (PIPELINE_ENRICH_RUNNING) return;
+  PIPELINE_ENRICH_RUNNING = true;
+  try {
+    while (PIPELINE_ENRICH_QUEUE.length) {
+      const id = PIPELINE_ENRICH_QUEUE.shift();
+      try {
+        await runPipelineEnrichment(id);
+      } catch (err) {
+        console.error(`[pipeline enrich ${id}] fatal:`, err.message);
+        const rows = readPipelineProspects();
+        const idx = rows.findIndex((item) => String(item.id) === String(id));
+        if (idx !== -1) {
+          rows[idx] = applyPipelineProspectPatch(rows[idx], { status: 'skipped' });
+          writePipelineProspects(rows);
+        }
+      } finally {
+        PIPELINE_ENRICH_IN_FLIGHT.delete(String(id));
+      }
+      await pipelineSleep(2300);
+    }
+  } finally {
+    PIPELINE_ENRICH_RUNNING = false;
+  }
+}
+
+function enqueuePipelineEnrichment(id) {
+  const key = String(id);
+  if (PIPELINE_ENRICH_IN_FLIGHT.has(key)) return false;
+  PIPELINE_ENRICH_IN_FLIGHT.add(key);
+  PIPELINE_ENRICH_QUEUE.push(key);
+  processPipelineEnrichmentQueue().catch((err) => {
+    console.error('Pipeline enrichment queue crashed:', err.message);
+  });
+  return true;
+}
 
 function appendIngestLog(entry) {
   try {
@@ -616,7 +1007,14 @@ app.get('/health', async (req, res) => {
   const hasDb = !!process.env.DATABASE_URL;
   let dbOk = false;
   if (hasDb) { try { await pool.query('SELECT 1'); dbOk = true; } catch(e) {} }
-  res.json({ ok:true, db:dbOk, DATABASE_URL:hasDb?'set':'MISSING', GOOGLE_CLIENT_ID:process.env.GOOGLE_CLIENT_ID?'set':'MISSING', ANTHROPIC_API_KEY:process.env.ANTHROPIC_API_KEY?'set':'MISSING' });
+  res.json({
+    ok: true,
+    db: dbOk,
+    DATABASE_URL: hasDb ? 'set' : 'MISSING',
+    GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID ? 'set' : 'MISSING',
+    ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ? 'set' : 'MISSING',
+    SERPER_API_KEY: process.env.SERPER_API_KEY ? 'set' : 'MISSING',
+  });
 });
 
 // ═══════════════════════════════════════════════════
@@ -2949,6 +3347,191 @@ Extract the conversation and analyze it. Return ONLY valid JSON:
     updated.rows[0].blocks = blocks.rows;
     res.json({ client: updated.rows[0] });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ═══════════════════════════════════════════════════
+// PROSPECT PIPELINE (JSON-backed)
+// ═══════════════════════════════════════════════════
+app.get('/api/pipeline/prospects', requireAuth, async (req, res) => {
+  try {
+    const { score, status, since, category } = req.query;
+    const rows = readPipelineProspects();
+    const normalizedScore = score ? String(score).toUpperCase() : null;
+    const normalizedStatus = status ? String(status).toLowerCase() : null;
+    const normalizedCategory = category ? String(category).toLowerCase() : null;
+    const filtered = rows.filter((row) => {
+      if (normalizedScore && row.prospect_score !== normalizedScore) return false;
+      if (normalizedStatus && row.status !== normalizedStatus) return false;
+      if (since && row.registered_date && row.registered_date < String(since)) return false;
+      if (normalizedCategory) {
+        const bt = String(row.business_type || '').toLowerCase();
+        const inferredCategory =
+          /(courtier|immobilier|courtage)/.test(bt) ? 'broker' :
+          /(assurance|placement|financier|patrimoine)/.test(bt) ? 'insurance' :
+          /(conseiller|consultant)/.test(bt) ? 'consultant' :
+          /(legal|juridique|avocat|notaire)/.test(bt) ? 'legal' :
+          'other';
+        if (inferredCategory !== normalizedCategory) return false;
+      }
+      return true;
+    });
+    res.json(filtered);
+  } catch (err) {
+    console.error('Pipeline prospects list error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/pipeline/prospects/:id', requireAuth, async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const rows = readPipelineProspects();
+    const row = rows.find((item) => String(item.id) === id);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    res.json(row);
+  } catch (err) {
+    console.error('Pipeline prospect get error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch('/api/pipeline/prospects/:id', requireAuth, async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const rows = readPipelineProspects();
+    const idx = rows.findIndex((item) => String(item.id) === id);
+    if (idx === -1) return res.status(404).json({ error: 'Not found' });
+    const updated = applyPipelineProspectPatch(rows[idx], req.body || {});
+    rows[idx] = updated;
+    writePipelineProspects(rows);
+    res.json(updated);
+  } catch (err) {
+    console.error('Pipeline prospect patch error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/pipeline/prospects/sync', requireAuth, async (req, res) => {
+  try {
+    const body = req.body || {};
+    const recordsFromBody = extractSyncRecords(body);
+    const since = body.since ? String(body.since).slice(0, 10) : undefined;
+    let records = recordsFromBody;
+    let source = 'payload';
+    if (!records.length) {
+      records = await pullRegistrySyncRecords({ since });
+      source = 'registry-source';
+    }
+    if (!records.length) {
+      return res.status(400).json({
+        error: 'No records provided. Send { records: [...] } or configure REGISTRY_SYNC_SOURCE_URL.',
+      });
+    }
+    const result = upsertPipelineProspects(records);
+    res.json({ ok: true, source, ...result });
+  } catch (err) {
+    console.error('Pipeline prospects sync error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/pipeline/prospects/:id/draft', requireAuth, async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const rows = readPipelineProspects();
+    const idx = rows.findIndex((item) => String(item.id) === id);
+    if (idx === -1) return res.status(404).json({ error: 'Not found' });
+    const prospect = rows[idx];
+    const owner = prospect.owner || defaultPipelineOwner();
+
+    const systemPrompt = `You are writing outreach messages for Ian Green, a portrait photographer in West Island Montreal who runs a studio called Phixo.
+
+Ian's voice: warm, real, like a knowledgeable friend - not salesy, not corporate.
+Short messages only. No "I hope this message finds you well." No emojis. No hype words
+like "stunning" or "perfect." Write like a real person who noticed something and reached out.
+
+The goal is a brief, direct message that acknowledges their recent launch and offers a
+headshot session. It should feel like a neighbour reaching out, not a cold sales email.`;
+
+    const userPrompt = `Write a short outreach message for this prospect:
+
+Name: ${owner.name || 'not found'}
+Business type: ${prospect.business_type || 'not found'}
+City: ${prospect.city || 'not found'}
+Registered: ${prospect.registered_date || 'not found'}
+LinkedIn headline: ${owner.linkedin_headline || 'not found'}
+OACIQ/AMF status: ${owner.oaciq_license || owner.amf_license || 'not found'}
+
+Keep it under 5 sentences. Write it for LinkedIn DM or email (they're interchangeable).
+Do not include a subject line. Just the message body.`;
+
+    const response = await anthropicCreate({
+      max_tokens: 220,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+    }, { label: 'pipeline.prospect.draft' });
+
+    const draft = String((response?.content || [])
+      .filter((c) => c && c.type === 'text')
+      .map((c) => c.text || '')
+      .join('\n')
+      .trim());
+
+    if (!draft) {
+      return res.status(502).json({ error: 'AI returned an empty draft' });
+    }
+
+    rows[idx] = applyPipelineProspectPatch(rows[idx], { outreach: { draft } });
+    writePipelineProspects(rows);
+    res.json({ ok: true, id, draft, prospect: rows[idx] });
+  } catch (err) {
+    console.error('Pipeline prospect draft error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/pipeline/prospects/:id/enrich', requireAuth, async (req, res) => {
+  try {
+    const id = String(req.params.id);
+    const rows = readPipelineProspects();
+    const row = rows.find((item) => String(item.id) === id);
+    if (!row) return res.status(404).json({ error: 'Not found' });
+    const queued = enqueuePipelineEnrichment(id);
+    res.json({
+      ok: true,
+      id,
+      queued,
+      message: queued ? 'Enrichment queued' : 'Already queued or running',
+    });
+  } catch (err) {
+    console.error('Pipeline prospect enrich error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/pipeline/prospects/enrich-batch', requireAuth, async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body?.ids) ? req.body.ids.map((v) => String(v)) : [];
+    if (!ids.length) return res.status(400).json({ error: 'Body must include ids: string[]' });
+    const rows = readPipelineProspects();
+    const validIds = ids.filter((id) => rows.some((r) => String(r.id) === String(id)));
+    let queued = 0;
+    let alreadyQueued = 0;
+    for (const id of validIds) {
+      if (enqueuePipelineEnrichment(id)) queued++;
+      else alreadyQueued++;
+    }
+    res.json({
+      ok: true,
+      requested: ids.length,
+      valid: validIds.length,
+      queued,
+      alreadyQueued,
+    });
+  } catch (err) {
+    console.error('Pipeline prospect enrich batch error:', err);
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // ═══════════════════════════════════════════════════

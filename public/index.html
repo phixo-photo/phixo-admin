@@ -862,6 +862,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
     <button class="stab" data-stab="bank" onclick="showStab('bank',this)">Content Bank</button>
     <button class="stab" data-stab="ideation" onclick="showStab('ideation',this)" style="color:var(--accent);font-weight:700">✦ Ideation</button>
     <button class="stab" data-stab="formats" onclick="showStab('formats',this)">Format Reference</button>
+    <button class="stab" data-stab="prospects" onclick="showStab('prospects',this)">Prospects</button>
   </div>
 
   <!-- ── VOICE & VALUES ── -->
@@ -1282,6 +1283,61 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
     <div id="formats-body"></div>
   </div>
 
+  <div class="spanel" id="sp-prospects">
+    <div class="snotice" style="margin-bottom:14px">Pipeline prospects are kept in a JSON store and synced via webhook payloads or an optional configured source URL. Existing Discovery board data remains unchanged.</div>
+    <div class="tb" style="margin-bottom:12px">
+      <select id="pp-score" onchange="loadPipelineProspectsDiscovery()" style="width:130px">
+        <option value="">All scores</option>
+        <option value="HIGH">HIGH</option>
+        <option value="MEDIUM">MEDIUM</option>
+        <option value="LOW">LOW</option>
+      </select>
+      <select id="pp-status" onchange="loadPipelineProspectsDiscovery()" style="width:140px">
+        <option value="">All statuses</option>
+        <option value="raw">Raw</option>
+        <option value="enriching">Enriching</option>
+        <option value="enriched">Enriched</option>
+        <option value="contacted">Contacted</option>
+        <option value="booked">Booked</option>
+        <option value="skipped">Skipped</option>
+      </select>
+      <select id="pp-category" onchange="loadPipelineProspectsDiscovery()" style="width:140px">
+        <option value="">All categories</option>
+        <option value="broker">Broker</option>
+        <option value="insurance">Insurance</option>
+        <option value="consultant">Consultant</option>
+        <option value="legal">Legal</option>
+        <option value="other">Other</option>
+      </select>
+      <input type="date" id="pp-since" onchange="loadPipelineProspectsDiscovery()" style="width:150px">
+      <button class="btn btn-ghost btn-sm" onclick="syncPipelineProspects()">↻ Sync</button>
+      <button class="btn btn-dark btn-sm" onclick="enrichAllRawPipelineProspects()">Enrich all raw</button>
+    </div>
+    <div id="pp-sync-result" style="font-size:12px;color:var(--muted);margin-bottom:10px"></div>
+    <div style="overflow:auto;border:1px solid var(--border);border-radius:10px">
+      <table class="stab-table" style="margin:0">
+        <thead>
+          <tr>
+            <th>Business</th>
+            <th>City</th>
+            <th>Registered</th>
+            <th>Employees</th>
+            <th>Score</th>
+            <th>Status</th>
+            <th></th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="pp-body">
+          <tr><td colspan="8" style="text-align:center;color:var(--muted)">No pipeline prospects loaded yet.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div id="pp-detail" class="scard" style="margin-top:12px">
+      <div class="scard-body" style="color:var(--muted)">Select a prospect to view owner details and draft outreach.</div>
+    </div>
+  </div>
+
 </section>
 </main>
 <!-- MODALS -->
@@ -1597,6 +1653,7 @@ function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').
 function typeIcon(t){return{pose:'🧍',meme:'😂',sfx:'🎵',audio:'🎵',image:'🖼️',url:'📄',video:'🎬',conversation:'💬',note:'📝',pdf:'📋',transcript:'📝'}[t]||'📁';}
 function funnelBadge(f){if(!f)return'';const l={tof:'TOF',mof:'MOF',bof:'BOF'};return`<span class="funnel-label fl-${f}">${l[f]||f}</span>`;}
 function statusClass(s){return{lead:'t-lead',booked:'t-booked',shot:'t-shot',delivered:'t-delivered',watching:'t-watching','outreach-ready':'t-outreach',contacted:'t-contacted','not-a-fit':'t-notfit'}[s]||'t-lead';}
+function pipelineStatusClass(s){return{raw:'t-watching',enriching:'t-outreach',enriched:'t-booked',contacted:'t-contacted',booked:'t-delivered',skipped:'t-notfit'}[s]||'t-watching';}
 function tempClass(t){if(!t)return't-lead';const l=t.toLowerCase();return l.startsWith('hot')?'t-hot':l.startsWith('warm')?'t-warm':l.startsWith('cold')?'t-cold':'t-lead';}
 
 function showView(name,navEl){
@@ -2743,6 +2800,192 @@ async function deleteProspect(id){
   if(!confirm('Delete this target?'))return;
   try{await api('DELETE','/api/prospects/'+id);toast('Deleted');showView('discovery');}
   catch(err){toast(err.message,'err');}
+}
+
+// ═══ PIPELINE PROSPECTS (JSON-backed) ═══
+let PIPELINE_PROSPECTS = [];
+let PIPELINE_SELECTED_ID = null;
+function pipelineProspectDetails(id){
+  const p = PIPELINE_PROSPECTS.find(x => String(x.id)===String(id));
+  if(!p)return;
+  PIPELINE_SELECTED_ID = String(id);
+  renderPipelineProspectDetail(p);
+}
+function renderPipelineProspectDetail(p){
+  const el = document.getElementById('pp-detail');
+  if(!el)return;
+  const owner = p.owner || {};
+  const outreach = p.outreach || {};
+  el.innerHTML = `
+    <div class="scard-body">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div>
+          <div class="scard-label">Selected Prospect</div>
+          <div style="font-size:18px;font-family:var(--caslon);margin-bottom:4px">${esc(owner.name || p.business_type || 'Unknown')}</div>
+          <div style="font-size:12px;color:var(--muted)">${esc([p.business_type,p.city,p.registered_date].filter(Boolean).join(' · ') || 'No metadata')}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-dark btn-sm" onclick='generatePipelineDraft(${JSON.stringify(String(p.id))})'>Generate draft</button>
+          <button class="btn btn-ghost btn-sm" onclick='savePipelineDraft(${JSON.stringify(String(p.id))})'>Save draft</button>
+          <button class="btn btn-ghost btn-sm" onclick='markPipelineContacted(${JSON.stringify(String(p.id))})'>Mark contacted</button>
+        </div>
+      </div>
+      <div style="margin-top:12px;display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:8px">
+        <div><div style="font-size:10px;color:var(--muted);text-transform:uppercase">LinkedIn</div><div style="font-size:12px">${owner.linkedin_url?`<a href="${esc(owner.linkedin_url)}" target="_blank" rel="noopener">Open</a>`:'—'}</div></div>
+        <div><div style="font-size:10px;color:var(--muted);text-transform:uppercase">Facebook</div><div style="font-size:12px">${owner.facebook_url?`<a href="${esc(owner.facebook_url)}" target="_blank" rel="noopener">Open</a>`:'—'}</div></div>
+        <div><div style="font-size:10px;color:var(--muted);text-transform:uppercase">Email</div><div style="font-size:12px">${esc(owner.email || '—')}</div></div>
+        <div><div style="font-size:10px;color:var(--muted);text-transform:uppercase">Phone</div><div style="font-size:12px">${esc(owner.phone || '—')}</div></div>
+      </div>
+      <div style="margin-top:10px;display:grid;grid-template-columns:170px 1fr;gap:10px;align-items:start">
+        <div>
+          <label>Outreach channel</label>
+          <select id="pp-channel">
+            <option value="" ${!outreach.channel?'selected':''}>— select —</option>
+            <option value="linkedin" ${outreach.channel==='linkedin'?'selected':''}>LinkedIn</option>
+            <option value="email" ${outreach.channel==='email'?'selected':''}>Email</option>
+            <option value="facebook" ${outreach.channel==='facebook'?'selected':''}>Facebook</option>
+            <option value="instagram" ${outreach.channel==='instagram'?'selected':''}>Instagram</option>
+            <option value="phone" ${outreach.channel==='phone'?'selected':''}>Phone</option>
+            <option value="other" ${outreach.channel==='other'?'selected':''}>Other</option>
+          </select>
+        </div>
+        <div>
+          <label>Outreach notes</label>
+          <textarea id="pp-notes" style="min-height:62px" placeholder="Any context about contact timing, response, or follow-up.">${esc(outreach.notes || '')}</textarea>
+        </div>
+      </div>
+      <label style="margin-top:10px">Draft message</label>
+      <textarea id="pp-draft-text" style="min-height:120px" placeholder="Generate a draft, then edit it before sending.">${esc(outreach.draft || '')}</textarea>
+    </div>
+  `;
+}
+async function loadPipelineProspectsDiscovery(){
+  const p=new URLSearchParams();
+  const score=document.getElementById('pp-score')?.value||'';
+  const status=document.getElementById('pp-status')?.value||'';
+  const since=document.getElementById('pp-since')?.value||'';
+  const category=document.getElementById('pp-category')?.value||'';
+  if(score)p.set('score',score);
+  if(status)p.set('status',status);
+  if(since)p.set('since',since);
+  if(category)p.set('category',category);
+  const rows=await api('GET','/api/pipeline/prospects?'+p.toString());
+  PIPELINE_PROSPECTS = rows || [];
+  const body=document.getElementById('pp-body');
+  if(!body)return;
+  if(!PIPELINE_PROSPECTS.length){
+    body.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--muted)">No prospects match these filters.</td></tr>';
+    const detail = document.getElementById('pp-detail');
+    if(detail) detail.innerHTML = '<div class="scard-body" style="color:var(--muted)">Select a prospect to view owner details and draft outreach.</div>';
+    return;
+  }
+  body.innerHTML = PIPELINE_PROSPECTS.map(p=>`
+    <tr>
+      <td>${esc(p.business_type || '—')}</td>
+      <td>${esc(p.city || '—')}</td>
+      <td>${esc(p.registered_date || '—')}</td>
+      <td>${esc(p.employee_range || '—')}</td>
+      <td>${esc(p.prospect_score || 'LOW')}</td>
+      <td><span class="tag ${pipelineStatusClass(p.status)}">${esc(p.status || 'raw')}</span></td>
+      <td>
+        <button class="btn btn-ghost btn-xs" onclick='pipelineProspectDetails(${JSON.stringify(String(p.id))})'>Details</button>
+      </td>
+      <td>
+        <button class="btn btn-dark btn-xs" ${p.status==='enriching'?'disabled':''} onclick='enrichPipelineProspect(${JSON.stringify(String(p.id))})'>Enrich</button>
+      </td>
+    </tr>
+  `).join('');
+  if (PIPELINE_SELECTED_ID) {
+    const selected = PIPELINE_PROSPECTS.find((x) => String(x.id) === String(PIPELINE_SELECTED_ID));
+    if (selected) renderPipelineProspectDetail(selected);
+  }
+}
+async function syncPipelineProspects(){
+  try{
+    const since = document.getElementById('pp-since')?.value || null;
+    const payload = since ? { since } : {};
+    const r = await api('POST','/api/pipeline/prospects/sync',payload);
+    const txt = `Synced ${r.total} total (${r.created} new, ${r.updated} updated) via ${r.source}.`;
+    const el = document.getElementById('pp-sync-result');
+    if(el) el.textContent = txt;
+    toast('Pipeline prospects synced','ok');
+    loadPipelineProspectsDiscovery();
+  }catch(err){
+    const el = document.getElementById('pp-sync-result');
+    if(el) el.textContent = err.message;
+    toast(err.message,'err');
+  }
+}
+async function enrichPipelineProspect(id){
+  try{
+    const r = await api('POST',`/api/pipeline/prospects/${encodeURIComponent(id)}/enrich`);
+    toast(r.message || 'Enrichment queued','ok');
+    loadPipelineProspectsDiscovery();
+  }catch(err){
+    toast(err.message,'err');
+  }
+}
+async function enrichAllRawPipelineProspects(){
+  try{
+    const ids = (PIPELINE_PROSPECTS||[]).filter(p=>String(p.status||'')==='raw').map(p=>String(p.id));
+    if(!ids.length){toast('No raw prospects in current filter');return;}
+    const r = await api('POST','/api/pipeline/prospects/enrich-batch',{ids});
+    toast(`Queued ${r.queued} enrichment jobs`,'ok');
+    loadPipelineProspectsDiscovery();
+  }catch(err){
+    toast(err.message,'err');
+  }
+}
+async function generatePipelineDraft(id){
+  try{
+    const r = await api('POST',`/api/pipeline/prospects/${encodeURIComponent(id)}/draft`);
+    const box = document.getElementById('pp-draft-text');
+    if(box) box.value = r.draft || '';
+    toast('Draft generated','ok');
+    if (r.prospect) {
+      const i = PIPELINE_PROSPECTS.findIndex((x) => String(x.id)===String(id));
+      if (i !== -1) PIPELINE_PROSPECTS[i] = r.prospect;
+      renderPipelineProspectDetail(r.prospect);
+    } else {
+      loadPipelineProspectsDiscovery();
+    }
+  }catch(err){
+    toast(err.message,'err');
+  }
+}
+async function savePipelineDraft(id){
+  try{
+    const draft = document.getElementById('pp-draft-text')?.value || '';
+    const channel = document.getElementById('pp-channel')?.value || null;
+    const notes = document.getElementById('pp-notes')?.value || '';
+    const p = await api('PATCH',`/api/pipeline/prospects/${encodeURIComponent(id)}`,{
+      outreach:{draft, channel, notes}
+    });
+    const i = PIPELINE_PROSPECTS.findIndex((x) => String(x.id)===String(id));
+    if (i !== -1) PIPELINE_PROSPECTS[i] = p;
+    renderPipelineProspectDetail(p);
+    toast('Outreach saved','ok');
+  }catch(err){
+    toast(err.message,'err');
+  }
+}
+async function markPipelineContacted(id){
+  try{
+    const draft = document.getElementById('pp-draft-text')?.value || '';
+    const channel = document.getElementById('pp-channel')?.value || null;
+    const notes = document.getElementById('pp-notes')?.value || '';
+    const p = await api('PATCH',`/api/pipeline/prospects/${encodeURIComponent(id)}`,{
+      status:'contacted',
+      outreach:{draft, channel, notes, sent_at:new Date().toISOString()}
+    });
+    const i = PIPELINE_PROSPECTS.findIndex((x) => String(x.id)===String(id));
+    if (i !== -1) PIPELINE_PROSPECTS[i] = p;
+    renderPipelineProspectDetail(p);
+    loadPipelineProspectsDiscovery();
+    toast('Marked contacted','ok');
+  }catch(err){
+    toast(err.message,'err');
+  }
 }
 
 // ═══ RESEARCH ═══
@@ -4569,6 +4812,7 @@ function showStab(name, el) {
   if (name === 'bank') renderBank();
   if (name === 'weekly') renderWeekly();
   if (name === 'formats') renderFormats();
+  if (name === 'prospects') loadPipelineProspectsDiscovery();
 }
 
 const WEEKLY_POSTS = [
