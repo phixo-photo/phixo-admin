@@ -59,29 +59,29 @@ NODE_ENV=production
 
 ### Prospect pipeline (Strategy → Prospects)
 
-- **Sync** uses the official Quebec **Registre des entreprises** JSON API by default (no paid tools). It searches a West Island city list and upserts by NEQ.
-- **Enrichment** uses Serper (`SERPER_API_KEY=...`).
-- **Drafts** use Anthropic (`ANTHROPIC_API_KEY`).
+**Sync order:** manual `records` in request body → **Apollo API** (if enabled) → optional **JSON URL** → **CSV file** (`DATA_PATH/phixo_prospects.csv` or `REGISTRY_PROSPECTS_CSV`) → **Quebec Registre** direct.
 
-**Apollo / remote JSON feed (optional, e.g. free trial):**
+**Apollo.io trial (POST `/v1/mixed_companies/search` + people match):**
 
 ```
-REGISTRY_SYNC_SOURCE_URL=https://your-apollo-or-feed-url/...
-REGISTRY_SYNC_SOURCE_TOKEN=...   # if the feed requires Bearer auth
+APOLLO_API_KEY=your_key
 REGISTRY_SYNC_USE_APOLLO=true
 ```
 
-When the trial ends, turn off the remote feed (Quebec direct still runs):
+Day 15 (trial ends) — one change:
 
 ```
 REGISTRY_SYNC_USE_APOLLO=false
 ```
 
-You can leave `REGISTRY_SYNC_SOURCE_URL` in Railway for later; it is ignored while `REGISTRY_SYNC_USE_APOLLO` is `false`.
+Then sync uses CSV (if you upload `phixo_prospects.csv` to your volume) and/or Quebec Registre.
 
-Same idea with generic naming: `REGISTRY_SYNC_REMOTE_ENABLED=true|false` (if both are set, `REGISTRY_SYNC_USE_APOLLO` wins).
+Optional Apollo tuning: `APOLLO_ORG_KEYWORD_TAGS`, `APOLLO_ORG_LOCATIONS`, `APOLLO_PER_PAGE`, `APOLLO_FETCH_PEOPLE`, `APOLLO_PEOPLE_DELAY_MS`, `APOLLO_PEOPLE_SEARCH_MAX`, `APOLLO_EMPLOYEE_RANGES`.
 
-If you **only** set `REGISTRY_SYNC_SOURCE_URL` and neither flag, the app still calls that URL (backward compatible).
+**Optional JSON feed (not Apollo):** `REGISTRY_SYNC_SOURCE_URL` + `REGISTRY_SYNC_REMOTE_ENABLED=true` (or legacy: URL alone still enables GET fetch).
+
+- **Enrichment:** Serper (`SERPER_API_KEY=...`).
+- **Drafts:** Anthropic (`ANTHROPIC_API_KEY`).
 
 Optional:
 

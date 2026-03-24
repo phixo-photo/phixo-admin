@@ -9,6 +9,8 @@ const { Readable } = require('stream');
 const fs = require('fs');
 const { spawn } = require('child_process');
 
+const apolloRegistry = require('./lib/apolloRegistry');
+
 // Optional dependencies for document reading
 let pdfParse, mammoth;
 try {
@@ -193,16 +195,19 @@ function extractSyncRecords(payload) {
   return [];
 }
 
+/** Apollo.io API (trial): REGISTRY_SYNC_USE_APOLLO=true + APOLLO_API_KEY */
+function shouldUseApolloApi() {
+  return (
+    ['true', '1', 'yes', 'on'].includes(String(process.env.REGISTRY_SYNC_USE_APOLLO || '').toLowerCase().trim()) &&
+    !!process.env.APOLLO_API_KEY
+  );
+}
+
 /**
- * Remote registry feed (e.g. Apollo trial webhook URL, or any JSON endpoint).
- * Turn off when trial ends: REGISTRY_SYNC_USE_APOLLO=false (or REGISTRY_SYNC_REMOTE_ENABLED=false).
- * If unset and REGISTRY_SYNC_SOURCE_URL is set, remote is still used (backward compatible).
+ * Optional JSON feed URL (GET). Not Apollo — use shouldUseApolloApi for Apollo.
+ * REGISTRY_SYNC_REMOTE_ENABLED=true or legacy: URL set without explicit false.
  */
 function shouldUseRegistryRemoteSource() {
-  const apollo = process.env.REGISTRY_SYNC_USE_APOLLO;
-  if (apollo !== undefined && String(apollo).trim() !== '') {
-    return ['true', '1', 'yes', 'on'].includes(String(apollo).toLowerCase().trim());
-  }
   const remote = process.env.REGISTRY_SYNC_REMOTE_ENABLED;
   if (remote !== undefined && String(remote).trim() !== '') {
     return ['true', '1', 'yes', 'on'].includes(String(remote).toLowerCase().trim());
@@ -3715,9 +3720,35 @@ app.post('/api/pipeline/prospects/sync', requireAuth, async (req, res) => {
     const since = body.since ? String(body.since).slice(0, 10) : undefined;
     let records = recordsFromBody;
     let source = 'payload';
+    if (!records.length && shouldUseApolloApi()) {
+      records = await apolloRegistry.fetchFromApollo({
+        keywords: body.keywords,
+        limit: body.limit,
+        min_date: body.min_date || since,
+        since,
+        page: body.page || 1,
+      });
+      if (records.length) source = 'apollo';
+    }
     if (!records.length && shouldUseRegistryRemoteSource()) {
       records = await pullRegistrySyncRecords({ since });
       if (records.length) source = 'registry-remote';
+    }
+    if (!records.length) {
+      const csvPath =
+        process.env.REGISTRY_PROSPECTS_CSV ||
+        process.env.PHIXO_PROSPECTS_CSV ||
+        path.join(DATA_PATH, 'phixo_prospects.csv');
+      records = apolloRegistry.readProspectsFromCSV(csvPath);
+      if (records.length) {
+        records = apolloRegistry.searchCsvLikeMcp(records, {
+          keywords: body.keywords || '',
+          minDate: body.min_date || since || '2024-01-01',
+          scoreFilter: body.score_filter || 'HIGH',
+          limit: body.limit || 500,
+        });
+        if (records.length) source = 'csv';
+      }
     }
     if (!records.length && String(process.env.REGISTRY_SYNC_DISABLE_QUEBEC_DIRECT || '').toLowerCase() !== 'true') {
       records = await fetchQuebecRegistryDirectSync({ since });
@@ -3726,7 +3757,7 @@ app.post('/api/pipeline/prospects/sync', requireAuth, async (req, res) => {
     if (!records.length) {
       return res.status(400).json({
         error:
-          'No records found. Send { records: [...] }, set REGISTRY_SYNC_SOURCE_URL, or use Sync to pull from the Quebec Registre (direct).',
+          'No records found. Options: send records in body, enable Apollo (REGISTRY_SYNC_USE_APOLLO + APOLLO_API_KEY), add phixo_prospects.csv to DATA_PATH, set REGISTRY_SYNC_SOURCE_URL, or use Quebec Registre direct.',
       });
     }
     const result = upsertPipelineProspects(records);
