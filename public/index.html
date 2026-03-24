@@ -1284,7 +1284,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
   </div>
 
   <div class="spanel" id="sp-prospects">
-    <div class="snotice" style="margin-bottom:14px">Pipeline prospects are stored in JSON. <strong>Sync</strong> pulls from the official Quebec Registre des entreprises API (West Island cities by default), or from <code>REGISTRY_SYNC_SOURCE_URL</code> if set. Discovery board data is unchanged.</div>
+    <div class="snotice" style="margin-bottom:14px">Pipeline prospects are stored in JSON. <strong>Sync</strong> tries Quebec Registre (West Island cities), optional Apollo/remote URL, then CSV if present. You don’t need a CSV file — use <strong>Paste JSON</strong> below or rely on Quebec/Apollo. Discovery board data is unchanged.</div>
     <div class="tb" style="margin-bottom:12px">
       <select id="pp-score" onchange="loadPipelineProspectsDiscovery()" style="width:130px">
         <option value="">All scores</option>
@@ -1313,7 +1313,13 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
       <button class="btn btn-ghost btn-sm" onclick="syncPipelineProspects()">↻ Sync</button>
       <button class="btn btn-dark btn-sm" onclick="enrichAllRawPipelineProspects()">Enrich all raw</button>
     </div>
-    <div id="pp-sync-result" style="font-size:12px;color:var(--muted);margin-bottom:10px"></div>
+    <details class="snotice" style="margin-bottom:12px">
+      <summary style="cursor:pointer;font-weight:600">Paste JSON (no CSV on server)</summary>
+      <p style="margin:8px 0;font-size:12px;color:var(--muted)">POST an array of prospects to the same sync API. Minimum: <code>id</code> (e.g. NEQ) and ideally <code>business_type</code>, <code>city</code>, <code>registered_date</code>.</p>
+      <textarea id="pp-json-import" rows="5" placeholder='[{"id":"1234567890","business_type":"Example Inc","city":"Dorval","registered_date":"2024-06-01"}]' style="width:100%;font-family:ui-monospace,monospace;font-size:12px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--card)"></textarea>
+      <button type="button" class="btn btn-dark btn-sm" style="margin-top:8px" onclick="syncPipelineProspectsFromJson()">Import pasted JSON</button>
+    </details>
+    <div id="pp-sync-result" style="font-size:12px;color:var(--muted);margin-bottom:10px;white-space:pre-wrap"></div>
     <div style="overflow:auto;border:1px solid var(--border);border-radius:10px">
       <table class="stab-table" style="margin:0">
         <thead>
@@ -1646,7 +1652,12 @@ async function api(method,url,body){
   if(body instanceof FormData){opts.body=body;}
   else if(body){opts.headers['Content-Type']='application/json';opts.body=JSON.stringify(body);}
   const r=await fetch(url,opts);
-  if(!r.ok){const e=await r.json().catch(()=>({error:'Failed'}));throw new Error(e.error||'Failed');}
+  if(!r.ok){
+    const e=await r.json().catch(()=>({error:'Failed'}));
+    let msg=e.error||'Failed';
+    if(e.details&&typeof e.details==='object'){msg+='\n\n'+JSON.stringify(e.details,null,2);}
+    const err=new Error(msg);err.details=e.details;throw err;
+  }
   return r.json();
 }
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
@@ -2913,7 +2924,27 @@ async function syncPipelineProspects(){
   }catch(err){
     const el = document.getElementById('pp-sync-result');
     if(el) el.textContent = err.message;
-    toast(err.message,'err');
+    toast(err.message.split('\n')[0],'err');
+  }
+}
+async function syncPipelineProspectsFromJson(){
+  const raw = document.getElementById('pp-json-import')?.value?.trim();
+  if(!raw){toast('Paste a JSON array first','err');return;}
+  let records;
+  try{records=JSON.parse(raw);}catch(e){toast('Invalid JSON: '+e.message,'err');return;}
+  if(!Array.isArray(records)){records=[records];}
+  if(!records.length){toast('Array is empty','err');return;}
+  try{
+    const r = await api('POST','/api/pipeline/prospects/sync',{records});
+    const txt = `Imported ${r.total} total (${r.created} new, ${r.updated} updated) via ${r.source}.`;
+    const el = document.getElementById('pp-sync-result');
+    if(el) el.textContent = txt;
+    toast('Prospects imported','ok');
+    loadPipelineProspectsDiscovery();
+  }catch(err){
+    const el = document.getElementById('pp-sync-result');
+    if(el) el.textContent = err.message;
+    toast(err.message.split('\n')[0],'err');
   }
 }
 async function enrichPipelineProspect(id){

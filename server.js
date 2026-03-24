@@ -270,7 +270,7 @@ function getDefaultRegistrySinceDate(since) {
     const d = new Date(String(since).slice(0, 10));
     return Number.isNaN(d.getTime()) ? null : d;
   }
-  const days = Math.max(1, Math.min(365, parseInt(process.env.REGISTRY_SYNC_DEFAULT_DAYS || '90', 10) || 90));
+  const days = Math.max(1, Math.min(3650, parseInt(process.env.REGISTRY_SYNC_DEFAULT_DAYS || '365', 10) || 365));
   const d = new Date();
   d.setDate(d.getDate() - days);
   d.setHours(0, 0, 0, 0);
@@ -434,7 +434,10 @@ function searchRowToProspect(row, searchCity, sinceDate) {
   const city = inferCityFromAddress(adresse, searchCity);
   const inCityList = city && getRegistrySearchCities().some((c) => c.toLowerCase() === String(city).toLowerCase());
   const west = postalMatchesWestIsland(postal) || inCityList;
-  if (!west) return null;
+  // Searches are already scoped to West Island city names; rows often lack parseable postal/city in AdressePrimaire.
+  const trustCitySearch =
+    String(process.env.REGISTRY_SYNC_TRUST_CITY_SEARCH || 'true').toLowerCase() !== 'false';
+  if (!west && !(trustCitySearch && searchCity)) return null;
   const registered = dateInit ? formatDateYmd(dateInit) : (row.DateInitiale ? String(row.DateInitiale).slice(0, 10) : null);
   const name = String(row.Nom || '').trim();
   return {
@@ -3720,44 +3723,114 @@ app.post('/api/pipeline/prospects/sync', requireAuth, async (req, res) => {
     const since = body.since ? String(body.since).slice(0, 10) : undefined;
     let records = recordsFromBody;
     let source = 'payload';
-    if (!records.length && shouldUseApolloApi()) {
-      records = await apolloRegistry.fetchFromApollo({
-        keywords: body.keywords,
-        limit: body.limit,
-        min_date: body.min_date || since,
-        since,
-        page: body.page || 1,
-      });
-      if (records.length) source = 'apollo';
+    const details = {};
+
+    if (records.length) {
+      details.payload = { count: records.length };
+    } else {
+      details.payload = 'none';
     }
-    if (!records.length && shouldUseRegistryRemoteSource()) {
-      records = await pullRegistrySyncRecords({ since });
-      if (records.length) source = 'registry-remote';
-    }
+
     if (!records.length) {
-      const csvPath =
+      if (shouldUseApolloApi()) {
+        try {
+          records = await apolloRegistry.fetchFromApollo({
+            keywords: body.keywords,
+            limit: body.limit,
+            min_date: body.min_date || since,
+            since,
+            page: body.page || 1,
+          });
+          details.apollo = { ok: true, count: records.length };
+          if (records.length) source = 'apollo';
+        } catch (e) {
+          details.apollo = { ok: false, error: e.message };
+        }
+      } else {
+        details.apollo = {
+          skipped:
+            'Set REGISTRY_SYNC_USE_APOLLO=true and APOLLO_API_KEY (or leave off; Apollo search may require a paid plan)',
+        };
+      }
+    }
+
+    if (!records.length) {
+      if (shouldUseRegistryRemoteSource()) {
+        try {
+          records = await pullRegistrySyncRecords({ since });
+          details.remote = { ok: true, count: records.length };
+          if (records.length) source = 'registry-remote';
+        } catch (e) {
+          details.remote = { ok: false, error: e.message };
+        }
+      } else {
+        details.remote = {
+          skipped:
+            'Set REGISTRY_SYNC_REMOTE_ENABLED=true and REGISTRY_SYNC_SOURCE_URL to a JSON feed, or omit',
+        };
+      }
+    }
+
+    if (!records.length) {
+      const csvPath = path.resolve(
         process.env.REGISTRY_PROSPECTS_CSV ||
-        process.env.PHIXO_PROSPECTS_CSV ||
-        path.join(DATA_PATH, 'phixo_prospects.csv');
-      records = apolloRegistry.readProspectsFromCSV(csvPath);
-      if (records.length) {
-        records = apolloRegistry.searchCsvLikeMcp(records, {
+          process.env.PHIXO_PROSPECTS_CSV ||
+          path.join(DATA_PATH, 'phixo_prospects.csv'),
+      );
+      const csvExists = fs.existsSync(csvPath);
+      const csvRowsFull = apolloRegistry.readProspectsFromCSV(csvPath);
+      const csvMinDate =
+        body.min_date || since || process.env.REGISTRY_CSV_MIN_DATE || '1900-01-01';
+      const csvScoreFilter = (
+        body.score_filter ||
+        process.env.REGISTRY_CSV_SCORE_FILTER ||
+        'LOW'
+      ).toUpperCase();
+      details.csv = {
+        path: csvPath,
+        exists: csvExists,
+        rowsRead: csvRowsFull.length,
+        filter: { minDate: csvMinDate, scoreFilter: csvScoreFilter },
+      };
+      if (csvRowsFull.length) {
+        records = apolloRegistry.searchCsvLikeMcp(csvRowsFull, {
           keywords: body.keywords || '',
-          minDate: body.min_date || since || '2024-01-01',
-          scoreFilter: body.score_filter || 'HIGH',
+          minDate: csvMinDate,
+          scoreFilter: csvScoreFilter,
           limit: body.limit || 500,
         });
+        details.csv.rowsAfterFilter = records.length;
         if (records.length) source = 'csv';
       }
     }
-    if (!records.length && String(process.env.REGISTRY_SYNC_DISABLE_QUEBEC_DIRECT || '').toLowerCase() !== 'true') {
-      records = await fetchQuebecRegistryDirectSync({ since });
-      source = 'quebec-registry-direct';
+
+    const quebecDisabled =
+      String(process.env.REGISTRY_SYNC_DISABLE_QUEBEC_DIRECT || '').toLowerCase() === 'true';
+    if (!records.length && !quebecDisabled) {
+      try {
+        records = await fetchQuebecRegistryDirectSync({ since });
+        details.quebec = {
+          ok: true,
+          count: records.length,
+          defaultSinceDays: process.env.REGISTRY_SYNC_DEFAULT_DAYS || '90',
+        };
+        if (records.length === 0) {
+          details.quebec.hint =
+            '0 rows after West Island / city / since-date filters. Widen date (clear "Since" in UI or raise REGISTRY_SYNC_DEFAULT_DAYS), ensure DATA_PATH has phixo_prospects.csv, or host a JSON feed. Datacenter IP may get HTML from the Quebec site (use REGISTRY_SYNC_SOURCE_URL).';
+        }
+        if (records.length) source = 'quebec-registry-direct';
+      } catch (e) {
+        details.quebec = { ok: false, error: e.message };
+      }
+    } else if (!records.length && quebecDisabled) {
+      details.quebec = { skipped: 'REGISTRY_SYNC_DISABLE_QUEBEC_DIRECT=true' };
     }
+
     if (!records.length) {
       return res.status(400).json({
         error:
-          'No records found. Options: send records in body, enable Apollo (REGISTRY_SYNC_USE_APOLLO + APOLLO_API_KEY), add phixo_prospects.csv to DATA_PATH, set REGISTRY_SYNC_SOURCE_URL, or use Quebec Registre direct.',
+          'No records returned from any sync source. Expand `details` below to see what ran and what to change.',
+        details,
       });
     }
     const result = upsertPipelineProspects(records);

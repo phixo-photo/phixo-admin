@@ -87,11 +87,16 @@ Optional:
 
 ```
 REGISTRY_SYNC_CITIES=Pointe-Claire,Kirkland,Beaconsfield
-REGISTRY_SYNC_DEFAULT_DAYS=90
+REGISTRY_SYNC_DEFAULT_DAYS=365
+# Quebec city search: keep rows even when postal/city parsing fails on AdressePrimaire (default on)
+REGISTRY_SYNC_TRUST_CITY_SEARCH=true
 REGISTRY_SYNC_MAX_PAGES=8
 REGISTRY_SYNC_DELAY_MS=2200
 REGISTRY_POSTAL_PREFIXES=H9,H8
 REGISTRY_SYNC_FETCH_DETAIL=false
+# CSV sync defaults (when Apollo/remote/Quebec return nothing): include all scores, old dates
+REGISTRY_CSV_MIN_DATE=1900-01-01
+REGISTRY_CSV_SCORE_FILTER=LOW
 SERPER_API_KEY=your_serper_key
 PROSPECTS_FILE=/data/prospects.json
 DATA_PATH=/data
