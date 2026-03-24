@@ -57,6 +57,33 @@ SESSION_SECRET=your_key_here
 NODE_ENV=production
 ```
 
+### Prospect pipeline (Strategy → Prospects)
+
+- **Sync** uses the official Quebec **Registre des entreprises** JSON API by default (no Apollo). It searches a West Island city list and upserts by NEQ.
+- **Enrichment** uses Serper (`SERPER_API_KEY=...`).
+- **Drafts** use Anthropic (`ANTHROPIC_API_KEY`).
+
+Optional:
+
+```
+REGISTRY_SYNC_CITIES=Pointe-Claire,Kirkland,Beaconsfield
+REGISTRY_SYNC_DEFAULT_DAYS=90
+REGISTRY_SYNC_MAX_PAGES=8
+REGISTRY_SYNC_DELAY_MS=2200
+REGISTRY_POSTAL_PREFIXES=H9,H8
+REGISTRY_SYNC_FETCH_DETAIL=false
+SERPER_API_KEY=your_serper_key
+PROSPECTS_FILE=/data/prospects.json
+DATA_PATH=/data
+```
+
+To disable direct Quebec pulls and only use your own webhook URL:
+
+```
+REGISTRY_SYNC_DISABLE_QUEBEC_DIRECT=true
+REGISTRY_SYNC_SOURCE_URL=https://your-server.example.com/registry-feed.json
+```
+
 ---
 
 ## Step 3: Point your domain

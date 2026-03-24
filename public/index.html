@@ -1284,7 +1284,7 @@ label{font-size:10px;font-weight:700;color:var(--muted);display:block;margin-bot
   </div>
 
   <div class="spanel" id="sp-prospects">
-    <div class="snotice" style="margin-bottom:14px">Pipeline prospects are kept in a JSON store and synced via webhook payloads or an optional configured source URL. Existing Discovery board data remains unchanged.</div>
+    <div class="snotice" style="margin-bottom:14px">Pipeline prospects are stored in JSON. <strong>Sync</strong> pulls from the official Quebec Registre des entreprises API (West Island cities by default), or from <code>REGISTRY_SYNC_SOURCE_URL</code> if set. Discovery board data is unchanged.</div>
     <div class="tb" style="margin-bottom:12px">
       <select id="pp-score" onchange="loadPipelineProspectsDiscovery()" style="width:130px">
         <option value="">All scores</option>

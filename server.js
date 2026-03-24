@@ -210,6 +210,286 @@ async function pullRegistrySyncRecords({ since }) {
   return extractSyncRecords(payload);
 }
 
+// ── Quebec Registre des entreprises (official JSON API, same as github.com/quebec/req) ──
+const QUEBEC_REGISTRY_BASE = process.env.QUEBEC_REGISTRY_BASE || 'https://www.registreentreprises.gouv.qc.ca';
+const QUEBEC_REGISTRY_SEARCH_PATH =
+  '/RQAnonymeGR/GR/GR03/GR03A2_20A_PIU_RechEntMob_PC/ServiceCommunicationInterne.asmx/ObtenirListeEntreprises';
+const QUEBEC_REGISTRY_DETAIL_PATH =
+  '/RQAnonymeGR/GR/GR03/GR03A2_20A_PIU_RechEntMob_PC/ServiceCommunicationInterne.asmx/ObtenirEtatsRensEntreprise';
+const QUEBEC_REGISTRY_REFERER =
+  'https://www.registreentreprises.gouv.qc.ca/RQAnonymeGR/GR/GR03/GR03A2_20A_PIU_RechEntMob_PC/index.html';
+
+const REGISTRY_DOMAIN_REQ = 1;
+const REGISTRY_TYPE_MOTS = 2;
+const REGISTRY_ETENDUE_TOUS = 4;
+
+function parseQuebecRegistryDate(value) {
+  if (value == null || value === '') return null;
+  const s = String(value).trim();
+  const msMatch = s.match(/\/Date\((\d+)\)\//);
+  if (msMatch) {
+    const d = new Date(parseInt(msMatch[1], 10));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const iso = new Date(s);
+  return Number.isNaN(iso.getTime()) ? null : iso;
+}
+
+function formatDateYmd(d) {
+  if (!d) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function getDefaultRegistrySinceDate(since) {
+  if (since) {
+    const d = new Date(String(since).slice(0, 10));
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const days = Math.max(1, Math.min(365, parseInt(process.env.REGISTRY_SYNC_DEFAULT_DAYS || '90', 10) || 90));
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+function getRegistrySearchCities() {
+  const raw = process.env.REGISTRY_SYNC_CITIES;
+  if (raw && String(raw).trim()) {
+    return String(raw)
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return [
+    'Pointe-Claire',
+    'Kirkland',
+    'Beaconsfield',
+    'Baie-D\'Urfé',
+    'Sainte-Anne-de-Bellevue',
+    'Senneville',
+    'Dollard-des-Ormeaux',
+    'Dorval',
+    'Pierrefonds',
+    'Roxboro',
+    'L\'Île-Bizard',
+  ];
+}
+
+function postalMatchesWestIsland(postal) {
+  if (!postal) return false;
+  const compact = String(postal).replace(/\s/g, '').toUpperCase();
+  const prefixes = (process.env.REGISTRY_POSTAL_PREFIXES || 'H9,H8')
+    .split(',')
+    .map((p) => p.trim().toUpperCase())
+    .filter(Boolean);
+  return prefixes.some((pre) => compact.startsWith(pre));
+}
+
+function extractPostalFromAddress(text) {
+  const m = String(text || '').match(/\b([A-Z]\d[A-Z])\s?(\d[A-Z]\d)\b/i);
+  return m ? `${m[1]}${m[2]}`.toUpperCase() : null;
+}
+
+function inferCityFromAddress(adresse, searchCity) {
+  const a = String(adresse || '');
+  if (searchCity && a.toLowerCase().includes(searchCity.toLowerCase())) return searchCity;
+  const lower = a.toLowerCase();
+  for (const c of getRegistrySearchCities()) {
+    if (lower.includes(c.toLowerCase())) return c;
+  }
+  return null;
+}
+
+function mapNombreEmployesToRange(n) {
+  const s = String(n || '').trim().toUpperCase();
+  if (!s) return null;
+  if (/^[A-Z]$/.test(s)) return s;
+  return null;
+}
+
+function scoreFromBusinessType(text) {
+  const t = String(text || '').toLowerCase();
+  if (/(courtier|immobilier|realtor|real estate|avocat|notaire|comptable)/.test(t)) return 'HIGH';
+  if (/(assurance|financier|conseiller|consultant)/.test(t)) return 'MEDIUM';
+  return 'LOW';
+}
+
+async function quebecRegistryFetchJson(path, bodyObj) {
+  const url = `${QUEBEC_REGISTRY_BASE}${path}`;
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json; charset=UTF-8',
+      Accept: 'application/json, text/javascript, */*; q=0.01',
+      'User-Agent':
+        'Mozilla/5.0 (compatible; phixo-admin/1.0; +https://admin.phixo.ca) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      Referer: QUEBEC_REGISTRY_REFERER,
+      Origin: QUEBEC_REGISTRY_BASE,
+      'Accept-Language': 'en-CA,en;q=0.9,fr-CA;q=0.8',
+    },
+    body: JSON.stringify(bodyObj),
+  });
+  const ct = res.headers.get('content-type') || '';
+  const raw = await res.text();
+  if (!res.ok) {
+    throw new Error(`Quebec registry HTTP ${res.status}: ${raw.slice(0, 200)}`);
+  }
+  if (!ct.includes('json') && raw.trim().startsWith('<!')) {
+    throw new Error(
+      'Quebec registry returned HTML instead of JSON (often a bot check / Cloudflare). Try again later, run sync from a different network, or use REGISTRY_SYNC_SOURCE_URL to push records.',
+    );
+  }
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    throw new Error(`Quebec registry response is not valid JSON: ${raw.slice(0, 160)}`);
+  }
+}
+
+async function quebecRegistrySearchPage(texte, pageCourante) {
+  const payload = await quebecRegistryFetchJson(QUEBEC_REGISTRY_SEARCH_PATH, {
+    critere: {
+      Domaine: REGISTRY_DOMAIN_REQ,
+      Type: REGISTRY_TYPE_MOTS,
+      Etendue: REGISTRY_ETENDUE_TOUS,
+      Texte: texte,
+      PageCourante: pageCourante,
+      UtilisateurAccepteConditionsUtilisation: true,
+    },
+  });
+  return payload.d || payload.D || {};
+}
+
+async function quebecRegistryGetDetail(neq) {
+  const payload = await quebecRegistryFetchJson(QUEBEC_REGISTRY_DETAIL_PATH, {
+    critere: {
+      Id: String(neq),
+      UtilisateurAccepteConditionsUtilisation: true,
+    },
+  });
+  return payload.d || payload.D || null;
+}
+
+function mapQuebecDetailToProspectExtras(detail) {
+  if (!detail || typeof detail !== 'object') return {};
+  const out = {};
+  try {
+    const ig = detail.SectionInformationsGenerales || {};
+    const imm = ig.SousSecImmatriculation || {};
+    const act = ig.SousSecActiviteNbrEmploye || {};
+    const emp = mapNombreEmployesToRange(act.NombreEmployes);
+    const sectors = Array.isArray(act.ListeSecteursActivite) ? act.ListeSecteursActivite : [];
+    const firstAct = sectors[0] || {};
+    const businessType = firstAct.Titre || firstAct.Description || null;
+    const dateImmat = parseQuebecRegistryDate(imm.DateImmatriculation);
+    out.business_type = businessType;
+    out.employee_range = emp;
+    if (dateImmat) out.registered_date = formatDateYmd(dateImmat);
+    const etab = detail.SectionEtablissement || {};
+    const principal = etab.SousSecEtablissementPrincipal || {};
+    const liste = Array.isArray(principal.ListeEtablissement) ? principal.ListeEtablissement : [];
+    const est = liste[0];
+    if (est && est.Adresse) {
+      out.address = String(est.Adresse).trim();
+      out.postal_code = extractPostalFromAddress(est.Adresse);
+    }
+  } catch (e) {
+    console.warn('mapQuebecDetailToProspectExtras:', e.message);
+  }
+  return out;
+}
+
+function searchRowToProspect(row, searchCity, sinceDate) {
+  const neq = String(row.NumeroDossier || '').trim();
+  if (!neq) return null;
+  const dateInit = parseQuebecRegistryDate(row.DateInitiale);
+  if (sinceDate && dateInit && dateInit < sinceDate) return null;
+  const adresse = String(row.AdressePrimaire || '').trim();
+  const postal = extractPostalFromAddress(adresse);
+  const city = inferCityFromAddress(adresse, searchCity);
+  const inCityList = city && getRegistrySearchCities().some((c) => c.toLowerCase() === String(city).toLowerCase());
+  const west = postalMatchesWestIsland(postal) || inCityList;
+  if (!west) return null;
+  const registered = dateInit ? formatDateYmd(dateInit) : (row.DateInitiale ? String(row.DateInitiale).slice(0, 10) : null);
+  const name = String(row.Nom || '').trim();
+  return {
+    id: neq,
+    business_type: name || null,
+    address: adresse || null,
+    city: city || null,
+    postal_code: postal,
+    registered_date: registered,
+    employee_range: null,
+    prospect_score: scoreFromBusinessType(name),
+  };
+}
+
+async function fetchQuebecRegistryDirectSync({ since }) {
+  const sinceDate = getDefaultRegistrySinceDate(since);
+  const cities = getRegistrySearchCities();
+  const maxPages = Math.max(1, Math.min(50, parseInt(process.env.REGISTRY_SYNC_MAX_PAGES || '8', 10) || 8));
+  const fetchDetail = String(process.env.REGISTRY_SYNC_FETCH_DETAIL || '').toLowerCase() === 'true';
+  const delayMs = Math.max(500, parseInt(process.env.REGISTRY_SYNC_DELAY_MS || '2200', 10) || 2200);
+
+  const byNeq = new Map();
+
+  for (const city of cities) {
+    let page = 0;
+    let nombrePages = 1;
+    while (page < nombrePages && page < maxPages) {
+      let data;
+      try {
+        data = await quebecRegistrySearchPage(city, page);
+      } catch (err) {
+        console.warn(`[registry sync] search "${city}" page ${page}:`, err.message);
+        break;
+      }
+      nombrePages = typeof data.NombrePages === 'number' ? data.NombrePages : parseInt(data.NombrePages, 10) || 1;
+      const liste = Array.isArray(data.ListeEntreprises) ? data.ListeEntreprises : [];
+      for (const row of liste) {
+        const prospect = searchRowToProspect(row, city, sinceDate);
+        if (!prospect) continue;
+        if (!byNeq.has(prospect.id)) {
+          byNeq.set(prospect.id, prospect);
+        }
+      }
+      page += 1;
+      if (page < nombrePages && page < maxPages) {
+        await pipelineSleep(delayMs);
+      }
+    }
+    await pipelineSleep(delayMs);
+  }
+
+  const records = Array.from(byNeq.values());
+
+  if (fetchDetail) {
+    const out = [];
+    for (const rec of records) {
+      await pipelineSleep(delayMs);
+      try {
+        const detail = await quebecRegistryGetDetail(rec.id);
+        const extras = mapQuebecDetailToProspectExtras(detail);
+        out.push({
+          ...rec,
+          ...extras,
+          business_type: extras.business_type || rec.business_type,
+          prospect_score: scoreFromBusinessType(extras.business_type || rec.business_type),
+        });
+      } catch (err) {
+        console.warn(`[registry sync] detail ${rec.id}:`, err.message);
+        out.push(rec);
+      }
+    }
+    return out;
+  }
+
+  return records;
+}
+
 function applyPipelineProspectPatch(current, patch) {
   const next = { ...current };
   const topLevelAllowed = [
@@ -3422,9 +3702,14 @@ app.post('/api/pipeline/prospects/sync', requireAuth, async (req, res) => {
       records = await pullRegistrySyncRecords({ since });
       source = 'registry-source';
     }
+    if (!records.length && String(process.env.REGISTRY_SYNC_DISABLE_QUEBEC_DIRECT || '').toLowerCase() !== 'true') {
+      records = await fetchQuebecRegistryDirectSync({ since });
+      source = 'quebec-registry-direct';
+    }
     if (!records.length) {
       return res.status(400).json({
-        error: 'No records provided. Send { records: [...] } or configure REGISTRY_SYNC_SOURCE_URL.',
+        error:
+          'No records found. Send { records: [...] }, set REGISTRY_SYNC_SOURCE_URL, or use Sync to pull from the Quebec Registre (direct).',
       });
     }
     const result = upsertPipelineProspects(records);
