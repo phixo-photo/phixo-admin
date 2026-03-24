@@ -195,6 +195,10 @@ function extractSyncRecords(payload) {
   return [];
 }
 
+function debugLog({ runId, hypothesisId, location, message, data }) {
+  fetch('http://127.0.0.1:7242/ingest/e4eb57ba-3b5c-4616-a9e8-1f8d47c6a373', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '7c3011' }, body: JSON.stringify({ sessionId: '7c3011', runId, hypothesisId, location, message, data, timestamp: Date.now() }) }).catch(() => {});
+}
+
 /** Apollo.io API (trial): REGISTRY_SYNC_USE_APOLLO=true + APOLLO_API_KEY */
 function shouldUseApolloApi() {
   return (
@@ -424,11 +428,17 @@ function mapQuebecDetailToProspectExtras(detail) {
   return out;
 }
 
-function searchRowToProspect(row, searchCity, sinceDate) {
+function searchRowToProspect(row, searchCity, sinceDate, stats) {
   const neq = String(row.NumeroDossier || '').trim();
-  if (!neq) return null;
+  if (!neq) {
+    if (stats) stats.rejectedNoNeq += 1;
+    return null;
+  }
   const dateInit = parseQuebecRegistryDate(row.DateInitiale);
-  if (sinceDate && dateInit && dateInit < sinceDate) return null;
+  if (sinceDate && dateInit && dateInit < sinceDate) {
+    if (stats) stats.rejectedSince += 1;
+    return null;
+  }
   const adresse = String(row.AdressePrimaire || '').trim();
   const postal = extractPostalFromAddress(adresse);
   const city = inferCityFromAddress(adresse, searchCity);
@@ -437,9 +447,13 @@ function searchRowToProspect(row, searchCity, sinceDate) {
   // Searches are already scoped to West Island city names; rows often lack parseable postal/city in AdressePrimaire.
   const trustCitySearch =
     String(process.env.REGISTRY_SYNC_TRUST_CITY_SEARCH || 'true').toLowerCase() !== 'false';
-  if (!west && !(trustCitySearch && searchCity)) return null;
+  if (!west && !(trustCitySearch && searchCity)) {
+    if (stats) stats.rejectedGeo += 1;
+    return null;
+  }
   const registered = dateInit ? formatDateYmd(dateInit) : (row.DateInitiale ? String(row.DateInitiale).slice(0, 10) : null);
   const name = String(row.Nom || '').trim();
+  if (stats) stats.accepted += 1;
   return {
     id: neq,
     business_type: name || null,
@@ -458,6 +472,30 @@ async function fetchQuebecRegistryDirectSync({ since }) {
   const maxPages = Math.max(1, Math.min(50, parseInt(process.env.REGISTRY_SYNC_MAX_PAGES || '8', 10) || 8));
   const fetchDetail = String(process.env.REGISTRY_SYNC_FETCH_DETAIL || '').toLowerCase() === 'true';
   const delayMs = Math.max(500, parseInt(process.env.REGISTRY_SYNC_DELAY_MS || '2200', 10) || 2200);
+  const debugStats = {
+    rowsSeen: 0,
+    accepted: 0,
+    rejectedSince: 0,
+    rejectedGeo: 0,
+    rejectedNoNeq: 0,
+  };
+
+  // #region agent log
+  debugLog({
+    runId: 'sync-debug-1',
+    hypothesisId: 'H2',
+    location: 'server.js:fetchQuebecRegistryDirectSync:start',
+    message: 'Quebec sync start config',
+    data: {
+      sinceInput: since || null,
+      sinceDate: sinceDate ? formatDateYmd(sinceDate) : null,
+      citiesCount: cities.length,
+      firstCities: cities.slice(0, 4),
+      maxPages,
+      delayMs,
+    },
+  });
+  // #endregion
 
   const byNeq = new Map();
 
@@ -474,8 +512,27 @@ async function fetchQuebecRegistryDirectSync({ since }) {
       }
       nombrePages = typeof data.NombrePages === 'number' ? data.NombrePages : parseInt(data.NombrePages, 10) || 1;
       const liste = Array.isArray(data.ListeEntreprises) ? data.ListeEntreprises : [];
+      debugStats.rowsSeen += liste.length;
+      if (page === 0) {
+        // #region agent log
+        debugLog({
+          runId: 'sync-debug-1',
+          hypothesisId: 'H3',
+          location: 'server.js:fetchQuebecRegistryDirectSync:page0',
+          message: 'Quebec search page0 response',
+          data: {
+            city,
+            nombrePages,
+            listCount: liste.length,
+            sampleKeys: liste[0] ? Object.keys(liste[0]).slice(0, 8) : [],
+            sampleDateInitiale: liste[0]?.DateInitiale || null,
+            sampleAddressLen: liste[0]?.AdressePrimaire ? String(liste[0].AdressePrimaire).length : 0,
+          },
+        });
+        // #endregion
+      }
       for (const row of liste) {
-        const prospect = searchRowToProspect(row, city, sinceDate);
+        const prospect = searchRowToProspect(row, city, sinceDate, debugStats);
         if (!prospect) continue;
         if (!byNeq.has(prospect.id)) {
           byNeq.set(prospect.id, prospect);
@@ -490,6 +547,24 @@ async function fetchQuebecRegistryDirectSync({ since }) {
   }
 
   const records = Array.from(byNeq.values());
+  // #region agent log
+  debugLog({
+    runId: 'sync-debug-1',
+    hypothesisId: 'H4',
+    location: 'server.js:fetchQuebecRegistryDirectSync:end',
+    message: 'Quebec sync filter summary',
+    data: {
+      rowsSeen: debugStats.rowsSeen,
+      accepted: debugStats.accepted,
+      rejectedSince: debugStats.rejectedSince,
+      rejectedGeo: debugStats.rejectedGeo,
+      rejectedNoNeq: debugStats.rejectedNoNeq,
+      uniqueRecords: records.length,
+      trustCitySearch: String(process.env.REGISTRY_SYNC_TRUST_CITY_SEARCH || 'true').toLowerCase() !== 'false',
+      defaultSinceDays: process.env.REGISTRY_SYNC_DEFAULT_DAYS || null,
+    },
+  });
+  // #endregion
 
   if (fetchDetail) {
     const out = [];
@@ -3721,6 +3796,23 @@ app.post('/api/pipeline/prospects/sync', requireAuth, async (req, res) => {
     const body = req.body || {};
     const recordsFromBody = extractSyncRecords(body);
     const since = body.since ? String(body.since).slice(0, 10) : undefined;
+    // #region agent log
+    debugLog({
+      runId: 'sync-debug-1',
+      hypothesisId: 'H1',
+      location: 'server.js:/api/pipeline/prospects/sync:start',
+      message: 'Pipeline sync request',
+      data: {
+        since: since || null,
+        bodyHasRecords: recordsFromBody.length > 0,
+        apolloEnabled: shouldUseApolloApi(),
+        remoteEnabled: shouldUseRegistryRemoteSource(),
+        quebecDisabled: String(process.env.REGISTRY_SYNC_DISABLE_QUEBEC_DIRECT || '').toLowerCase() === 'true',
+        defaultSinceDays: process.env.REGISTRY_SYNC_DEFAULT_DAYS || null,
+        citiesCount: getRegistrySearchCities().length,
+      },
+    });
+    // #endregion
     let records = recordsFromBody;
     let source = 'payload';
     const details = {};
@@ -3827,6 +3919,15 @@ app.post('/api/pipeline/prospects/sync', requireAuth, async (req, res) => {
     }
 
     if (!records.length) {
+      // #region agent log
+      debugLog({
+        runId: 'sync-debug-1',
+        hypothesisId: 'H5',
+        location: 'server.js:/api/pipeline/prospects/sync:no-results',
+        message: 'Pipeline sync ended with no records',
+        data: details,
+      });
+      // #endregion
       return res.status(400).json({
         error:
           'No records returned from any sync source. Expand `details` below to see what ran and what to change.',
