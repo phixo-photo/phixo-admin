@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Step 5: Ask a question → retrieve top chunks → Claude answers using that context.
+Step 5: Ask a question -> retrieve top chunks -> chat model answers using that context.
 
-You need OPENAI_API_KEY (for embeddings) and ANTHROPIC_API_KEY (for Claude).
-Get an Anthropic key at console.anthropic.com
+You need OPENAI_API_KEY (for embeddings) and a chat API key for LiteLLM/OpenAI-compatible
+chat completions.
 
 Usage:
   python scripts/ask.py "How do I use window light for a portrait?"
@@ -19,9 +19,11 @@ import re
 from concurrent.futures import ThreadPoolExecutor
 
 EMBED_MODEL = "text-embedding-3-small"
-# Use current Haiku (Claude 4.5 Haiku); see https://docs.anthropic.com/en/docs/about-claude/model-deprecations
-DEFAULT_CLAUDE_MODEL = os.environ.get("AI_MODEL", "claude-haiku-4-5-20251001")
-IMAGE_RELEVANCE_MODEL = "claude-haiku-4-5-20251001"
+DEFAULT_CHAT_MODEL = os.environ.get(
+    "PHIXO_AI_CHAT_MODEL_ALIAS",
+    os.environ.get("AI_MODEL", "slack-bot-chat"),
+)
+IMAGE_RELEVANCE_MODEL = os.environ.get("PHIXO_AI_CHAT_MODEL_ALIAS", "slack-bot-chat")
 IMAGE_RELEVANCE_PROMPT = (
     "Would a reader need the actual page picture to understand this excerpt? Answer only yes or no.\n"
     "Answer YES only for: poses, lighting setups, composition examples, gear arrangements, or diagrams "
@@ -141,25 +143,37 @@ def should_include_image_for_chunk(client, chunk_text: str) -> bool:
     text = str(chunk_text or "").strip()
     if not text:
         return False
-    message = client.messages.create(
+    response = client.chat.completions.create(
         model=IMAGE_RELEVANCE_MODEL,
-        max_tokens=5,
+        max_tokens=8,
+        temperature=0,
         messages=[{
             "role": "user",
             "content": IMAGE_RELEVANCE_PROMPT.format(chunk_text=text),
         }],
     )
-    reply = (message.content[0].text if getattr(message, "content", None) else "").strip().lower()
+    reply = ""
+    try:
+        reply = (response.choices[0].message.content or "").strip().lower()
+    except Exception:
+        reply = ""
     return reply.startswith("yes")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Ask a question and get an answer from the knowledge base via Claude.")
+    parser = argparse.ArgumentParser(
+        description="Ask a question and get an answer from the knowledge base via LiteLLM/OpenAI-compatible chat."
+    )
     parser.add_argument("query", nargs="*", help="Your question (as one quoted string)")
     parser.add_argument("--top", "-n", type=int, default=5, help="Number of chunks to pass to Claude (default: 5)")
     parser.add_argument("--collection", "-c", default="phixo_kb", help="ChromaDB collection name")
     parser.add_argument("--db-path", default="data/chromadb", help="ChromaDB path")
-    parser.add_argument("--model", "-m", default=DEFAULT_CLAUDE_MODEL, help=f"Claude model (default: {DEFAULT_CLAUDE_MODEL})")
+    parser.add_argument(
+        "--model",
+        "-m",
+        default=DEFAULT_CHAT_MODEL,
+        help=f"Chat model alias (default: {DEFAULT_CHAT_MODEL})",
+    )
     parser.add_argument("--source", default="", help="Optional source_document filter (exact title)")
     parser.add_argument("--topic", default="general", help="Optional book topic tag (e.g. Business)")
     parser.add_argument(
@@ -182,8 +196,17 @@ def main():
     if not os.environ.get("OPENAI_API_KEY"):
         print("Set OPENAI_API_KEY.", file=sys.stderr)
         sys.exit(1)
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("Set ANTHROPIC_API_KEY (get one at console.anthropic.com).", file=sys.stderr)
+    chat_api_key = (
+        os.environ.get("PHIXO_AI_CHAT_API_KEY")
+        or os.environ.get("SLACK_CHATBOT_API_KEY")
+        or os.environ.get("LITELLM_MASTER_KEY")
+        or os.environ.get("OPENAI_API_KEY")
+    )
+    if not chat_api_key:
+        print(
+            "Set PHIXO_AI_CHAT_API_KEY (or SLACK_CHATBOT_API_KEY / LITELLM_MASTER_KEY / OPENAI_API_KEY).",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
     if not os.path.isdir(args.db_path):
@@ -303,35 +326,42 @@ Question: {query}
 
 Answer directly and practically. Do not use phrases like "the excerpts", "the materials provided", "the notes state", "does not cover", "is not addressed", or similar commentary about the notes."""
 
-    print(f"Asking Claude ({args.model})...")
-    import anthropic
-
-    client = anthropic.Anthropic()
+    print(f"Asking chat model via LiteLLM ({args.model})...")
+    chat_base_url = (
+        os.environ.get("PHIXO_AI_OPENAI_BASE_URL")
+        or os.environ.get("OPENAI_BASE_URL")
+        or "http://127.0.0.1:4000/v1"
+    )
+    client = OpenAI(api_key=chat_api_key, base_url=chat_base_url)
     req_payload = {
         "model": args.model,
         "max_tokens": 1024,
+        "base_url": chat_base_url,
         "system": "[present]",
         "messages": [{"role": "user", "content_preview": user_content[:1200]}],
     }
     print("[AI REQUEST ask.py]", json.dumps(req_payload, ensure_ascii=False), file=sys.stderr)
-    message = client.messages.create(
+    response = client.chat.completions.create(
         model=args.model,
         max_tokens=1024,
+        temperature=0.8,
+        response_format={"type": "json_object"},
         system=system_prompt,
         messages=[{"role": "user", "content": user_content}],
     )
+    text_out = ""
+    try:
+        text_out = response.choices[0].message.content or ""
+    except Exception:
+        text_out = ""
     resp_summary = {
-        "id": getattr(message, "id", None),
-        "model": getattr(message, "model", args.model),
-        "usage": {
-            "input_tokens": getattr(getattr(message, "usage", None), "input_tokens", None),
-            "output_tokens": getattr(getattr(message, "usage", None), "output_tokens", None),
-        },
-        "text_preview": (message.content[0].text if message.content else "")[:800],
+        "id": getattr(response, "id", None),
+        "model": getattr(response, "model", args.model),
+        "usage": dict(getattr(response, "usage", {}) or {}),
+        "text_preview": str(text_out)[:800],
     }
     print("[AI RESPONSE ask.py]", json.dumps(resp_summary, ensure_ascii=False), file=sys.stderr)
-
-    raw = message.content[0].text
+    raw = str(text_out)
 
     # Be defensive: even with "JSON only" prompts, models sometimes wrap or prefix text.
     # Try strict JSON first, then extract the first {...} block.

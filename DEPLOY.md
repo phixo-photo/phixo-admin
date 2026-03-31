@@ -10,12 +10,11 @@ A private web app that lives at admin.phixo.ca. It reads client conversations (t
 
 ---
 
-## Step 1: Deploy to Railway
+## Step 1: Push to GitHub (source of truth)
 
-1. Go to railway.app and sign up with your GitHub account
-2. Click "New Project" → "Deploy from GitHub repo"
-3. Push these files to a new private GitHub repo first, then connect it
-   OR use Railway CLI: `npm install -g @railway/cli` then `railway login` and `railway up`
+1. Create or use your private GitHub repository for `phixo-admin`
+2. Push your branch to GitHub
+3. Use this repo as the deploy source for Cloudflare Pages (frontend)
 
 ---
 
@@ -44,17 +43,26 @@ Make sure the same environment variables listed above are set in your local shel
 
 ---
 
-## Step 2: Set environment variables in Railway
+## Step 2: Backend environment variables (self-hosted server)
 
-In your Railway project → Variables tab, add these:
+Set these on the self-hosted backend process (systemd/pm2/.env):
 
 ```
-ANTHROPIC_API_KEY=your_key_here
 GOOGLE_CLIENT_ID=your_google_client_id_here
 GOOGLE_CLIENT_SECRET=your_key_here
 GOOGLE_REDIRECT_URI=https://admin.phixo.ca/auth/callback
 SESSION_SECRET=your_key_here
 NODE_ENV=production
+DATABASE_URL=postgres://...
+OPENAI_API_KEY=your_openai_key_here
+
+# phixo-ai LiteLLM chat bridge
+PHIXO_AI_OPENAI_BASE_URL=http://<phixo-ai-host>:4000/v1
+PHIXO_AI_CHAT_API_KEY=your_litellm_or_slack_chatbot_key
+PHIXO_AI_CHAT_MODEL_ALIAS=slack-bot-chat
+# Optional route-specific aliases:
+# PHIXO_AI_LIBRARY_MODEL_ALIAS=slack-bot-chat
+# PHIXO_AI_DEEP_DIVE_MODEL_ALIAS=sysadmin-orchestrator
 ```
 
 ### Prospect pipeline (Strategy → Prospects)
@@ -111,25 +119,22 @@ REGISTRY_SYNC_SOURCE_URL=https://your-server.example.com/registry-feed.json
 
 ---
 
-## Step 3: Point your domain
+## Step 3: Cloudflare Pages (frontend) + edge routing
 
-In Railway → Settings → Domains → Add custom domain → type: admin.phixo.ca
+1. In Cloudflare Pages, connect the GitHub repo and deploy frontend
+2. Use `admin.phixo.ca` (or your chosen frontend domain) on Pages
+3. Configure Cloudflare edge routing/proxy so:
+   - frontend assets are served by Pages
+   - `/api/*` requests proxy to self-hosted backend
+   - `/auth/*` requests proxy to self-hosted backend (OAuth + session)
 
-Railway will give you a CNAME target. Then:
-1. Log into Namecheap
-2. Go to your phixo.ca domain → Advanced DNS
-3. Add a CNAME record:
-   - Host: admin
-   - Value: the Railway CNAME they gave you
-   - TTL: Automatic
-
-Wait 5-10 minutes for DNS to propagate.
+Important: keep API/auth same-origin from the browser to avoid session/CORS breakage.
 
 ---
 
 ## Step 4: First login
 
-Go to admin.phixo.ca → it'll redirect you to Google to authorize → approve it → you're in.
+Go to admin.phixo.ca → it redirects to Google auth (`/auth/login`) → approve → you're in.
 
 You only do this once. The session stays active.
 
@@ -141,6 +146,28 @@ In Google Drive, find or create a folder called "Clients".
 Right-click → Share → add the service account email (even though we're using OAuth, this ensures the app has proper access to that specific folder).
 
 Actually with OAuth you're logged in as yourself so the app accesses Drive as you — no sharing needed. Just make sure the Clients folder exists.
+
+---
+
+## Step 6: Smoke tests + rollback gates
+
+Before switching full traffic, validate:
+
+1. Auth/session flow:
+   - `GET /auth/login` redirects correctly
+   - callback returns to app and session persists
+2. Core chat endpoints:
+   - `POST /api/library/ask`
+   - `POST /api/knowledge/chat`
+   - `POST /api/knowledge/chat/deep-dive`
+3. Upload and KB paths:
+   - PDF ingest route still writes data and status endpoints respond
+
+Suggested rollback gate:
+
+- Keep old provider env values available and deploy with a quick revert path:
+  - restore previous env vars / branch if chat responses fail
+  - monitor first production window before removing fallback settings
 
 ---
 
@@ -163,7 +190,7 @@ Actually with OAuth you're logged in as yourself so the app accesses Drive as yo
 ---
 
 ## Costs
-- Railway: Free tier covers your volume (10-12 sessions/month)
-- Anthropic API: ~$0.01-0.03 per analysis. At your volume, a few dollars/month max
-- Google Drive API: Free at this scale
-- Total: essentially free
+- Cloudflare Pages: free tier for frontend hosting
+- Self-hosted server: your existing infra cost
+- Model/API costs: based on LiteLLM routed providers and usage
+- Google Drive API: free at this scale

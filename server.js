@@ -1204,6 +1204,9 @@ const oauth2Client = new google.auth.OAuth2(
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 const AI_MODEL = process.env.AI_MODEL || 'claude-haiku-4-5-20251001';
 const AI_LOG_PATH = process.env.AI_LOG_PATH || '';
+const PHIXO_AI_OPENAI_BASE_URL = (process.env.PHIXO_AI_OPENAI_BASE_URL || process.env.OPENAI_BASE_URL || 'http://127.0.0.1:4000/v1').replace(/\/+$/, '');
+const PHIXO_AI_CHAT_API_KEY = process.env.PHIXO_AI_CHAT_API_KEY || process.env.SLACK_CHATBOT_API_KEY || process.env.LITELLM_MASTER_KEY || process.env.OPENAI_API_KEY || '';
+const PHIXO_AI_CHAT_MODEL_ALIAS = process.env.PHIXO_AI_CHAT_MODEL_ALIAS || 'slack-bot-chat';
 
 function logAi(event, payload) {
   const line = `[AI ${event}] ${JSON.stringify(payload)}`;
@@ -1238,6 +1241,59 @@ async function anthropicCreate(payload, { label = 'anthropic.messages.create' } 
   const resp = await anthropic.messages.create(req);
   logAi('RESPONSE', { label, ...summarizeAnthropicResponse(resp) });
   return resp;
+}
+
+async function phixoAiChatCompletion({
+  system,
+  userContent,
+  model = PHIXO_AI_CHAT_MODEL_ALIAS,
+  maxTokens = 1500,
+  temperature = 0.8,
+  responseFormat = null,
+  label = 'phixo_ai.chat.completions'
+}) {
+  if (!PHIXO_AI_CHAT_API_KEY) {
+    throw new Error('PHIXO_AI_CHAT_API_KEY (or SLACK_CHATBOT_API_KEY/LITELLM_MASTER_KEY/OPENAI_API_KEY) must be set');
+  }
+  const body = {
+    model,
+    messages: [
+      ...(system ? [{ role: 'system', content: system }] : []),
+      { role: 'user', content: userContent },
+    ],
+    max_tokens: maxTokens,
+    temperature,
+  };
+  if (responseFormat) body.response_format = responseFormat;
+  logAi('REQUEST', {
+    label,
+    provider: 'litellm-openai-compatible',
+    base_url: PHIXO_AI_OPENAI_BASE_URL,
+    model,
+    max_tokens: maxTokens,
+    system: system ? '[present]' : '[none]',
+  });
+  const resp = await fetch(`${PHIXO_AI_OPENAI_BASE_URL}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${PHIXO_AI_CHAT_API_KEY}`,
+    },
+    body: JSON.stringify(body),
+  });
+  const json = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    logAi('ERROR', { label, status: resp.status, detail: json });
+    throw new Error(`LiteLLM chat failed (${resp.status})`);
+  }
+  const out = json?.choices?.[0]?.message?.content || '';
+  logAi('RESPONSE', {
+    label,
+    model: json?.model || model,
+    usage: json?.usage || null,
+    text_preview: String(out).slice(0, 800),
+  });
+  return { raw: json, text: String(out) };
 }
 
 // ── PHIXO STRATEGY SYSTEM PROMPT ─────────────────────────────────────────────
@@ -2901,8 +2957,8 @@ app.post('/api/knowledge/chat', requireAuth, async (req, res) => {
     if (!question || !question.trim()) {
       return res.status(400).json({ error: 'Question required' });
     }
-    if (!process.env.OPENAI_API_KEY || !process.env.ANTHROPIC_API_KEY) {
-      return res.status(500).json({ error: 'OPENAI_API_KEY and ANTHROPIC_API_KEY must be set' });
+    if (!process.env.OPENAI_API_KEY) {
+      return res.status(500).json({ error: 'OPENAI_API_KEY must be set' });
     }
 
     // Ensure DB path exists
@@ -3117,16 +3173,18 @@ Write a significantly deeper answer. Do not repeat what was already said. Build 
 
     const systemPrompt = `${deepDiveSystemAddition}\n\n${baseSystemPrompt}`.trim();
 
-    // IMPORTANT: This endpoint must use sonnet (premium) and must not rely on AI_MODEL.
-    const message = await anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
-      max_tokens: 2000,
+    // IMPORTANT: This endpoint uses the phixo-ai LiteLLM path with a premium alias/model override when configured.
+    const completion = await phixoAiChatCompletion({
+      label: 'knowledge.chat.deep_dive',
+      model: process.env.PHIXO_AI_DEEP_DIVE_MODEL_ALIAS || PHIXO_AI_CHAT_MODEL_ALIAS,
+      maxTokens: 2000,
       temperature: 1.0,
       system: systemPrompt,
-      messages: [{ role: 'user', content: userContent }],
+      userContent,
+      responseFormat: { type: 'json_object' },
     });
 
-    const rawText = (message?.content || []).find((c) => c?.type === 'text')?.text || '';
+    const rawText = completion.text || '';
 
     // Be defensive: if Claude returned JSON, extract answerText; otherwise use raw text.
     const tryExtractJson = (s) => {
@@ -5551,10 +5609,7 @@ app.post('/api/library/ask', requireAuth, async (req, res) => {
 
     const context = contextParts.join('\n\n---\n\n');
 
-    const msg = await anthropicCreate({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1500,
-      system: `You are a research assistant for Ian, a portrait photographer. You have access to Ian's full research library below.
+    const librarySystemPrompt = `You are a research assistant for Ian, a portrait photographer. You have access to Ian's full research library below.
 
 CRITICAL RULES:
 1. Only answer based on what is explicitly in the provided library content
@@ -5564,11 +5619,17 @@ CRITICAL RULES:
 5. If multiple blocks are relevant, synthesize them and cite each one
 
 LIBRARY CONTENT:
-${context}`,
-      messages: [{ role: 'user', content: question }]
+${context}`;
+    const completion = await phixoAiChatCompletion({
+      label: 'library.ask',
+      model: process.env.PHIXO_AI_LIBRARY_MODEL_ALIAS || PHIXO_AI_CHAT_MODEL_ALIAS,
+      maxTokens: 1500,
+      temperature: 0.3,
+      system: librarySystemPrompt,
+      userContent: question,
     });
 
-    const answer = msg.content[0].text;
+    const answer = completion.text || '';
 
     // Extract which block IDs were referenced
     const citedIds = blocks
@@ -5897,10 +5958,7 @@ app.post('/api/library/ask', requireAuth, async (req, res) => {
 
     const context = contextParts.join('\n\n---\n\n');
 
-    const msg = await anthropicCreate({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1500,
-      system: `You are a research assistant for Ian, a portrait photographer. You have access to Ian's full research library below.
+    const librarySystemPrompt = `You are a research assistant for Ian, a portrait photographer. You have access to Ian's full research library below.
 
 CRITICAL RULES:
 1. Only answer based on what is explicitly in the provided library content
@@ -5910,11 +5968,17 @@ CRITICAL RULES:
 5. If multiple blocks are relevant, synthesize them and cite each one
 
 LIBRARY CONTENT:
-${context}`,
-      messages: [{ role: 'user', content: question }]
+${context}`;
+    const completion = await phixoAiChatCompletion({
+      label: 'library.ask',
+      model: process.env.PHIXO_AI_LIBRARY_MODEL_ALIAS || PHIXO_AI_CHAT_MODEL_ALIAS,
+      maxTokens: 1500,
+      temperature: 0.3,
+      system: librarySystemPrompt,
+      userContent: question,
     });
 
-    const answer = msg.content[0].text;
+    const answer = completion.text || '';
 
     // Extract which block IDs were referenced
     const citedIds = blocks
