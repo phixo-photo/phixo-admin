@@ -869,7 +869,7 @@ function readIngestLogEvents() {
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '15mb' }));
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // Public static serving for extracted knowledge-base images:
 // /api/knowledge/images/<book_slug>/<filename>
@@ -1438,7 +1438,7 @@ app.get('/auth/callback', async (req, res) => {
 });
 
 app.get('/auth/logout', (req, res) => { req.session = null; res.redirect('/auth/login'); });
-app.get('/', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
+app.get('/', requireAuth, (req, res) => res.sendFile(path.join(__dirname, 'client', 'dist', 'index.html')));
 
 // Health check
 app.get('/health', async (req, res) => {
@@ -6240,6 +6240,15 @@ RULES:
     });
     res.json({ reply: response.content[0].text });
   } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// Serve built React app (v2 client) in production.
+app.use(express.static(path.join(__dirname, 'client', 'dist')));
+
+// SPA fallback for React Router routes. Keep /api and /auth on server routes.
+app.get('*', requireAuth, (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/auth')) return next();
+  res.sendFile(path.join(__dirname, 'client', 'dist', 'index.html'));
 });
 
 // ═══════════════════════════════════════════════════
