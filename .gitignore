@@ -1,0 +1,8 @@
+.env
+data/
+node_modules/
+bin/
+
+# macOS metadata (AppleDouble) — breaks git if copied into .git/objects/pack
+._*
+.DS_Store
