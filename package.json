@@ -4,7 +4,9 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "postinstall": "node scripts/install-deps.js"
+    "postinstall": "node scripts/install-deps.js",
+    "deploy": "wrangler deploy",
+    "preview": "wrangler dev"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.27.3",
@@ -17,5 +19,8 @@
     "multer": "^1.4.5-lts.1",
     "pdf-parse": "^1.1.1",
     "pg": "^8.11.3"
+  },
+  "devDependencies": {
+    "wrangler": "^4.79.0"
   }
 }
